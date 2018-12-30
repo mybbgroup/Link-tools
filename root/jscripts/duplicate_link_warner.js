@@ -72,8 +72,8 @@ var DLW = {
 					var idx = DLW.matching_posts[pid].matching_urls.indexOf(DLW.checked_urls[i]);
 					if (idx >= 0) {
 						console.debug('Removing <' + DLW.checked_urls[i] + '> from the matching_urls list ' +
-						'of the post with id ' + pid +
-						' because it appears to no longer exist in the edit pane contents.');
+						              'of the post with id ' + pid +
+						              ' because it appears to no longer exist in the edit pane contents.');
 						DLW.matching_posts[pid].matching_urls.splice(idx, 1);
 					}
 					idx = DLW.matching_posts[pid].undismissed_urls.indexOf(DLW.checked_urls[i]);

@@ -26,7 +26,7 @@ function duplicate_link_warner_info()
 		'website'       => '',
 		'author'        => 'Laird Shaw',
 		'authorsite'    => '',
-		'version'       => '0.0.4',
+		'version'       => '0.0.5.dev.code-may-change',
 		'guid'          => '',
 		'codename'      => C_DLW,
 		'compatibility' => '18*'
