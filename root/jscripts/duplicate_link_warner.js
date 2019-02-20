@@ -56,6 +56,7 @@ var DLW = {
 		var re_start = '[\\s\\(\\)\\[\\>]';
 		var supports_unicode = true;
 		var urls_matched = [];
+		text = ' ' + text;
 		var text_new = text;
 
 		re1_noflags = '(' + re_start + ')(http|https|ftp|news|irc|ircs|irc6){1}(://)([^\\/\\"\s\\<\\[\\.]+\.([^\\/\\"\\s\\<\\[\\.]+\\.)*[\\w]+(:[0-9]+)?(/([^\\"\\s<\\[]|\\[\\])*)?([\\w\\/\\)]))';
@@ -82,6 +83,8 @@ var DLW = {
 				text_new = text_new.substring(0, start) + ' '.repeat(url.length) + text_new.substring(start + url.length);
 			}
 		}
+
+		text_new = text_new.substring(1);
 
 		return [urls, text_new];
 	},
