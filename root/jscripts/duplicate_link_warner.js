@@ -452,7 +452,18 @@ var DLW = {
 						for (var j in post.undismissed_urls) {
 							var url = post.undismissed_urls[j];
 							var url_esc = DLW.htmlspecialchars(url);
-							msg += '<li style="padding: 0; margin: 0;"><a href="'+url_esc+'">'+url_esc+'</a></li>'+"\n";
+							var link = '<a href="'+url_esc+'">'+url_esc+'</a>';
+							msg += '<li style="padding: 0; margin: 0;">';
+							var idx = $.inArray(url, post.matching_urls);
+							if (idx >= 0 && post.matching_urls_in_post[idx] != url) {
+								var url2 = post.matching_urls_in_post[idx];
+								var url2_esc = DLW.htmlspecialchars(url2);
+								var link2 = '<a href="'+url2_esc+'">'+url2_esc+'</a>';
+								var tmp = dlw_msg_url1_as_url2.replace('{1}', link);
+								var tmp = tmp.replace('{2}', link2);
+								msg += tmp;
+							} else	msg += link;
+							msg += '</li>'+"\n";
 						}
 						msg += '</ul></div>'+"\n";
 						msg += '<div id="dlw-post-inner-'+pid+'" style="'+css+'">'+post['message']+'</div>'+"\n";

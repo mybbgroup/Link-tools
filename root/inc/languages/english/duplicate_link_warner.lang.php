@@ -11,6 +11,7 @@ $l['dlw_found_posts_count_undismissed'] = 'Found {1} existing {2} <em>which you 
 $l['dlw_posted_by'] = 'by';
 $l['dlw_matching_url_singular'        ] = 'Matching URL:';
 $l['dlw_matching_urls_plural'         ] = 'Matching URLs:';
+$l['dlw_msg_url1_as_url2'             ] = '{1} as {2}';
 $l['dlw_btn_toggle_msg_hide'          ] = 'Hide posts within which all matching urls occur in quotes';
 $l['dlw_btn_toggle_msg_show'          ] = 'Show posts within which all matching urls occur in quotes';
 $l['dlw_err_not_active'               ] = 'Error: The duplicate_link_warner plugin is not active.';

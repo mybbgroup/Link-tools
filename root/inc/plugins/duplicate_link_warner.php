@@ -5,13 +5,24 @@ if (!defined('IN_MYBB')) {
 	die('Direct access to this file is not allowed.');
 }
 
+# Should semantically match the equivalent variable in ../../jscripts/duplicate_link_warner.js
+const dlw_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
+const dlw_default_rebuild_items_per_page = 250;
 
+/** @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database column is posted. */
+/** @todo Implement the task to populate the term columns of the url table. */
+/** @todo We are currently (or rather, soon will be) handling HTTP redirects (via the term columns of the url table); should we also handle HTML redirects? */
 /** @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts. */
 /** @todo Limit the number of returned matching posts to a sane value and consider how to provide access to the remainder. */
 
 
-$plugins->add_hook('datahandler_post_insert_thread', 'duplicate_link_warner__hook_datahandler_post_insert_thread');
-$plugins->add_hook('newthread_start'               , 'duplicate_link_warner__hook_newthread_start'               );
+$plugins->add_hook('datahandler_post_insert_thread'         , 'dlw_hookin__datahandler_post_insert_thread'         );
+$plugins->add_hook('newthread_start'                        , 'dlw_hookin__newthread_start'                        );
+$plugins->add_hook('datahandler_post_insert_post_end'       , 'dlw_hookin__datahandler_post_insert_post_end'       );
+$plugins->add_hook('datahandler_post_insert_thread_end'     , 'dlw_hookin__datahandler_post_insert_thread_end'     );
+$plugins->add_hook('datahandler_post_update_end'            , 'dlw_hookin__datahandler_post_update_end'            );
+$plugins->add_hook('admin_tools_recount_rebuild_output_list', 'dlw_hookin__admin_tools_recount_rebuild_output_list');
+$plugins->add_hook('admin_tools_recount_rebuild'            , 'dlw_hookin__admin_tools_recount_rebuild'            );
 
 define('C_DLW', str_replace('.php', '', basename(__FILE__)));
 
@@ -33,6 +44,59 @@ function duplicate_link_warner_info()
 	);
 }
 
+function duplicate_link_warner_install() {
+	global $db;
+
+	if (!$db->table_exists('urls')) {
+		// 2083 was chosen because it is the maximum size URL
+		// that Internet Explorer will accept
+		// (other major browsers have higher limits).
+		$db->query('
+CREATE TABLE '.TABLE_PREFIX.'urls (
+  urlid         int unsigned NOT NULL auto_increment,
+  url           varchar(2083) NOT NULL,
+  url_norm      varchar(2083) NOT NULL,
+  url_term      varchar(2083) NOT NULL DEFAULT url,
+  url_term_norm varchar(2083) NOT NULL DEFAULT url_norm,
+  got_term      boolean       NOT NULL DEFAULT FALSE,
+  term_tries    tinyint unsigned NOT NULL DEFAULT 0,
+  last_term_try int unsigned  NOT NULL default 0,
+  UNIQUE        url           (url(400)),
+  KEY           url_norm      (url_norm(200)),
+  KEY           url_term_norm (url_term_norm(200)),
+  PRIMARY KEY   (urlid)
+)'.$db->build_create_table_collation().';');
+	}
+
+	if (!$db->table_exists('post_urls')) {
+		$db->query('
+CREATE TABLE '.TABLE_PREFIX.'post_urls (
+  pid         int unsigned NOT NULL,
+  urlid       int unsigned NOT NULL,
+  PRIMARY KEY (urlid, pid)
+)'.$db->build_create_table_collation().';');
+	}
+
+}
+
+function duplicate_link_warner_uninstall() {
+	global $db;
+
+	if ($db->table_exists('urls')) {
+		$db->drop_table('urls');
+	}
+
+	if ($db->table_exists('post_urls')) {
+		$db->drop_table('post_urls');
+	}
+}
+
+function duplicate_link_warner_is_installed() {
+	global $db;
+
+	return $db->table_exists('urls') && $db->table_exists('post_urls');
+}
+
 function duplicate_link_warner_activate() {
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
 	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$duplicate_link_warner_div}');
@@ -45,12 +109,17 @@ function duplicate_link_warner_deactivate() {
 	find_replace_templatesets('newthread', '({\\$duplicate_link_warner_js})' , '', 0);
 }
 
-function dlw_has_valid_scheme($url) {
-	# Should semantically match the equivalent variable in ../../jscripts/duplicate_link_warner.js
-	static $valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
+function dlw_get_scheme($url) {
+	$scheme = '';
+	if (preg_match('(^[a-z]+(?=:))', $url, $match)) {
+		$scheme = $match[0];
+	}
 
-	$res = parse_url($url);
-	return (/*!empty($res['scheme']) && */in_array($res['scheme'], $valid_schemes));
+	return $scheme;
+}
+
+function dlw_has_valid_scheme($url) {
+	return (in_array(dlw_get_scheme($url), dlw_valid_schemes));
 }
 
 # Should be kept in sync with the extract_url_from_mycode_tag() method of the DLW object in ../jscripts/duplicate_link_warner.js
@@ -197,6 +266,8 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array(), $paged_urls =
 
 	sort($urls);
 
+	$urls_norm = dlw_normalise_urls($urls);
+
 	if (!$parser) {
 		require_once MYBB_ROOT.'inc/class_parser.php';
 		$parser = new postParser;
@@ -211,11 +282,7 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array(), $paged_urls =
 		'filter_badwords' => 1
 	);
 
-	$conds = '';
-	foreach ($urls as $url) {
-		if ($conds) $conds .= ' OR ';
-		$conds .= 'message LIKE \'%'.$db->escape_string($url).'%\'';
-	}
+	$conds = "u.url_norm IN ('".implode("', '", array_map(array($db, 'escape_string'), $urls_norm))."')";
 
 	$fids = get_unviewable_forums(true);
 	if ($inact_fids = get_inactive_forums()) {
@@ -228,12 +295,19 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array(), $paged_urls =
 	$conds = '('.$conds.') and p.visible > 0';
 
 	$res = $db->query('
-SELECT          p.pid, p.uid AS uid_post, p.username AS username_post, p.dateline as dateline_post, p.message, p.subject AS subject_post, p.edittime,
+SELECT          u2.url as matching_url, u.url_norm AS queried_norm_url,
+                p.pid, p.uid AS uid_post, p.username AS username_post, p.dateline as dateline_post, p.message, p.subject AS subject_post, p.edittime,
                 t.tid, t.uid AS uid_thread, t.username AS username_thread, t.subject AS subject_thread, t.firstpost, t.dateline as dateline_thread,
                 (p.pid = t.firstpost) AS isfirstpost,
                 x.prefix,
                 f.fid, f.name as forum_name, f.parentlist
-FROM            '.$db->table_prefix.'posts p
+FROM            '.$db->table_prefix.'urls u
+LEFT OUTER JOIN '.$db->table_prefix.'urls u2
+ON              u2.url_term_norm = u.url_term_norm
+INNER JOIN      '.$db->table_prefix.'post_urls pu
+ON              u2.urlid = pu.urlid
+INNER JOIN      '.$db->table_prefix.'posts p
+ON              pu.pid = p.pid
 LEFT OUTER JOIN '.$db->table_prefix.'forums f
 ON              p.fid = f.fid
 LEFT OUTER JOIN '.$db->table_prefix.'threads t
@@ -246,27 +320,38 @@ ORDER BY        isfirstpost DESC, p.dateline DESC');
 	$all_matching_urls_in_quotes_flag = false;
 	$forum_names = array();
 	$matching_posts = array();
-	while (($post = $db->fetch_array($res))) {
-		$forum_names[$post['fid']] = $post['forum_name'];
-		$urls2 = dlw_extract_urls($post['message']);
-		sort($urls2);
-		$matching_urls = array_values(array_intersect($urls, $urls2));
-		if ($matching_urls) {
-			$post['all_urls'     ] = $urls2;
-			$post['matching_urls'] = $matching_urls;
-			$stripped = dlw_strip_nestable_mybb_tag($post['message'], 'quote');
-			$urls2_quotes_stripped = dlw_extract_urls($stripped);
-			$post['are_all_matching_urls_in_quotes'] = (array_intersect($urls, $urls2_quotes_stripped) == array());
-			if ($post['are_all_matching_urls_in_quotes']) $all_matching_urls_in_quotes_flag = true;
-			$post['message'] = $parser->parse_message($post['message'], $parse_opts);
-			$matching_posts[$post['pid']] = $post;
-			foreach (explode(',', $post['parentlist']) as $fid) {
+	while (($row = $db->fetch_array($res))) {
+		$forum_names[$row['fid']] = $row['forum_name'];
+		if (!isset($matching_posts[$row['pid']])) {
+			$matching_posts[$row['pid']] = $row;
+			unset($matching_posts[$row['pid']]['matching_url']);
+			unset($matching_posts[$row['pid']]['queried_norm_url']);
+			$matching_posts[$row['pid']]['message'] = $parser->parse_message($row['message'], $parse_opts);
+			$matching_posts[$row['pid']]['all_urls'] = dlw_extract_urls($row['message']);
+			// The raw URLs (i.e., not normalised) present in this post that were a match for
+			// the raw URLs (again, not normalised) for which we are querying, in that
+			// both terminate (i.e., after following all redirects) in the same normalised URL.
+			$matching_posts[$row['pid']]['matching_urls_in_post'] = [];
+			// The raw URLs for which we are querying that are matched in this post, in the
+			// same order as the above array (i.e., entries at the same index in both arrays
+			// both terminate in the same normalised URL).
+			$matching_posts[$row['pid']]['matching_urls'] = [];
+			$stripped = dlw_strip_nestable_mybb_tag($row['message'], 'quote');
+			$urls_quotes_stripped = dlw_extract_urls($stripped);
+			$matching_posts[$row['pid']]['are_all_matching_urls_in_quotes'] = (array_intersect($urls, $urls_quotes_stripped) == array());
+			if ($matching_posts[$row['pid']]['are_all_matching_urls_in_quotes']) {
+				$all_matching_urls_in_quotes_flag = true;
+			}
+			foreach (explode(',', $row['parentlist']) as $fid) {
 				if (empty($forum_names[$fid])) {
 					$forum_names[$fid] = null;
 				}
 			}
 		}
+		$matching_posts[$row['pid']]['matching_urls_in_post'][] = $row['matching_url'];
+		$matching_posts[$row['pid']]['matching_urls'        ][] = $urls[array_search($row['queried_norm_url'], $urls_norm)];
 	}
+
 	$db->free_result($res);
 
 	if (!$matching_posts) {
@@ -277,7 +362,7 @@ ORDER BY        isfirstpost DESC, p.dateline DESC');
 		$grade_post = function($post) {
 			return ($post['pid'] == $post['firstpost']
 			        ? ($urls == $post['matching_urls']
-			           ? ($urls == $post['all_urls']
+			           ? (count($urls) == count($post['all_urls'])
 			              ? 6
 			              : 5
 			             )
@@ -342,10 +427,224 @@ ORDER BY        isfirstpost DESC, p.dateline DESC');
 	return array($matching_posts, $forum_names, $unreturned_count);
 }
 
-function duplicate_link_warner__hook_datahandler_post_insert_thread($posthandler) {
+function dlw_hookin__datahandler_post_insert_post_end($posthandler) {
+	dlw_handle_new_post($posthandler);
+}
+
+function dlw_hookin__datahandler_post_insert_thread_end($posthandler) {
+	dlw_handle_new_post($posthandler);
+}
+
+function dlw_handle_new_post($posthandler) {
+	if ($posthandler->data['savedraft']) {
+		return;
+	}
+
+	dlw_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
+}
+
+function dlw_add_urls_of_post($message, $pid) {
+	global $db;
+
+	$urls = dlw_extract_urls($message);
+	if ($urls) {
+		for ($i = 0; $i < count($urls); $i++) {
+			for ($try = 1; $try <= 2; $try++) {
+				$res = $db->simple_select('urls', 'urlid', 'url = \''.$db->escape_string($urls[$i]).'\'');
+				if ($row = $db->fetch_array($res)) {
+					$urlid = $row['urlid'];
+				} else {
+					if (!$db->write_query('INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm) VALUES (\''.$db->escape_string($urls[$i]).'\', \''.$db->escape_string(dlw_normalise_url($urls[$i])).'\')', /* $hide_errors = */ $try < 2)) {
+						// We retry in this scenario (without raising the error) because
+						// it is theoretically possible that the URL was inserted
+						// by another process in between the select and the insert,
+						// and that the error is due to a violation of the uniqueness
+						// constraint on the `url` column.
+						continue;
+					}
+					$urlid = $db->insert_id();
+				}
+				$db->insert_query('post_urls', array(
+					'urlid' => $urlid,
+					'pid'   => $pid
+				));
+
+				break;
+			}
+		}
+	}
+
+	return $urls;
+}
+
+function dlw_normalise_urls($urls) {
+	$ret = array();
+
+	foreach ($urls as $url) {
+		$ret[] = dlw_normalise_url($url);
+	}
+
+	return $ret;
+}
+
+/** @todo Implement ignored query parameters (e.g. fbclid) during normalisation. */
+function dlw_normalise_url($url) {
+	$strip_www_prefix = false;
+
+	$scheme = dlw_get_scheme($url);
+
+	// Parse the URL with the PHP builtin function. One catch is that this function
+	// does not handle intuitively those URLs without a scheme such as the following:
+	//     example.com/somepath/file.html
+	// though it does handle intuitively the same URL prefixed with a double forward slash.
+	//
+	// For the example URL, instead of setting 'host' to 'example.com', and
+	// 'path' to '/somepath/file.html', parse_url() does not set 'host' at all, and
+	// sets 'path' to 'example.com/somepath/file.html'.
+	//
+	// To avoid this, we prefix with an http scheme in that scenario.
+	$tmp_url = $url;
+	if ($scheme == '' && strpos($url, '//') !== 0) {
+		$tmp_url = 'http://'.$tmp_url;
+	}
+	$parsed_url = parse_url($tmp_url);
+
+	switch ($scheme) {
+	case 'http':
+	case 'https':
+	case '':
+		$ret = 'http(s)://';
+		$strip_www_prefix = true;
+		$default_ports = array(80, 443);
+		break;
+	case 'ftp':
+	case 'sftp':
+		$ret = '(s)ftp://';
+		$default_ports = array(21, 22);
+		break;
+	default:
+		// Assume that $urls_parsed was generated from dlw_has_valid_scheme() and
+		// thus that the scheme has already been validated.
+		//
+		// We shouldn't reach here though - the case statements above should
+		// comprehensively cover all entries in dlw_valid_schemes.
+		$ret = $parsed_url['scheme'].'://';
+		$default_ports = array();
+		break;
+	}
+
+	$domain = $parsed_url['host'];
+	if ($strip_www_prefix) {
+		$prefix = 'www.';
+		while (strpos($domain, $prefix) === 0) {
+			$domain = substr($domain, strlen($prefix));
+		}
+	}
+
+	$ret .= $domain;
+
+	if (isset($parsed_url['port']) && !in_array($parsed_url['port'], $default_ports)) {
+		$ret .= ':'.$parsed_url['port'];
+	}
+
+	$ret .= ($parsed_url['path'] == '' ? '/' : $parsed_url['path']);
+
+	if (isset($parsed_url['query'])) {
+		$query = str_replace('&amp;', '&', $parsed_url['query']);
+		$arr = explode('&', $query);
+		sort($arr);
+		$ret .= '?'.implode('&', $arr);
+	}
+
+	return $ret; // We discard user, password, and fragment.
+}
+
+function dlw_hookin__datahandler_post_update_end($posthandler) {
+	global $db;
+
+	if (isset($posthandler->data['message'])) {
+		$db->delete_query('post_urls', "pid={$posthandler->pid}");
+		dlw_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
+	}
+}
+
+function dlw_hookin__admin_tools_recount_rebuild_output_list() {
+	global $lang, $form_container, $form;
+	$lang->load('config_duplicate_link_warner');
+
+	$form_container->output_cell("<label>{$lang->dlw_rebuild}</label><div class=\"description\">{$lang->dlw_rebuild_desc}</div>");
+	$form_container->output_cell($form->generate_numeric_field('dlw_posts_per_page', dlw_default_rebuild_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
+	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuildlinks')));
+	$form_container->construct_row();
+}
+
+function dlw_hookin__admin_tools_recount_rebuild() {
+	global $db, $mybb, $lang;
+	$lang->load('config_duplicate_link_warner');
+
+	if($mybb->request_method == "post") {
+		if (!isset($mybb->input['page']) || $mybb->get_input('page', MyBB::INPUT_INT) < 1) {
+			$mybb->input['page'] = 1;
+		}
+
+		if (isset($mybb->input['do_rebuildlinks'])) {
+			if($mybb->input['page'] == 1) {
+				// Log admin action
+				log_admin_action($lang->dlw_admin_log_rebuild);
+			}
+
+			if (!$mybb->get_input('dlw_posts_per_page', MyBB::INPUT_INT)) {
+				$mybb->input['dlw_posts_per_page'] = dlw_default_rebuild_items_per_page;
+			}
+
+			$page = $mybb->get_input('page', MyBB::INPUT_INT);
+			$per_page = $mybb->get_input('dlw_posts_per_page', MyBB::INPUT_INT);
+			if ($per_page <= 0) {
+				$per_page = dlw_default_rebuild_items_per_page;
+			}
+			$start = ($page-1) * $per_page;
+			$end = $start + $per_page;
+
+			if ($page == 1) {
+				$db->write_query('DELETE FROM '.TABLE_PREFIX.'post_urls');
+				$db->write_query('DELETE FROM '.TABLE_PREFIX.'urls');
+			}
+
+			$url_posts = array();
+
+			$res = $db->simple_select('posts', 'pid, message', '', array(
+				'order_by'    => 'pid',
+				'order_dir'   => 'ASC',
+				'limit_start' => $start,
+				'limit'       => $per_page,
+			));
+
+			$inc = $db->num_rows($res);
+			while (($post = $db->fetch_array($res))) {
+				$urls = dlw_add_urls_of_post($post['message'], $post['pid']);
+				foreach ($urls as $url) {
+					if (!isset($url_posts[$url])) {
+						$url_posts[$url] = [];
+					}
+					$url_posts[$url][] = $post['pid'];
+				}
+			}
+
+			$res = $db->simple_select('posts', 'count(*) AS num_posts');
+			$finish = $db->fetch_array($res)['num_posts'];
+
+			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
+			check_proceed($finish, $start + $inc, ++$page, $per_page, 'dlw_posts_per_page', 'do_rebuildlinks', $lang->dwl_success_rebuild);
+		}
+
+		/** @todo Now populate the terminating columns of the url table for the added entries. */
+	}
+}
+
+function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 	global $db, $mybb, $templates, $lang, $headerinclude, $header, $footer;
 
-	if ($mybb->get_input('ignore_dup_link_warn') || $mybb->get_input('savedraft')) {
+	if ($mybb->get_input('ignore_dup_link_warn') || $posthandler->data['savedraft']) {
 		return;
 	}
 
@@ -443,7 +742,7 @@ EOF;
 	exit;
 }
 
-function duplicate_link_warner__hook_newthread_start() {
+function dlw_hookin__newthread_start() {
 	global $mybb, $lang, $duplicate_link_warner_div, $duplicate_link_warner_js;
 
 	$lang->load('duplicate_link_warner');
@@ -452,9 +751,10 @@ function duplicate_link_warner__hook_newthread_start() {
 	$dlw_msg_started_by       = addslashes($lang->dlw_started_by);
 	$dlw_msg_opening_post     = addslashes($lang->dlw_opening_post);
 	$dlw_msg_non_opening_post = addslashes($lang->dlw_non_opening_post);
-	$dlw_msg_posted_by= addslashes($lang->dlw_posted_by);
-	$dlw_msg_matching_url_singular= addslashes($lang->dlw_matching_url_singular);
-	$dlw_msg_matching_urls_plural= addslashes($lang->dlw_matching_urls_plural);
+	$dlw_msg_posted_by        = addslashes($lang->dlw_posted_by);
+	$dlw_msg_matching_url_singular = addslashes($lang->dlw_matching_url_singular);
+	$dlw_msg_matching_urls_plural  = addslashes($lang->dlw_matching_urls_plural );
+	$dlw_msg_url1_as_url2          = addslashes($lang->dlw_msg_url1_as_url2     );
 	$dlw_previously_dismissed = json_encode($mybb->get_input('dlw_dismissed') ? json_decode($mybb->get_input('dlw_dismissed'), true) : array(), JSON_PRETTY_PRINT);
 
 	$duplicate_link_warner_js = <<<EOF
@@ -466,6 +766,7 @@ var dlw_msg_non_opening_post      = '{$dlw_msg_non_opening_post}';
 var dlw_msg_posted_by             = '{$dlw_msg_posted_by}';
 var dlw_msg_matching_url_singular = '{$dlw_msg_matching_url_singular}';
 var dlw_msg_matching_urls_plural  = '{$dlw_msg_matching_urls_plural}';
+var dlw_msg_url1_as_url2          = '{$dlw_msg_url1_as_url2}';
 var dlw_previously_dismissed      = {$dlw_previously_dismissed};
 </script>';
 EOF;
@@ -512,9 +813,18 @@ function dlw_get_post_output($post, $forum_names) {
 	$ret .= '<div>'.($is_first_post ? '<span style="border: 1px solid #a5161a; background-color: #fbe3e4; color: #a5161a; border-radius: 10px; -moz-border-radius: 10px; -webkit-border-radius: 10px; padding-left: 10px; padding-right: 10px;">'.$lang->dlw_opening_post.'</span>' : $lang->dlw_non_opening_post.' '.$post['plink'].' '.$lang->dlw_posted_by.' '.$post['ulink_p'].', '.$post['dtlink_p']).'</div>'."\n";
 	$ret .= '<div>'.(count($post['matching_urls']) == 1 ? $lang->dlw_matching_url_singular : $lang->dlw_matching_urls_plural)."\n";
 	$ret .= '<ul style="padding: 0 auto; margin: 0;">'."\n";
-	foreach ($post['matching_urls'] as $url) {
+	for ($i = 0; $i < count($post['matching_urls']); $i++) {
+		$url = $post['matching_urls'][$i];
 		$url_esc = htmlspecialchars_uni($url);
-		$ret .= '<li style="padding: 0; margin: 0;"><a href="'.$url_esc.'">'.$url_esc.'</a></li>'."\n";
+		$link = '<a href="'.$url_esc.'">'.$url_esc.'</a>';
+		$ret .= '<li style="padding: 0; margin: 0;">';
+		if ($post['matching_urls_in_post'][$i] != $url) {
+			$url2 = $post['matching_urls_in_post'][$i];
+			$url_esc2 = htmlspecialchars_uni($url2);
+			$link2 = '<a href="'.$url_esc2.'">'.$url_esc2.'</a>';
+			$ret .= $lang->sprintf($lang->dlw_msg_url1_as_url2, $link, $link2);
+		} else	$ret .= $link;
+		$ret .= '</li>'."\n";
 	}
 	$ret .= '</ul></div>'."\n";
 	$ret .= '<div style="border: 1px solid grey; border-radius: 10px;-moz-border-radius:10px;-webkit-border-radius:10px; padding: 10px; background-color: white;">'.$post['message'].'</div>'."\n";
