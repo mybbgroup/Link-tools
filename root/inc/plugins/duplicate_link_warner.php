@@ -13,7 +13,6 @@ const dlw_rehit_delay_in_secs = 3;
 
 /** @todo Warn upon installation/activation that the link table needs to be populated. Add a column to the posts table that indicates whether its links have been added to the url and post_urls tables. Use this table to handle the situation in which the plugin is deactivated for a period such that only some of the posts are not reflected in the url and url_post tables. */
 /** @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database column is posted. */
-/** @todo Implement the task to populate the term columns of the url table. */
 /** @todo We are currently (or rather, soon will be) handling HTTP redirects (via the term columns of the url table); should we also handle HTML redirects? */
 /** @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts. */
 /** @todo Limit the number of returned matching posts to a sane value and consider how to provide access to the remainder. */
