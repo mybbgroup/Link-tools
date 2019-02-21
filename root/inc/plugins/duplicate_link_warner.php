@@ -327,7 +327,7 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array(), $paged_urls =
 		'filter_badwords' => 1
 	);
 
-	$conds = "u.url_norm IN ('".implode("', '", array_map(array($db, 'escape_string'), $urls_norm))."')";
+	$conds = "u.url_term_norm IN ('".implode("', '", array_map(array($db, 'escape_string'), $urls_norm))."')";
 
 	$fids = get_unviewable_forums(true);
 	if ($inact_fids = get_inactive_forums()) {
