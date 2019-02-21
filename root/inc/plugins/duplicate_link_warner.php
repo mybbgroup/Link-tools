@@ -532,13 +532,17 @@ function dlw_get_norm_server_from_url($url) {
 
 /**
  * Resolves and returns the immediate redirects for each URL in $urls.
+ *
  * Uses the non-blocking functionality of cURL so that multiple URLs can be checked simultaneously,
  * but avoids hitting the same web server more than once every dlw_rehit_delay_in_secs seconds.
+ *
  * This function only makes sense for $urls with a protocol of http:// or https://.
  *
  * @param $urls Array.
  * @param $server_last_hit_times Array. The UNIX epoch timestamps at which each server was last polled,
  *                                      indexed by normalised (any 'www.' prefix removed) server name.
+ * @param $use_head_method Boolean. If true, the HEAD method is used for all requests, otherwise
+ *                                  the GET method is used.
  * @return An array with two array entries, $redirs and $deferred_urls.
  *         $redirs contains the immediate redirects of each of the URLs in $urls (which form
  *                   the keys of $redir array), if any.
@@ -550,7 +554,7 @@ function dlw_get_norm_server_from_url($url) {
  *         $deferred_urls lists any URLs that were deferred because requesting it would have polled its
  *                        server within dlw_rehit_delay_in_secs seconds of the last time it was polled.
  */
-function dlw_get_url_redirs($urls, &$server_last_hit_times = array()) {
+function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_method = true) {
 	$redirs = $deferred_urls = $curl_handles = [];
 
 	$ts_now = microtime(true);
@@ -592,11 +596,12 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array()) {
 		// appear to be buggy either in certain older versions of cURL and/or
 		// web server environments from which cURL is called.
 		list($url) = explode('#', $url, 2);
+
 		if (!curl_setopt_array($ch, array(
 			CURLOPT_URL            => $url,
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_HEADER         => true,
-			CURLOPT_NOBODY         => true,
+			CURLOPT_NOBODY         => $use_head_method,
 			CURLOPT_TIMEOUT        => 10,
 			CURLOPT_USERAGENT      => 'The MyBB Duplicate Link Warner plugin',
 		))) {
@@ -604,6 +609,7 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array()) {
 			$redirs[$url] = null;
 			continue;
 		}
+		echo ($use_head_method ? 'Using' : 'NOT using').' HEAD method for URL <'.$url.'>.';
 		if (curl_multi_add_handle($mh, $ch) !== CURLM_OK/*==0*/) {
 			$redirs[$url] = null;
 			continue;
@@ -658,6 +664,10 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array()) {
 /**
  * Resolves and returns the terminating redirect targets (i.e., after following as many
  * redirects as possible) for each URL in $urls.
+ *
+ * Tries the HEAD method first to save bandwidth but if that results in an error, then
+ * retries using the GET method.
+ *
  * This function only makes sense for $urls with a protocol of http:// or https://.
  *
  * @param $urls Array.
@@ -669,23 +679,31 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array()) {
  *            initialise a generic cURL handle.
  */
 function dlw_get_url_term_redirs($urls) {
-	$terms = $redirs = $server_last_hit_times = array();
+	$terms = $redirs = $server_last_hit_times = $to_retry = array();
 	static $min_wait_flag_value = 99999;
 
-	list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls, $server_last_hit_times);
+	$use_head_method = true;
+	list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls, $server_last_hit_times, $use_head_method);
 	if ($redirs2 === false) {
 		return false;
 	}
 
 	do {
-		$urls2 = [];
+		$urls2 = $to_retry = [];
 		$redirs = array_merge($redirs, $redirs2);
 		foreach ($redirs as $url => $target) {
 			if ($target && !isset($redirs[$target])) {
 				$urls2[] = $target;
+			} else if ($target === false && $use_head_method) {
+				$to_retry[] = $url;
 			}
 		}
 		$urls2 = array_values(array_unique(array_merge($deferred_urls, $urls2)));
+		if (!$urls2 && $to_retry) {
+			$use_head_method = false;
+			$urls2 = $to_retry;
+			$to_retry = [];
+		}
 
 		$min_wait = $min_wait_flag_value;
 		$ts_now = microtime(true);
@@ -709,10 +727,11 @@ function dlw_get_url_term_redirs($urls) {
 
 		usleep($min_wait * 1000000);
 
-		list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls2, $server_last_hit_times);
+		list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls2, $server_last_hit_times, $use_head_method);
 		if ($redirs2 === false) {
 			return false;
 		}
+		$use_head_method = true;
 	} while ($urls2 || $deferred_urls);
 
 	foreach ($urls as $url) {
