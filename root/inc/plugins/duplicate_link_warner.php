@@ -550,7 +550,7 @@ function dlw_get_norm_server_from_url($url) {
  *                 If a link-specific error occurs for a URL, e.g. web server timeout,
  *                   then that URL's entry is set to false.
  *                 If a non-link-specific error occurs, such as failure to initialise a generic cURL handle,
- *                    then that URL's entry is set to null.
+ *                   then that URL's entry is set to null.
  *         $deferred_urls lists any URLs that were deferred because requesting it would have polled its
  *                        server within dlw_rehit_delay_in_secs seconds of the last time it was polled.
  */
@@ -609,7 +609,6 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 			$redirs[$url] = null;
 			continue;
 		}
-		echo ($use_head_method ? 'Using' : 'NOT using').' HEAD method for URL <'.$url.'>.';
 		if (curl_multi_add_handle($mh, $ch) !== CURLM_OK/*==0*/) {
 			$redirs[$url] = null;
 			continue;
@@ -688,11 +687,16 @@ function dlw_get_url_term_redirs($urls) {
 		return false;
 	}
 
+	// Defensive programming: in case this loop somehow becomes infinite,
+	// terminate it based on the assumption that there would be no more than
+	// five redirects per URL on average.
+	$max_iterations = count($urls) * 5;
+	$num_iterations = 0;
 	do {
 		$urls2 = $to_retry = [];
 		$redirs = array_merge($redirs, $redirs2);
 		foreach ($redirs as $url => $target) {
-			if ($target && !isset($redirs[$target])) {
+			if ($target && $target !== -1 && !isset($redirs[$target])) {
 				$urls2[] = $target;
 			} else if ($target === false && $use_head_method) {
 				$to_retry[] = $url;
@@ -702,7 +706,6 @@ function dlw_get_url_term_redirs($urls) {
 		if (!$urls2 && $to_retry) {
 			$use_head_method = false;
 			$urls2 = $to_retry;
-			$to_retry = [];
 		}
 
 		$min_wait = $min_wait_flag_value;
@@ -731,8 +734,22 @@ function dlw_get_url_term_redirs($urls) {
 		if ($redirs2 === false) {
 			return false;
 		}
+		if ($to_retry) foreach ($redirs2 as $url => &$target) {
+			if ($target === false && in_array($url, $to_retry)) {
+				$target = -1; // Don't retry more than once (retry is only on false, not -1).
+			}
+		}
+		unset($target);
 		$use_head_method = true;
-	} while ($urls2 || $deferred_urls);
+		$num_iterations++;
+	} while (($urls2 || $deferred_urls) && $num_iterations < $max_iterations);
+
+	foreach ($redirs as $url => &$target) {
+		if ($target === -1) {
+			$target = false;
+		}
+	}
+	unset($target);
 
 	foreach ($urls as $url) {
 		$term = $url;
