@@ -7,8 +7,11 @@ if (!defined('IN_MYBB')) {
 
 # Should semantically match the equivalent variable in ../../jscripts/duplicate_link_warner.js
 const dlw_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
-const dlw_default_rebuild_items_per_page = 250;
 
+const dlw_default_rebuild_items_per_page = 250;
+const dlw_rehit_delay_in_secs = 3;
+
+/** @todo Warn upon installation/activation that the link table needs to be populated. Add a column to the posts table that indicates whether its links have been added to the url and post_urls tables. Use this table to handle the situation in which the plugin is deactivated for a period such that only some of the posts are not reflected in the url and url_post tables. */
 /** @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database column is posted. */
 /** @todo Implement the task to populate the term columns of the url table. */
 /** @todo We are currently (or rather, soon will be) handling HTTP redirects (via the term columns of the url table); should we also handle HTML redirects? */
@@ -26,10 +29,11 @@ $plugins->add_hook('admin_tools_recount_rebuild'            , 'dlw_hookin__admin
 
 define('C_DLW', str_replace('.php', '', basename(__FILE__)));
 
-function duplicate_link_warner_info()
-{
+function duplicate_link_warner_info() {
 	global $lang;
-	$lang->load('config_duplicate_link_warner');
+	if (!isset($lang->duplicate_link_warner)) {
+		$lang->load('duplicate_link_warner');
+	}
 
 	return array(
 		'name'          => $lang->dlw_name,
@@ -89,6 +93,8 @@ function duplicate_link_warner_uninstall() {
 	if ($db->table_exists('post_urls')) {
 		$db->drop_table('post_urls');
 	}
+
+	$db->delete_query('tasks', "file='duplicate_link_warner'");
 }
 
 function duplicate_link_warner_is_installed() {
@@ -98,15 +104,41 @@ function duplicate_link_warner_is_installed() {
 }
 
 function duplicate_link_warner_activate() {
+	global $db, $plugins, $cache, $lang;
+
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
 	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$duplicate_link_warner_div}');
 	find_replace_templatesets('newthread', '({\\$codebuttons})'   , '{$codebuttons}{$duplicate_link_warner_js}'    );
+
+	$task_exists = $db->simple_select('tasks', 'tid', "file='duplicate_link_warner'", array('limit' => '1'));
+	if ($db->num_rows($task_exists) == 0) {
+		require_once MYBB_ROOT . '/inc/functions_task.php';
+		$new_task = array(
+			'title' => $db->escape_string($lang->dlw_task_title),
+			'description' => $db->escape_string($lang->dlw_task_description),
+			'file' => 'duplicate_link_warner',
+			'minute'      => '0',
+			'hour'        => '0',
+			'day'         => '*',
+			'weekday'     => '*',
+			'month'       => '*',
+			'enabled'     => 1,
+			'logging'     => 1,
+		);
+		$new_task['nextrun'] = fetch_next_run($new_task);
+		$db->insert_query('tasks', $new_task);
+		$plugins->run_hooks('admin_tools_tasks_add_commit');
+		$cache->update_tasks();
+	}
 }
 
 function duplicate_link_warner_deactivate() {
+	global $db;
+
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
 	find_replace_templatesets('newthread', '({\\$duplicate_link_warner_div})', '', 0);
 	find_replace_templatesets('newthread', '({\\$duplicate_link_warner_js})' , '', 0);
+	$db->update_query('tasks', array('enabled' => 0), 'file=\'duplicate_link_warner\'');
 }
 
 function dlw_get_scheme($url) {
@@ -487,29 +519,256 @@ function dlw_normalise_urls($urls) {
 	return $ret;
 }
 
+function dlw_get_norm_server_from_url($url) {
+	$server = false;
+	$parsed_url = dlw_parse_url($url);
+	if (isset($parsed_url['host'])) {
+		// Normalise domain to non-www-prefixed.
+		$server = dlw_normalise_domain($parsed_url['host']);
+	}
+
+	return $server;
+}
+
+/**
+ * Resolves and returns the immediate redirects for each URL in $urls.
+ * Uses the non-blocking functionality of cURL so that multiple URLs can be checked simultaneously,
+ * but avoids hitting the same web server more than once every dlw_rehit_delay_in_secs seconds.
+ * This function only makes sense for $urls with a protocol of http:// or https://.
+ *
+ * @param $urls Array.
+ * @param $server_last_hit_times Array. The UNIX epoch timestamps at which each server was last polled,
+ *                                      indexed by normalised (any 'www.' prefix removed) server name.
+ * @return An array with two array entries, $redirs and $deferred_urls.
+ *         $redirs contains the immediate redirects of each of the URLs in $urls (which form
+ *                   the keys of $redir array), if any.
+ *                 If a URL does not redirect, then that URL's entry is set to itself.
+ *                 If a link-specific error occurs for a URL, e.g. web server timeout,
+ *                   then that URL's entry is set to false.
+ *                 If a non-link-specific error occurs, such as failure to initialise a generic cURL handle,
+ *                    then that URL's entry is set to null.
+ *         $deferred_urls lists any URLs that were deferred because requesting it would have polled its
+ *                        server within dlw_rehit_delay_in_secs seconds of the last time it was polled.
+ */
+function dlw_get_url_redirs($urls, &$server_last_hit_times = array()) {
+	$redirs = $deferred_urls = $curl_handles = [];
+
+	$ts_now = microtime(true);
+	$seen_servers = [];
+	$i = 0;
+	while ($i < count($urls)) {
+		$url = $urls[$i];
+		$server = dlw_get_norm_server_from_url($url);
+		if ($server) {
+			$seen_already = isset($seen_servers[$server]);
+			$seen_servers[$server] = true;
+			$server_wait = -1;
+			if (isset($server_last_hit_times[$server])) {
+				$time_since = $ts_now - $server_last_hit_times[$server];
+				$server_wait = dlw_rehit_delay_in_secs - $time_since;
+			}
+			if ($seen_already || $server_wait > 0) {
+				$deferred_urls[] = $url;
+				array_splice($urls, $i, 1);
+
+				continue;
+			}
+		}
+
+		$i++;
+	}
+
+	if (($mh = curl_multi_init()) === false) {
+		return false;
+	}
+
+	foreach ($urls as $url) {
+		if (($ch = curl_init()) === false) {
+			$redirs[$url] = null;
+			continue;
+		}
+
+		// Strip from any # in the URL onwards because URLs with fragments
+		// appear to be buggy either in certain older versions of cURL and/or
+		// web server environments from which cURL is called.
+		list($url) = explode('#', $url, 2);
+		if (!curl_setopt_array($ch, array(
+			CURLOPT_URL            => $url,
+			CURLOPT_RETURNTRANSFER => true,
+			CURLOPT_HEADER         => true,
+			CURLOPT_NOBODY         => true,
+			CURLOPT_TIMEOUT        => 10,
+			CURLOPT_USERAGENT      => 'The MyBB Duplicate Link Warner plugin',
+		))) {
+			curl_close($ch);
+			$redirs[$url] = null;
+			continue;
+		}
+		if (curl_multi_add_handle($mh, $ch) !== CURLM_OK/*==0*/) {
+			$redirs[$url] = null;
+			continue;
+		}
+		$curl_handles[$url] = $ch;
+	}
+
+	$active = null;
+	do {
+		$mrc = curl_multi_exec($mh, $active);
+	} while ($mrc == CURLM_CALL_MULTI_PERFORM);
+
+	while ($active && $mrc == CURLM_OK) {
+		if (curl_multi_select($mh) != -1) {
+			do {
+				$mrc = curl_multi_exec($mh, $active);
+			} while ($mrc == CURLM_CALL_MULTI_PERFORM);
+		}
+	}
+
+	foreach ($curl_handles as $url => $ch) {
+		if ($ch) {
+			$content = curl_multi_getcontent($ch);
+			$server_last_hit_times[dlw_get_norm_server_from_url($url)] = microtime(true);
+			if ($content
+			    &&
+			    ($header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE)) !== false
+			    &&
+			    ($response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE)) !== false
+			) {
+				$headers = substr($content, 0, $header_size);
+				$target = $url;
+				if ($response_code != 200) {
+					if (preg_match('/^Location: (.*)$/im', $headers, $matches)) {
+						$target = trim($matches[1]);
+					}
+				}
+				$redirs[$url] = $target;
+			} else {
+				$redirs[$url] = false;
+			}
+
+			curl_multi_remove_handle($mh, $ch);
+		} else	$redirs[$url] = false;
+	}
+
+	curl_multi_close($mh);
+
+	return array($redirs, $deferred_urls);
+}
+
+/**
+ * Resolves and returns the terminating redirect targets (i.e., after following as many
+ * redirects as possible) for each URL in $urls.
+ * This function only makes sense for $urls with a protocol of http:// or https://.
+ *
+ * @param $urls Array.
+ * @return An array indexed by each URL in $urls. Each entry is either:
+ *         1. The URL's terminating redirect target (which might be itself).
+ *         2. False in the case that a link-specific error occurred, e.g. web server timeout
+ *            or redirect loop.
+ *         3. Null in the case that a non-link-specific error occurred, such as failure to
+ *            initialise a generic cURL handle.
+ */
+function dlw_get_url_term_redirs($urls) {
+	$terms = $redirs = $server_last_hit_times = array();
+	static $min_wait_flag_value = 99999;
+
+	list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls, $server_last_hit_times);
+	if ($redirs2 === false) {
+		return false;
+	}
+
+	do {
+		$urls2 = [];
+		$redirs = array_merge($redirs, $redirs2);
+		foreach ($redirs as $url => $target) {
+			if ($target && !isset($redirs[$target])) {
+				$urls2[] = $target;
+			}
+		}
+		$urls2 = array_values(array_unique(array_merge($deferred_urls, $urls2)));
+
+		$min_wait = $min_wait_flag_value;
+		$ts_now = microtime(true);
+		foreach ($urls2 as $url) {
+			$server = dlw_get_norm_server_from_url($url);
+			if (!$server || !isset($server_last_hit_times[$server])) {
+				$min_wait = 0;
+				break;
+			} else {
+				$time_since = $ts_now - $server_last_hit_times[$server];
+				$server_wait = dlw_rehit_delay_in_secs - $time_since;
+				if ($server_wait < 0) {
+					$min_wait = 0;
+					break;
+				} else {
+					$min_wait = min($min_wait, $server_wait);
+				}
+			}
+		}
+		if ($min_wait == $min_wait_flag_value) $min_wait = 0;
+
+		usleep($min_wait * 1000000);
+
+		list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls2, $server_last_hit_times);
+		if ($redirs2 === false) {
+			return false;
+		}
+	} while ($urls2 || $deferred_urls);
+
+	foreach ($urls as $url) {
+		$term = $url;
+		while ($term && $term != $redirs[$term]) {
+			$term = $redirs[$term];
+			// Abort on redirect loop.
+			if ($term == $url) {
+				$term = false;
+				break;
+			}
+		}
+		$terms[$url] = $term;
+	}
+
+	return $terms;
+}
+
+/**
+ * Parses the URL with the PHP builtin function. One catch is that the builtin
+ * does not handle intuitively those "URLs" without a scheme such as the following:
+ *     example.com/somepath/file.html
+ * though it does handle intuitively the same URL prefixed with a double forward slash.
+ *
+ * For the example "URL" above, instead of setting 'host' to 'example.com', and
+ * 'path' to '/somepath/file.html', parse_url() does not set 'host' at all, and
+ * sets 'path' to 'example.com/somepath/file.html'.
+ *
+ * To avoid this, we prefix the "URL" with an http scheme in that scenario.
+ */
+function dlw_parse_url($url) {
+	$tmp_url = $url;
+	$scheme = dlw_get_scheme($url);
+	if ($scheme == '' && strpos($url, '//') !== 0) {
+		$tmp_url = 'http://'.$tmp_url;
+	}
+	return parse_url($tmp_url);
+}
+
+function dlw_normalise_domain($domain) {
+	static $prefix = 'www.';
+
+	while (strpos($domain, $prefix) === 0) {
+		$domain = substr($domain, strlen($prefix));
+	}
+
+	return $domain;
+}
+
 /** @todo Implement ignored query parameters (e.g. fbclid) during normalisation. */
 function dlw_normalise_url($url) {
 	$strip_www_prefix = false;
 
-	$scheme = dlw_get_scheme($url);
+	$parsed_url = dlw_parse_url($url);
 
-	// Parse the URL with the PHP builtin function. One catch is that this function
-	// does not handle intuitively those URLs without a scheme such as the following:
-	//     example.com/somepath/file.html
-	// though it does handle intuitively the same URL prefixed with a double forward slash.
-	//
-	// For the example URL, instead of setting 'host' to 'example.com', and
-	// 'path' to '/somepath/file.html', parse_url() does not set 'host' at all, and
-	// sets 'path' to 'example.com/somepath/file.html'.
-	//
-	// To avoid this, we prefix with an http scheme in that scenario.
-	$tmp_url = $url;
-	if ($scheme == '' && strpos($url, '//') !== 0) {
-		$tmp_url = 'http://'.$tmp_url;
-	}
-	$parsed_url = parse_url($tmp_url);
-
-	switch ($scheme) {
+	switch ($parsed_url['scheme']) {
 	case 'http':
 	case 'https':
 	case '':
@@ -535,10 +794,7 @@ function dlw_normalise_url($url) {
 
 	$domain = $parsed_url['host'];
 	if ($strip_www_prefix) {
-		$prefix = 'www.';
-		while (strpos($domain, $prefix) === 0) {
-			$domain = substr($domain, strlen($prefix));
-		}
+		$domain = dlw_normalise_domain($domain);
 	}
 
 	$ret .= $domain;
@@ -570,7 +826,9 @@ function dlw_hookin__datahandler_post_update_end($posthandler) {
 
 function dlw_hookin__admin_tools_recount_rebuild_output_list() {
 	global $lang, $form_container, $form;
-	$lang->load('config_duplicate_link_warner');
+	if (!isset($lang->duplicate_link_warner)) {
+		$lang->load('duplicate_link_warner');
+	}
 
 	$form_container->output_cell("<label>{$lang->dlw_rebuild}</label><div class=\"description\">{$lang->dlw_rebuild_desc}</div>");
 	$form_container->output_cell($form->generate_numeric_field('dlw_posts_per_page', dlw_default_rebuild_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
@@ -580,7 +838,9 @@ function dlw_hookin__admin_tools_recount_rebuild_output_list() {
 
 function dlw_hookin__admin_tools_recount_rebuild() {
 	global $db, $mybb, $lang;
-	$lang->load('config_duplicate_link_warner');
+	if (!isset($lang->duplicate_link_warner)) {
+		$lang->load('duplicate_link_warner');
+	}
 
 	if($mybb->request_method == "post") {
 		if (!isset($mybb->input['page']) || $mybb->get_input('page', MyBB::INPUT_INT) < 1) {
@@ -648,7 +908,9 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 		return;
 	}
 
-	$lang->load('duplicate_link_warner');
+	if (!isset($lang->duplicate_link_warner)) {
+		$lang->load('duplicate_link_warner');
+	}
 
 	$urls = dlw_extract_urls($posthandler->data['message']);
 	if (!$urls) {
@@ -745,7 +1007,10 @@ EOF;
 function dlw_hookin__newthread_start() {
 	global $mybb, $lang, $duplicate_link_warner_div, $duplicate_link_warner_js;
 
-	$lang->load('duplicate_link_warner');
+	if (!isset($lang->duplicate_link_warner)) {
+		$lang->load('duplicate_link_warner');
+	}
+
 	/** @todo Perhaps turn this into a template so that the style can be customised. */
 	$duplicate_link_warner_div = "\n".'<div id="dlw-msg-sidebar-div" style="margin: auto; width: 170px; margin-top: 20px;"></div>';
 	$dlw_msg_started_by       = addslashes($lang->dlw_started_by);

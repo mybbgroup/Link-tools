@@ -15,3 +15,4 @@ $l['dlw_msg_url1_as_url2'             ] = '{1} as {2}';
 $l['dlw_btn_toggle_msg_hide'          ] = 'Hide posts within which all matching urls occur in quotes';
 $l['dlw_btn_toggle_msg_show'          ] = 'Show posts within which all matching urls occur in quotes';
 $l['dlw_err_not_active'               ] = 'Error: The duplicate_link_warner plugin is not active.';
+$l['dlw_task_ran'                     ] = 'The duplicate link warner redirect resolution task successfully ran.'; // duplicated in admin/duplicate_link_warner.php
