@@ -687,6 +687,30 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 	return array($redirs, $deferred_urls);
 }
 
+function dlw_get_url_term_redirs_auto($urls) {
+	static $repl_regexes = array(
+		'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?v=([^&]+)(?:&feature=youtu\\.be)?$)'
+						=> 'https://www.youtube.com/watch\\?v=\\1',
+		'(^http(?:s)?://(?:(?:www|en)\\.)wikipedia.org/wiki/(.*)$)'
+						=> 'https://en.wikipedia.org/wiki/\\1',
+		'(^http(?:s)?://(?:(?:www|en)\\.)wikipedia.org/w/index.php\\?title=([^&]+)$)'
+						=> 'https://en.wikipedia.org/wiki/\\1',
+	);
+
+	$redirs = [];
+
+	foreach ($urls as $url) {
+		foreach ($repl_regexes as $search => $replace) {
+			if (preg_match($search, $url)) {
+				$redirs[$url] = preg_replace($search, $replace, $url);
+				$redirs[$redirs[$url]] = $redirs[$url];
+			}
+		}
+	}
+
+	return $redirs;
+}
+
 /**
  * Resolves and returns the terminating redirect targets (i.e., after following as many
  * redirects as possible) for each URL in $urls.
@@ -708,9 +732,11 @@ function dlw_get_url_term_redirs($urls) {
 	$terms = $redirs = $server_last_hit_times = $to_retry = array();
 	static $min_wait_flag_value = 99999;
 
+	$redirs = dlw_get_url_term_redirs_auto($urls);
+
 	$use_head_method = true;
-	list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls, $server_last_hit_times, $use_head_method);
-	if ($redirs2 === false) {
+	list($redirs2, $deferred_urls) = dlw_get_url_redirs(array_diff($urls, array_keys($redirs)), $server_last_hit_times, $use_head_method);
+	if ($redirs2 === false && !$redirs) {
 		return false;
 	}
 
