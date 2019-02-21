@@ -8,6 +8,20 @@ if (!defined('IN_MYBB')) {
 # Should semantically match the equivalent variable in ../../jscripts/duplicate_link_warner.js
 const dlw_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
 
+/**
+ * Supported array entry formats:
+ *
+ * 1. 'key'
+ * 2. 'key=value'
+ * 3. 'key' => 'domain'
+ * 4. 'key' => array('domain1', 'domain2', ...)
+ * 5. 'key=value' => 'domain'
+ * 6. 'key=value' => array('domain1', 'domain2', ...)
+ *
+ * 'domain' can be '*' in which case it matches all domains. This is implicit for formats #1 and #2.
+ */
+const dlw_ignored_query_params = array('fbclid' => '*', 'feature=youtu.be' => 'youtube.com');
+
 const dlw_default_rebuild_items_per_page = 250;
 const dlw_rehit_delay_in_secs = 3;
 
@@ -793,7 +807,7 @@ function dlw_get_url_term_redirs($urls) {
  * To avoid this, we prefix the "URL" with an http scheme in that scenario.
  */
 function dlw_parse_url($url) {
-	$tmp_url = $url;
+	$tmp_url = trim($url);
 	$scheme = dlw_get_scheme($url);
 	if ($scheme == '' && strpos($url, '//') !== 0) {
 		$tmp_url = 'http://'.$tmp_url;
@@ -804,6 +818,7 @@ function dlw_parse_url($url) {
 function dlw_normalise_domain($domain) {
 	static $prefix = 'www.';
 
+	$domain = trim($domain);
 	while (strpos($domain, $prefix) === 0) {
 		$domain = substr($domain, strlen($prefix));
 	}
@@ -811,7 +826,7 @@ function dlw_normalise_domain($domain) {
 	return $domain;
 }
 
-/** @todo Implement ignored query parameters (e.g. fbclid) during normalisation. */
+
 function dlw_normalise_url($url) {
 	$strip_www_prefix = false;
 
@@ -858,7 +873,39 @@ function dlw_normalise_url($url) {
 		$query = str_replace('&amp;', '&', $parsed_url['query']);
 		$arr = explode('&', $query);
 		sort($arr);
-		$ret .= '?'.implode('&', $arr);
+		foreach (dlw_ignored_query_params as $param => $domains) {
+			if (is_int($param)) {
+				$param = $domains;
+				$domains = '*';
+			}
+			if (trim($domains) !== '*') {
+				$domains = (array)$domains;
+				foreach ($domains as &$dom) {
+					$dom = dlw_normalise_domain($dom);
+				}
+				if (!in_array($domain, $domains)) {
+					continue;
+				}
+			}
+
+			$found = false;
+			if (strpos($param, '=') === false) {
+				for ($idx = 0; $idx < count($arr); $idx++) {
+					list($key) = explode('=', $arr[$idx], 2);
+					if ($key === $param) {
+						$found = true;
+						break;
+					}
+				}
+			} else if (($idx = array_search($param, $arr)) !== false) {
+				$found = true;
+			}
+			if ($found) {
+				array_splice($arr, $idx, 1);
+				continue;
+			}
+		}
+		if ($arr) $ret .= '?'.implode('&', $arr);
 	}
 
 	return $ret; // We discard user, password, and fragment.
