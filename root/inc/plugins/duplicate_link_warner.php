@@ -472,41 +472,48 @@ function dlw_handle_new_post($posthandler) {
 		return;
 	}
 
-	dlw_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
+	dlw_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
 }
 
-function dlw_add_urls_of_post($message, $pid) {
-	global $db;
-
+function dlw_get_and_add_urls_of_post($message, $pid) {
 	$urls = dlw_extract_urls($message);
+	$redirs = dlw_get_url_term_redirs($urls);
 	if ($urls) {
-		for ($i = 0; $i < count($urls); $i++) {
-			for ($try = 1; $try <= 2; $try++) {
-				$res = $db->simple_select('urls', 'urlid', 'url = \''.$db->escape_string($urls[$i]).'\'');
-				if ($row = $db->fetch_array($res)) {
-					$urlid = $row['urlid'];
-				} else {
-					if (!$db->write_query('INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm) VALUES (\''.$db->escape_string($urls[$i]).'\', \''.$db->escape_string(dlw_normalise_url($urls[$i])).'\')', /* $hide_errors = */ $try < 2)) {
-						// We retry in this scenario (without raising the error) because
-						// it is theoretically possible that the URL was inserted
-						// by another process in between the select and the insert,
-						// and that the error is due to a violation of the uniqueness
-						// constraint on the `url` column.
-						continue;
-					}
-					$urlid = $db->insert_id();
-				}
-				$db->insert_query('post_urls', array(
-					'urlid' => $urlid,
-					'pid'   => $pid
-				));
-
-				break;
-			}
-		}
+		dlw_add_urls_for_pid($urls, $redirs, $pid);
 	}
 
 	return $urls;
+}
+
+function dlw_add_urls_for_pid($urls, $redirs, $pid) {
+	global $db;
+
+	$now = time();
+	foreach ($urls as $url) {
+		$target = $redirs[$url];
+		for ($try = 1; $try <= 2; $try++) {
+			$res = $db->simple_select('urls', 'urlid', 'url = \''.$db->escape_string($url).'\'');
+			if ($row = $db->fetch_array($res)) {
+				$urlid = $row['urlid'];
+			} else {
+				if (!$db->write_query('INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try) VALUES (\''.$db->escape_string($url).'\', \''.$db->escape_string(dlw_normalise_url($url)).'\', \''.$db->escape_string($target === false ? $url : $target).'\', \''.$db->escape_string(dlw_normalise_url($target === false ? $url : $target)).'\', '.($target === false ? "0, '1', '$now'" : "'1', 0, 0").')', /* $hide_errors = */ $try < 2)) {
+					// We retry in this scenario (without raising the error) because
+					// it is theoretically possible that the URL was inserted
+					// by another process in between the select and the insert,
+					// and that the error is due to a violation of the uniqueness
+					// constraint on the `url` column.
+					continue;
+				}
+				$urlid = $db->insert_id();
+			}
+			$db->insert_query('post_urls', array(
+				'urlid' => $urlid,
+				'pid'   => $pid
+			));
+
+			break;
+		}
+	}
 }
 
 function dlw_normalise_urls($urls) {
@@ -536,7 +543,9 @@ function dlw_get_norm_server_from_url($url) {
  * Uses the non-blocking functionality of cURL so that multiple URLs can be checked simultaneously,
  * but avoids hitting the same web server more than once every dlw_rehit_delay_in_secs seconds.
  *
- * This function only makes sense for $urls with a protocol of http:// or https://.
+ * This function only makes sense for $urls with a protocol of http:// or https://. $urls missing a
+ * scheme are assumed to use the http:// protocol. For all other protocols, the $url is deemed to
+ * terminate at itself.
  *
  * @param $urls Array.
  * @param $server_last_hit_times Array. The UNIX epoch timestamps at which each server was last polled,
@@ -587,6 +596,11 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 	}
 
 	foreach ($urls as $url) {
+		if (!in_array(dlw_get_scheme($url), array('http', 'https', ''))) {
+			$redirs[$url] = $url;
+			continue;
+		}
+
 		if (($ch = curl_init()) === false) {
 			$redirs[$url] = null;
 			continue;
@@ -856,7 +870,7 @@ function dlw_hookin__datahandler_post_update_end($posthandler) {
 
 	if (isset($posthandler->data['message'])) {
 		$db->delete_query('post_urls', "pid={$posthandler->pid}");
-		dlw_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
+		dlw_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
 	}
 }
 
@@ -906,24 +920,35 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 				$db->write_query('DELETE FROM '.TABLE_PREFIX.'urls');
 			}
 
-			$url_posts = array();
-
 			$res = $db->simple_select('posts', 'pid, message', '', array(
 				'order_by'    => 'pid',
 				'order_dir'   => 'ASC',
 				'limit_start' => $start,
 				'limit'       => $per_page,
 			));
-
 			$inc = $db->num_rows($res);
+
+			$post_urls = $urls_all = [];
 			while (($post = $db->fetch_array($res))) {
-				$urls = dlw_add_urls_of_post($post['message'], $post['pid']);
-				foreach ($urls as $url) {
-					if (!isset($url_posts[$url])) {
-						$url_posts[$url] = [];
-					}
-					$url_posts[$url][] = $post['pid'];
-				}
+				$urls = dlw_extract_urls($post['message']);
+				$post_urls[$post['pid']] = $urls;
+				$urls_all = array_merge($urls_all, $urls);
+			}
+			$urls_all = array_values(array_unique($urls_all));
+			$db->free_result($res);
+
+			// Don't waste time and bandwidth trying to resolve redirects that have
+			// already been resolved and are stored in the DB.
+			$existing_redirs = [];
+			$res = $db->simple_select('urls', 'url, url_term', 'url in (\''.implode("', '", array_map(array($db, 'escape_string'), $urls)).'\')');
+			while (($row = $db->fetch_array($res))) {
+				$existing_redirs[$row['url']] = $row['url_term'];
+			}
+
+			$redirs = dlw_get_url_term_redirs(array_diff($urls_all, array_keys($existing_redirs)));
+			$redirs = array_merge($existing_redirs, $redirs);
+			foreach ($post_urls as $pid => $urls) {
+				dlw_add_urls_for_pid($urls, $redirs, $pid);
 			}
 
 			$res = $db->simple_select('posts', 'count(*) AS num_posts');
@@ -932,8 +957,6 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
 			check_proceed($finish, $start + $inc, ++$page, $per_page, 'dlw_posts_per_page', 'do_rebuildlinks', $lang->dwl_success_rebuild);
 		}
-
-		/** @todo Now populate the terminating columns of the url table for the added entries. */
 	}
 }
 
