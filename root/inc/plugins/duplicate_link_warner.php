@@ -20,17 +20,40 @@ const dlw_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
  *
  * 'domain' can be '*' in which case it matches all domains. This is implicit for formats #1 and #2.
  */
-const dlw_ignored_query_params = array('fbclid' => '*', 'feature=youtu.be' => 'youtube.com');
+const dlw_ignored_query_params = array(
+	'fbclid',
+	'feature=youtu.be',
+	'CMP',
+	'utm_medium',
+	'utm_source',
+	'akid',
+);
 
 const dlw_default_rebuild_items_per_page = 250;
 const dlw_rehit_delay_in_secs = 3;
 
-/** @todo Warn upon installation/activation that the link table needs to be populated. Add a column to the posts table that indicates whether its links have been added to the url and post_urls tables. Use this table to handle the situation in which the plugin is deactivated for a period such that only some of the posts are not reflected in the url and url_post tables. */
-/** @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database column is posted. */
-/** @todo We are currently (or rather, soon will be) handling HTTP redirects (via the term columns of the url table); should we also handle HTML redirects? */
-/** @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts. */
-/** @todo Limit the number of returned matching posts to a sane value and consider how to provide access to the remainder. */
-
+/**
+ * @todo Split the rebuild/recount function in two: the first to insert links; the second to resolve redirects.
+ *       This will be useful in solving the potential problem of time-outs while waiting, which halts the process
+ *       in the middle. It will be useful in that when the task is singular, the number of urls can't be
+ *       controlled, because there could be any number per post, whereas in a separate task the number of items
+ *       per page can refer to entries in the urls table. Getting fancy, it might be possible in the second task
+ *       to run/parse a (set of) quer(y/ies) to ensure that urls from as many different servers are processed at
+ *       a single time, so as to avoid delays due to the dlw_rehit_delay_in_secs pauses.
+ * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
+ * @todo Warn upon installation/activation that the link table needs to be populated.
+ * @todo Add a column to the posts table that indicates whether its links have been added to the url and post_urls
+ *       tables. Use this table to handle the situation in which the plugin is deactivated for a period such that
+ *       only some of the posts are not reflected in the url and url_post tables.
+ * @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database
+ *       column is posted.
+ * @todo We are currently handling HTTP redirects (via the term columns of the url table); consider whether we
+ *       should also handle (1) HTML redirects and (2) "canonical" <link> tags (which, sadly, would mean we could
+ *       no longer use the HEAD method, and thus would waste bandwidth. Perhaps it could be a setting).
+ * @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts.
+ * @todo Limit the number of returned matching posts to a sane value and consider how to provide access to the
+ *       remainder.
+ */
 
 $plugins->add_hook('datahandler_post_insert_thread'         , 'dlw_hookin__datahandler_post_insert_thread'         );
 $plugins->add_hook('newthread_start'                        , 'dlw_hookin__newthread_start'                        );
@@ -68,13 +91,17 @@ function duplicate_link_warner_install() {
 		// 2083 was chosen because it is the maximum size URL
 		// that Internet Explorer will accept
 		// (other major browsers have higher limits).
+		//
+		// utf8_bin collation was chosen for the varchar columns
+		// so that SELECTs are case-sensitive, given that everything
+		// after the server name in URLs is case-sensitive.
 		$db->query('
 CREATE TABLE '.TABLE_PREFIX.'urls (
   urlid         int unsigned NOT NULL auto_increment,
-  url           varchar(2083) NOT NULL,
-  url_norm      varchar(2083) NOT NULL,
-  url_term      varchar(2083) NOT NULL DEFAULT url,
-  url_term_norm varchar(2083) NOT NULL DEFAULT url_norm,
+  url           varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_norm      varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_term      varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT url,
+  url_term_norm varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT url_norm,
   got_term      boolean       NOT NULL DEFAULT FALSE,
   term_tries    tinyint unsigned NOT NULL DEFAULT 0,
   last_term_try int unsigned  NOT NULL default 0,
@@ -156,6 +183,7 @@ function duplicate_link_warner_deactivate() {
 
 function dlw_get_scheme($url) {
 	$scheme = '';
+	$url = trim($url);
 	if (preg_match('(^[a-z]+(?=:))', $url, $match)) {
 		$scheme = $match[0];
 	}
@@ -164,7 +192,7 @@ function dlw_get_scheme($url) {
 }
 
 function dlw_has_valid_scheme($url) {
-	return (in_array(dlw_get_scheme($url), dlw_valid_schemes));
+	return (in_array(dlw_get_scheme(trim($url)), dlw_valid_schemes));
 }
 
 # Should be kept in sync with the extract_url_from_mycode_tag() method of the DLW object in ../jscripts/duplicate_link_warner.js
@@ -180,6 +208,7 @@ function dlw_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = 
 		$text = preg_replace($re, ' ', $text);
 	}
 
+	$urls = array_map('trim', $urls);
 }
 
 # Based heavily on the corresponding code in postParser::mycode_auto_url_callback() in ../class_parser.php
@@ -233,6 +262,8 @@ function dlw_extract_bare_urls(&$text, &$urls) {
 
 	$text_new = my_substr($text, 1);
 	$text = $text_new;
+
+	$urls = array_map('trim', $urls);
 }
 
 # Should be kept in sync with the test_add_url() method of the DLW object in ../jscripts/duplicate_link_warner.js
@@ -280,7 +311,9 @@ function dlw_extract_urls($text) {
 	}
 */
 
-	return $urls;
+	$urls = array_map('trim', $urls);
+
+	return array_values(array_unique($urls));
 }
 
 // The below notes are on the intended post-implementation behaviour - but it hasn't yet
@@ -489,8 +522,18 @@ function dlw_handle_new_post($posthandler) {
 }
 
 function dlw_get_and_add_urls_of_post($message, $pid) {
+	global $db;
+
 	$urls = dlw_extract_urls($message);
-	$redirs = dlw_get_url_term_redirs($urls);
+
+	// Don't waste time and bandwidth resolving redirects for URLs already in the DB.
+	$res = $db->simple_select('urls', 'url', "url in ('".implode("', '", array_map(array($db, 'escape_string'), $urls))."')");
+	$existing_urls = [];
+	while (($row = $db->fetch_array($res))) {
+		$existing_urls[] = $row['url'];
+	}
+	$redirs = dlw_get_url_term_redirs(array_diff($urls, $existing_urls));
+
 	if ($urls) {
 		dlw_add_urls_for_pid($urls, $redirs, $pid);
 	}
@@ -519,10 +562,12 @@ function dlw_add_urls_for_pid($urls, $redirs, $pid) {
 				}
 				$urlid = $db->insert_id();
 			}
-			$db->insert_query('post_urls', array(
-				'urlid' => $urlid,
-				'pid'   => $pid
-			));
+
+			// We hide errors here because there is a race condition in which this insert could
+			// be performed by another process before the current process performs it, in which
+			// case the database will reject the insert as violating the uniqueness of the primary
+			// key (urlid, pid).
+			$db->write_query('INSERT INTO '.TABLE_PREFIX."post_urls (urlid, pid) VALUES ($urlid, $pid)", /* $hide_errors = */true);
 
 			break;
 		}
@@ -533,6 +578,7 @@ function dlw_normalise_urls($urls) {
 	$ret = array();
 
 	foreach ($urls as $url) {
+		$url = trim($url);
 		$ret[] = dlw_normalise_url($url);
 	}
 
@@ -541,9 +587,10 @@ function dlw_normalise_urls($urls) {
 
 function dlw_get_norm_server_from_url($url) {
 	$server = false;
+	$url = trim($url);
 	$parsed_url = dlw_parse_url($url);
 	if (isset($parsed_url['host'])) {
-		// Normalise domain to non-www-prefixed.
+		// Normalise domain to non-www-prefixed lowercase.
 		$server = dlw_normalise_domain($parsed_url['host']);
 	}
 
@@ -579,11 +626,14 @@ function dlw_get_norm_server_from_url($url) {
 function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_method = true) {
 	$redirs = $deferred_urls = $curl_handles = [];
 
+	if (!$urls) return [$redirs, $deferred_urls];
+
+
 	$ts_now = microtime(true);
 	$seen_servers = [];
 	$i = 0;
 	while ($i < count($urls)) {
-		$url = $urls[$i];
+		$url = trim($urls[$i]);
 		$server = dlw_get_norm_server_from_url($url);
 		if ($server) {
 			$seen_already = isset($seen_servers[$server]);
@@ -622,10 +672,10 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 		// Strip from any # in the URL onwards because URLs with fragments
 		// appear to be buggy either in certain older versions of cURL and/or
 		// web server environments from which cURL is called.
-		list($url) = explode('#', $url, 2);
+		list($url_trim_nohash) = explode('#', trim($url), 2);
 
 		if (!curl_setopt_array($ch, array(
-			CURLOPT_URL            => $url,
+			CURLOPT_URL            => $url_trim_nohash,
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_HEADER         => true,
 			CURLOPT_NOBODY         => $use_head_method,
@@ -669,8 +719,9 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 				$headers = substr($content, 0, $header_size);
 				$target = $url;
 				if ($response_code != 200) {
-					if (preg_match('/^Location: (.*)$/im', $headers, $matches)) {
+					if (preg_match('/^Location:(.+)$/im', $headers, $matches)) {
 						$target = trim($matches[1]);
+						$target = dlw_check_absolutise_relative_uri($target, $url);
 					}
 				}
 				$redirs[$url] = $target;
@@ -687,10 +738,66 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 	return array($redirs, $deferred_urls);
 }
 
+function dlw_check_canonicalise_path($path) {
+	do {
+		$new_path = str_replace('//', '/', $path);
+		$old_path = $path;
+		$path = $new_path;
+	} while ($path != $old_path);
+
+	$arr = explode('/', $path);
+	$i = 0;
+	while ($i < count($arr)) {
+		$dot     = ($arr[$i] ==  '.');
+		$dbl_dot = ($arr[$i] == '..');
+		if ($dot || $dbl_dot) {
+			array_splice($arr, $i, 1);
+			if ($dbl_dot) {
+				$i--;
+				if ($i >= 0 && !($i == 0 && $arr[0] == '')) {
+					array_splice($arr, $i, 1);
+				}
+				if ($i < 0) $i = 0;
+			}
+			continue;
+		}
+		$i++;
+	}
+
+	return implode('/', $arr);
+}
+
+function dlw_check_absolutise_relative_uri($target, $source) {
+	if (dlw_get_scheme($target) == '' && substr($target, 0, 2) != '//') {
+		// The target is a relative URI without a protocol and domain.
+		// Add in the protocol and domain.
+		$parsed_src = dlw_parse_url($source);
+		$prepend = '';
+		if (!empty($parsed_src['scheme'])) {
+			$prepend .=  $parsed_src['scheme'].'://';
+		}
+		$prepend .= $parsed_src['host'];
+
+		// Now check whether or not it is root-based.
+		// If not, start the target's path in the same
+		// directory as the source.
+		if ($target[0] != '/') {
+			$dir = $parsed_src['path'];
+			if ($dir[-1] != '/') $dir = dirname($dir);
+			$prepend .= $dir;
+			if ($dir != '/') $prepend .= '/';
+		}
+
+		$target = $prepend.$target;
+	}
+
+	return $target;
+}
+
 function dlw_get_url_term_redirs_auto($urls) {
 	static $repl_regexes = array(
 		'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?v=([^&]+)(?:&feature=youtu\\.be)?$)'
-						=> 'https://www.youtube.com/watch\\?v=\\1',
+						=> 'https://www.youtube.com/watch?v=\\1',
 		'(^http(?:s)?://(?:(?:www|en)\\.)wikipedia.org/wiki/(.*)$)'
 						=> 'https://en.wikipedia.org/wiki/\\1',
 		'(^http(?:s)?://(?:(?:www|en)\\.)wikipedia.org/w/index.php\\?title=([^&]+)$)'
@@ -700,10 +807,12 @@ function dlw_get_url_term_redirs_auto($urls) {
 	$redirs = [];
 
 	foreach ($urls as $url) {
+		$url = trim($url);
 		foreach ($repl_regexes as $search => $replace) {
 			if (preg_match($search, $url)) {
 				$redirs[$url] = preg_replace($search, $replace, $url);
 				$redirs[$redirs[$url]] = $redirs[$url];
+				break;
 			}
 		}
 	}
@@ -732,6 +841,8 @@ function dlw_get_url_term_redirs($urls) {
 	$terms = $redirs = $server_last_hit_times = $to_retry = array();
 	static $min_wait_flag_value = 99999;
 
+	if (!$urls) return $terms;
+
 	$redirs = dlw_get_url_term_redirs_auto($urls);
 
 	$use_head_method = true;
@@ -740,6 +851,8 @@ function dlw_get_url_term_redirs($urls) {
 		return false;
 	}
 
+	$redirs = array_merge($redirs, $redirs2);
+
 	// Defensive programming: in case this loop somehow becomes infinite,
 	// terminate it based on the assumption that there would be no more than
 	// five redirects per URL on average.
@@ -747,7 +860,6 @@ function dlw_get_url_term_redirs($urls) {
 	$num_iterations = 0;
 	do {
 		$urls2 = $to_retry = [];
-		$redirs = array_merge($redirs, $redirs2);
 		foreach ($redirs as $url => $target) {
 			if ($target && $target !== -1 && !isset($redirs[$target])) {
 				$urls2[] = $target;
@@ -793,6 +905,9 @@ function dlw_get_url_term_redirs($urls) {
 			}
 		}
 		unset($target);
+
+		$redirs = array_merge($redirs, $redirs2);
+
 		$use_head_method = true;
 		$num_iterations++;
 	} while (($urls2 || $deferred_urls) && $num_iterations < $max_iterations);
@@ -806,7 +921,7 @@ function dlw_get_url_term_redirs($urls) {
 
 	foreach ($urls as $url) {
 		$term = $url;
-		while ($term && $term != $redirs[$term]) {
+		while ($term && $redirs[$term] && $term != $redirs[$term]) {
 			$term = $redirs[$term];
 			// Abort on redirect loop.
 			if ($term == $url) {
@@ -822,29 +937,36 @@ function dlw_get_url_term_redirs($urls) {
 
 /**
  * Parses the URL with the PHP builtin function. One catch is that the builtin
- * does not handle intuitively those "URLs" without a scheme such as the following:
- *     example.com/somepath/file.html
+ * does not handle intuitively those "URLs" without a scheme such as the following,
+ * which MyBB core's auto-linker detects:
+ *     www.example.com/somepath/file.html
  * though it does handle intuitively the same URL prefixed with a double forward slash.
  *
- * For the example "URL" above, instead of setting 'host' to 'example.com', and
+ * For the example "URL" above, instead of setting 'host' to 'www.example.com', and
  * 'path' to '/somepath/file.html', parse_url() does not set 'host' at all, and
  * sets 'path' to 'example.com/somepath/file.html'.
  *
- * To avoid this, we prefix the "URL" with an http scheme in that scenario.
+ * To avoid this, we prefix the "URL" with an http scheme in that scenario, and then
+ * strip it back out of the parsed result.
  */
 function dlw_parse_url($url) {
 	$tmp_url = trim($url);
 	$scheme = dlw_get_scheme($url);
-	if ($scheme == '' && strpos($url, '//') !== 0) {
+	$scheme_is_missing = ($scheme == '' && substr($url, 0, 2) != '//');
+	if ($scheme_is_missing) {
 		$tmp_url = 'http://'.$tmp_url;
 	}
-	return parse_url($tmp_url);
+	$parsed_url = parse_url($tmp_url);
+	if ($scheme_is_missing) {
+		$parsed_url['scheme'] = '';
+	}
+	return $parsed_url;
 }
 
 function dlw_normalise_domain($domain) {
 	static $prefix = 'www.';
 
-	$domain = trim($domain);
+	$domain = strtolower(trim($domain));
 	while (strpos($domain, $prefix) === 0) {
 		$domain = substr($domain, strlen($prefix));
 	}
@@ -856,7 +978,10 @@ function dlw_normalise_domain($domain) {
 function dlw_normalise_url($url) {
 	$strip_www_prefix = false;
 
+	$url = trim($url);
+
 	$parsed_url = dlw_parse_url($url);
+	$parsed_url['scheme'] = strtolower($parsed_url['scheme']);
 
 	switch ($parsed_url['scheme']) {
 	case 'http':
@@ -882,7 +1007,7 @@ function dlw_normalise_url($url) {
 		break;
 	}
 
-	$domain = $parsed_url['host'];
+	$domain = strtolower($parsed_url['host']);
 	if ($strip_www_prefix) {
 		$domain = dlw_normalise_domain($domain);
 	}
@@ -893,7 +1018,7 @@ function dlw_normalise_url($url) {
 		$ret .= ':'.$parsed_url['port'];
 	}
 
-	$ret .= ($parsed_url['path'] == '' ? '/' : $parsed_url['path']);
+	$ret .= ($parsed_url['path'] == '' ? '/' : dlw_check_canonicalise_path($parsed_url['path']));
 
 	if (isset($parsed_url['query'])) {
 		$query = str_replace('&amp;', '&', $parsed_url['query']);
