@@ -1,3 +1,10 @@
+/**
+ * @todo Remove functionality related to the all_urls arrays because now that
+ * the server-side code of this plugin has been updated to use database tables,
+ * this functionality fails in certain cases, i.e., its entries cannot be relied
+ * upon for matching because they are not in normalised-terminating form (and nor
+ * are the URLs in the draft against which they are compared).
+ */
 var DLW = {
 	// Should semantically match the equivalent variable in ../inc/plugins/duplicate_link_warner.php
 	valid_schemes: ['http', 'https', 'ftp', 'sftp', ''],
@@ -190,6 +197,13 @@ var DLW = {
 		var readded_undismissed = false;
 		for (var i = 0; i < old_urls.length; i++) {
 			for (var pid in DLW.matching_posts) {
+				/** @todo Consider whether to fix the problem that this match can fail when
+				 * the protocol/domain of the URL in old_url[i] is capitalised differently than
+				 * in the matching post - it's quite a minor problem and the match will be caught
+				 * anyway (if it is undismissed) when trying to post the thread, so it might be OK
+				 * to leave it as-is. Otherwise we could implement normalisation of protocols+domains
+				 * on this client side when comparing URLs.
+				 */
 				if ($.inArray(old_urls[i], DLW.matching_posts[pid].all_urls) >= 0) {
 					if ($.inArray(old_urls[i], DLW.matching_posts[pid].matching_urls) <= -1) {
 						console.debug('Adding <'+old_urls[i]+'> back onto the matching_urls list of the post with id ' +
@@ -286,6 +300,7 @@ var DLW = {
 								}
 								DLW.matching_posts[pid].all_urls = data.matching_posts[pid_in].all_urls.slice();
 								DLW.matching_posts[pid].matching_urls = DLW.matching_posts[pid].matching_urls.concat(data.matching_posts[pid_in].matching_urls);
+								DLW.matching_posts[pid].matching_urls_in_post = DLW.matching_posts[pid].matching_urls_in_post.concat(data.matching_posts[pid_in].matching_urls_in_post);
 							}
 
 							// If necessary, add any URLs to the post's undismissed_urls and matching_urls lists.
@@ -316,6 +331,7 @@ var DLW = {
 									}
 									if ($.inArray(url, DLW.matching_posts[pid].matching_urls) <= -1) {
 										DLW.matching_posts[pid].matching_urls.push(url);
+										DLW.matching_posts[pid].matching_urls_in_post.push(url);
 										console.debug('Adding <' + url + '> to the matching_urls list for the post with pid ' + pid);
 									}
 								}
