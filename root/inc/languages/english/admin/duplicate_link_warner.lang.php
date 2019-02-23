@@ -7,5 +7,5 @@ $l['dlw_rebuild_desc'     ] = 'When this is run, the database tables that store 
 $l['dlw_admin_log_rebuild'] = 'Repopulating the links tables for the duplicate links warner.';
 $l['dwl_success_rebuild'  ] = 'Successfully repopulated the links tables for the duplicate links warner.';
 $l['dlw_task_title'       ] = 'Duplicate Link Warner Redirect Resolution';
-$l['dlw_task_description' ] = 'Resolves and stores the ultimate redirect target of links in posts for those posts for which this hasn\'t yet been done (this process is deferred to this task when a new post is posted or an existing post is edited).';
+$l['dlw_task_description' ] = 'Resolves and stores the ultimate redirect target of links in posts. This task is necessary because even though redirects are checked when the link is first auto-extracted and stored after being edited into a new or existing post, there can sometimes be network errors or down sites which prevent proper resolution of any redirect(s) at the time.';
 $l['dlw_task_ran'         ] = 'The duplicate link warner redirect resolution task successfully ran.'; // duplicated in ../duplicate_link_warner.php
