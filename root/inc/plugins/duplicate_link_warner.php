@@ -60,6 +60,9 @@ $plugins->add_hook('newthread_start'                        , 'dlw_hookin__newth
 $plugins->add_hook('datahandler_post_insert_post_end'       , 'dlw_hookin__datahandler_post_insert_post_end'       );
 $plugins->add_hook('datahandler_post_insert_thread_end'     , 'dlw_hookin__datahandler_post_insert_thread_end'     );
 $plugins->add_hook('datahandler_post_update_end'            , 'dlw_hookin__datahandler_post_update_end'            );
+$plugins->add_hook('class_moderation_delete_post'           , 'dlw_hookin__class_moderation_delete_post'           );
+$plugins->add_hook('class_moderation_delete_thread_start'   , 'dlw_hookin__common__class_moderation_delete_thread' );
+$plugins->add_hook('class_moderation_delete_thread'         , 'dlw_hookin__common__class_moderation_delete_thread' );
 $plugins->add_hook('admin_tools_recount_rebuild_output_list', 'dlw_hookin__admin_tools_recount_rebuild_output_list');
 $plugins->add_hook('admin_tools_recount_rebuild'            , 'dlw_hookin__admin_tools_recount_rebuild'            );
 
@@ -527,7 +530,14 @@ function dlw_handle_new_post($posthandler) {
 		return;
 	}
 
-	dlw_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
+	// Ensure that if the user cancels while the page is loading, the parsing
+	// out of, and especially the resolution of redirects of, and then the
+	// storage into the database of, URLs continues to run - the redirect
+	// resolution in particular might take some time.
+	add_shutdown('dlw_get_and_add_urls_of_post', array(
+		$posthandler->data['message'],
+		$posthandler->pid
+	));
 }
 
 function dlw_get_and_add_urls_of_post($message, $pid) {
@@ -1071,12 +1081,70 @@ function dlw_normalise_url($url) {
 	return $ret; // We discard user, password, and fragment.
 }
 
+/**
+ * This hook-in is called once before the thread is deleted (when the posts are
+ * still present in the database) and once afterwards (when they've been deleted).
+ * We store the to-be-deleted posts' pids on the first call, and then use them on
+ * the second to delete associated entries in the post_urls and urls tables - we
+ * do it this way so that we can be sure that the posts are actually deleted
+ * before we delete their associated database entries managed by this plugin,
+ * and we can't get their pids any other way on the second call because all we
+ * have is a tid whose posts entries have all been deleted.
+ */
+function dlw_hookin__common__class_moderation_delete_thread($tid) {
+	static $tid_stored = null;
+	static $pids_stored = null;
+	global $db;
+
+	if ($tid_stored === null) {
+		$tid_stored = $tid;
+		$query = $db->simple_select('posts', 'pid', "tid='$tid'");
+		$pids_stored = array();
+		while ($post = $db->fetch_array($query)) {
+			$pids_stored[] = $post['pid'];
+		}
+	} else if ($pids_stored) {
+		$pids = implode(',', $pids_stored);
+		$db->delete_query('post_urls', "pid IN ($pids)");
+		dlw_clean_up_dangling_urls();
+
+		$tid_stored = $pids_stored = null;
+	}
+}
+
+function dlw_hookin__class_moderation_delete_post($pid) {
+	global $db;
+
+	$db->delete_query('post_urls', "pid=$pid");
+	dlw_clean_up_dangling_urls();
+}
+
+function dlw_clean_up_dangling_urls() {
+	global $db;
+
+	$db->write_query('
+DELETE FROM mybb_urls
+WHERE urlid in (
+  SELECT urlid FROM mybb_urls u WHERE 0 = (
+    SELECT count(*) FROM mybb_post_urls pu where pu.urlid = u.urlid
+  )
+)');
+}
+
 function dlw_hookin__datahandler_post_update_end($posthandler) {
 	global $db;
 
 	if (isset($posthandler->data['message'])) {
 		$db->delete_query('post_urls', "pid={$posthandler->pid}");
-		dlw_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
+		dlw_clean_up_dangling_urls();
+		// Ensure that if the user cancels while the page is loading, the parsing
+		// out of, and especially the resolution of redirects of, and then the
+		// storage into the database of, URLs continues to run - the redirect
+		// resolution in particular might take some time.
+		add_shutdown('dlw_get_and_add_urls_of_post', array(
+			$posthandler->data['message'],
+			$posthandler->pid
+		));
 	}
 }
 
