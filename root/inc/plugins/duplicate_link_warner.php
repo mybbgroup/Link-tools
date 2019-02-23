@@ -235,7 +235,16 @@ function dlw_strip_unmatched_closing_parens($url) {
 }
 
 # Based on the code in postParser::mycode_auto_url_callback() in ../class_parser.php,
-# with regexes from    postParser::mycode_auto_url().
+# with the second and fourth regexes from MyBB core's postParser::mycode_auto_url(),
+# and the first and third adapted independently to support bare URLs within MyCode
+# tags such as (where the "=option" is optional):
+#     [tag=option]http://www.example.com/dir/file.html?key1=val1&keys2[0]=val2.1&keys2[1]=val2.2[/tag]
+# (the first regex)... as well as without the 'http://' (the third regex).
+#
+# The independently adapted regexes are necessary over core regexes because in
+# the core, mycode_auto_url() is called only *after* all MyCodes have been parsed
+# into HTML tags, so the core code can rely on there being no meaningful square
+# brackets left. We can't.
 #
 # Should be kept in sync with the extract_bare_urls() method of the DLW object in ../jscripts/duplicate_link_warner.js
 function dlw_extract_bare_urls(&$text, &$urls) {
@@ -243,11 +252,11 @@ function dlw_extract_bare_urls(&$text, &$urls) {
 	$text = ' '.$text;
 	$text_new = $text;
 
-	static $re_start = '[\s\(\)\[\>]';
-
 	foreach (array(
-		"#($re_start)(http|https|ftp|news|irc|ircs|irc6){1}(://)([^\/\"\s\<\[\.]+\.([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?([\w\/\)]))#ius",
-		"#($re_start)(www|ftp)(\.)(([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?([\w\/\)]))#ius"
+		"#\[([^\]]+)(?:=[^\]]+)?\](http|https|ftp|news|irc|ircs|irc6){1}(://)([^\/\"\s\<\[\.]+\.([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?)\[/\\1\]#ius",
+		"#([\s\(\)\[\>])(http|https|ftp|news|irc|ircs|irc6){1}(://)([^\/\"\s\<\[\.]+\.([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?([\w\/\)]))#ius",
+		"#\[([^\]]+)(?:=[^\]]+)?\](www|ftp)(\.)(([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?)\[/\\1\]#ius",
+		"#([\s\(\)\[\>])(www|ftp)(\.)(([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?([\w\/\)]))#ius"
 	) as $re) {
 		if (preg_match_all($re, $text, $matches, PREG_SET_ORDER|PREG_OFFSET_CAPTURE)) {
 			foreach ($matches as $match) {
