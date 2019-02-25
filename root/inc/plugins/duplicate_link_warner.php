@@ -940,13 +940,15 @@ function dlw_get_url_term_redirs($urls) {
 
 	foreach ($urls as $url) {
 		$term = $url;
+		$seen = [$term => true];
 		while ($term && $redirs[$term] && $term != $redirs[$term]) {
 			$term = $redirs[$term];
 			// Abort on redirect loop.
-			if ($term == $url) {
+			if (isset($seen[$term])) {
 				$term = false;
 				break;
 			}
+			$seen[$term] = true;
 		}
 		$terms[$url] = $term;
 	}
