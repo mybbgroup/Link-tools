@@ -27,24 +27,28 @@ const dlw_ignored_query_params = array(
 	'utm_medium',
 	'utm_source',
 	'akid',
+	'email_work_card',
 );
 
-const dlw_default_rebuild_items_per_page = 250;
+const dlw_default_rebuild_links_items_per_page = 250;
+const dlw_default_rebuild_term_items_per_page = 150;
+
 const dlw_rehit_delay_in_secs = 3;
 
+const dlw_term_tries_secs = array(
+	0,             // First attempt has no limits.
+	15*60,         // 15 minutes
+	60*60,         // 1 hour
+	24*60*60,      // 1 day
+	7*24*60*60,    // 1 week
+	28*7*24*60*60, // 4 weeks
+);
+
 /**
- * @todo Split the rebuild/recount function in two: the first to insert links; the second to resolve redirects.
- *       This will be useful in solving the potential problem of time-outs while waiting, which halts the process
- *       in the middle. It will be useful in that when the task is singular, the number of urls can't be
- *       controlled, because there could be any number per post, whereas in a separate task the number of items
- *       per page can refer to entries in the urls table. Getting fancy, it might be possible in the second task
- *       to run/parse a (set of) quer(y/ies) to ensure that urls from as many different servers are processed at
- *       a single time, so as to avoid delays due to the dlw_rehit_delay_in_secs pauses.
+ * @todo Consider whether we should be checking robots.txt.
+ * @todo Provide for renormalisation of database URLs in the event that dlw_ignored_query_params is changed.
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
  * @todo Warn upon installation/activation that the link table needs to be populated.
- * @todo Add a column to the posts table that indicates whether its links have been added to the url and post_urls
- *       tables. Use this table to handle the situation in which the plugin is deactivated for a period such that
- *       only some of the posts are not reflected in the url and url_post tables.
  * @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database
  *       column is posted.
  * @todo We are currently handling HTTP redirects (via the term columns of the url table); consider whether we
@@ -59,6 +63,7 @@ $plugins->add_hook('datahandler_post_insert_thread'         , 'dlw_hookin__datah
 $plugins->add_hook('newthread_start'                        , 'dlw_hookin__newthread_start'                        );
 $plugins->add_hook('datahandler_post_insert_post_end'       , 'dlw_hookin__datahandler_post_insert_post_end'       );
 $plugins->add_hook('datahandler_post_insert_thread_end'     , 'dlw_hookin__datahandler_post_insert_thread_end'     );
+$plugins->add_hook('datahandler_post_update'                , 'dlw_hookin__datahandler_post_update'                );
 $plugins->add_hook('datahandler_post_update_end'            , 'dlw_hookin__datahandler_post_update_end'            );
 $plugins->add_hook('class_moderation_delete_post'           , 'dlw_hookin__class_moderation_delete_post'           );
 $plugins->add_hook('class_moderation_delete_thread_start'   , 'dlw_hookin__common__class_moderation_delete_thread' );
@@ -124,6 +129,9 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 )'.$db->build_create_table_collation().';');
 	}
 
+	if (!$db->field_exists('dlw_got_urls', 'posts')) {
+		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD dlw_got_urls boolean NOT NULL default FALSE");
+	}
 }
 
 function duplicate_link_warner_uninstall() {
@@ -135,6 +143,10 @@ function duplicate_link_warner_uninstall() {
 
 	if ($db->table_exists('post_urls')) {
 		$db->drop_table('post_urls');
+	}
+
+	if ($db->field_exists('dlw_got_urls', 'posts')) {
+		$db->query("ALTER TABLE ".TABLE_PREFIX."posts DROP COLUMN dlw_got_urls");
 	}
 
 	$db->delete_query('tasks', "file='duplicate_link_warner'");
@@ -591,6 +603,8 @@ function dlw_add_urls_for_pid($urls, $redirs, $pid) {
 			break;
 		}
 	}
+
+	$db->update_query('posts', array('dlw_got_urls' => 1), "pid=$pid");
 }
 
 function dlw_normalise_urls($urls) {
@@ -646,7 +660,6 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 	$redirs = $deferred_urls = $curl_handles = [];
 
 	if (!$urls) return [$redirs, $deferred_urls];
-
 
 	$ts_now = microtime(true);
 	$seen_servers = [];
@@ -725,10 +738,11 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 		}
 	}
 
+	$ts_now2 = microtime(true);
 	foreach ($curl_handles as $url => $ch) {
 		if ($ch) {
 			$content = curl_multi_getcontent($ch);
-			$server_last_hit_times[dlw_get_norm_server_from_url($url)] = microtime(true);
+			$server_last_hit_times[dlw_get_norm_server_from_url($url)] = $ts_now2;
 			if ($content
 			    &&
 			    ($header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE)) !== false
@@ -857,10 +871,22 @@ function dlw_get_url_term_redirs_auto($urls) {
  *            initialise a generic cURL handle.
  */
 function dlw_get_url_term_redirs($urls) {
-	$terms = $redirs = $server_last_hit_times = $to_retry = array();
+	$terms = $redirs = $server_urls = $server_last_hit_times = $to_retry = array();
 	static $min_wait_flag_value = 99999;
 
 	if (!$urls) return $terms;
+
+	foreach ($urls as $url) {
+		$norm_server = dlw_get_norm_server_from_url($url);
+		if (!isset($server_urls[$norm_server])) {
+			$server_urls[$norm_server] = 0;
+		}
+		$server_urls[$norm_server]++;
+	}
+	$max_urls_for_a_server = 1;
+	foreach ($server_urls as $cnt) {
+		$max_urls_for_a_server = max($max_urls_for_a_server, $cnt);
+	}
 
 	$redirs = dlw_get_url_term_redirs_auto($urls);
 
@@ -873,9 +899,9 @@ function dlw_get_url_term_redirs($urls) {
 	$redirs = array_merge($redirs, $redirs2);
 
 	// Defensive programming: in case this loop somehow becomes infinite,
-	// terminate it based on the assumption that there would be no more than
-	// five redirects per URL on average.
-	$max_iterations = count($urls) * 5;
+	// terminate it based on the rough heuristic that there would be no more
+	// than 15 iterations (redirects) on average for each URL.
+	$max_iterations = $max_urls_for_a_server * 15;
 	$num_iterations = 0;
 	do {
 		$urls2 = $to_retry = [];
@@ -930,7 +956,6 @@ function dlw_get_url_term_redirs($urls) {
 		$use_head_method = true;
 		$num_iterations++;
 	} while (($urls2 || $deferred_urls) && $num_iterations < $max_iterations);
-
 	foreach ($redirs as $url => &$target) {
 		if ($target === -1) {
 			$target = false;
@@ -1133,12 +1158,18 @@ WHERE urlid in (
 )');
 }
 
+function dlw_hookin__datahandler_post_update($posthandler) {
+	global $db;
+
+	$db->update_query('posts', array('dlw_got_urls' => 0), "pid={$posthandler->pid}");
+}
+
 function dlw_hookin__datahandler_post_update_end($posthandler) {
 	global $db;
 
+	$db->delete_query('post_urls', "pid={$posthandler->pid}");
+	dlw_clean_up_dangling_urls();
 	if (isset($posthandler->data['message'])) {
-		$db->delete_query('post_urls', "pid={$posthandler->pid}");
-		dlw_clean_up_dangling_urls();
 		// Ensure that if the user cancels while the page is loading, the parsing
 		// out of, and especially the resolution of redirects of, and then the
 		// storage into the database of, URLs continues to run - the redirect
@@ -1150,15 +1181,147 @@ function dlw_hookin__datahandler_post_update_end($posthandler) {
 	}
 }
 
+function dlw_extract_and_store_urls_for_posts($num_posts) {
+	global $db;
+
+	$res = $db->simple_select('posts', 'pid, message', 'dlw_got_urls = FALSE', array(
+		'order_by'    => 'pid',
+		'order_dir'   => 'ASC',
+		'limit'       => $num_posts,
+	));
+	$inc = $db->num_rows($res);
+
+	$post_urls = $urls_all = [];
+	while (($post = $db->fetch_array($res))) {
+		$urls = dlw_extract_urls($post['message']);
+		$post_urls[$post['pid']] = $urls;
+		$urls_all = array_merge($urls_all, $urls);
+	}
+	$urls_all = array_values(array_unique($urls_all));
+	$db->free_result($res);
+
+	$redirs = array_combine($urls_all, array_fill(0, count($urls_all), false));
+	foreach ($post_urls as $pid => $urls) {
+		dlw_add_urls_for_pid($urls, $redirs, $pid);
+	}
+
+	return $inc;
+}
+
+function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0) {
+	global $db;
+
+	$servers = $urls_final = $ids = [];
+
+	$conds = 'got_term = FALSE';
+	$conds_ltt = '';
+	foreach (dlw_term_tries_secs as $i => $secs) {
+		if ($conds_ltt) $conds_ltt .= ' OR ';
+		$conds_ltt .= '(last_term_try = '.$i.' AND last_term_try + '.dlw_term_tries_secs[$i].' < '.time().')';
+	}
+	if ($conds_ltt) $conds .= ' AND ('.$conds_ltt.')';
+
+	if ($retrieve_count) {
+		$res = $db->simple_select('urls', 'count(url) as cnt', $conds);
+		$count = $db->fetch_array($res)['cnt'];
+	}
+
+	// Maximise the number of different servers that we will query at a time, which
+	// tends to minimise duration because we don't query any given server any more
+	// than once every dlw_rehit_delay_in_secs seconds.
+	$start = 0;
+	do {
+		$urls_new = array();
+		$res = $db->simple_select(
+			'urls',
+			'url, urlid',
+			$conds,
+			array(
+				'limit_start' => $start,
+				'limit' => $num_urls
+			),
+			array(
+				'order_by' => 'urlid',
+				'order_dir' => 'ASC'
+			)
+		);
+		while (($row = $db->fetch_array($res))) {
+			$urls_new[] = $row['url'];
+			$ids[$row['url']] = $row['urlid'];
+		}
+
+		if (!$urls_new) break;
+
+		if ($start == 0) {
+			$urls_final = $urls_new;
+			if (count($urls_final) < $num_urls) {
+				break;
+			}
+			foreach ($urls_final as $url) {
+				$norm_server = dlw_get_norm_server_from_url($url);
+				if (!isset($servers[$norm_server])) {
+					$servers[$norm_server] = 0;
+				}
+				$servers[$norm_server]++;
+			}
+		} else if (count($servers) < $num_urls) {
+			foreach ($urls_new as $url1) {
+				$norm_server1 = dlw_get_norm_server_from_url($url1);
+				if (isset($servers[$norm_server1])) {
+					continue;
+				}
+				for ($i = 0; $i < count($urls_final); $i++) {
+					$url2 = $urls_final[$i];
+					$norm_server2 = dlw_get_norm_server_from_url($url2);
+					if ($servers[$norm_server2] > 1) {
+						unset($ids[$url2]);
+						$urls_final[$i] = $url1;
+						$servers[$norm_server1] = 1;
+						$servers[$norm_server2]--;
+						break;
+					}
+				}
+			}
+		} else 	break;
+
+		$start += $num_urls;
+
+	} while (count($urls_new) >= $num_urls && count($servers) < $num_urls);
+
+	$terms = dlw_get_url_term_redirs($urls_final);
+
+	foreach ($terms as $url => $term) {
+		if ($term !== null) {
+			if ($term === false) {
+				$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().' WHERE urlid='.$ids[$url]);
+			} else  {
+				$fields = array(
+					'url_term'      => $db->escape_string($term),
+					'url_term_norm' => $db->escape_string(dlw_normalise_url($term)),
+					'got_term'      => 1,
+				);
+				$db->update_query('urls', $fields, 'urlid = '.$ids[$url]);
+			}
+		}
+	}
+
+	return count($urls_final);
+}
+
 function dlw_hookin__admin_tools_recount_rebuild_output_list() {
 	global $lang, $form_container, $form;
 	if (!isset($lang->duplicate_link_warner)) {
 		$lang->load('duplicate_link_warner');
 	}
 
-	$form_container->output_cell("<label>{$lang->dlw_rebuild}</label><div class=\"description\">{$lang->dlw_rebuild_desc}</div>");
-	$form_container->output_cell($form->generate_numeric_field('dlw_posts_per_page', dlw_default_rebuild_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
-	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuildlinks')));
+	$form_container->output_cell("<label>{$lang->dlw_rebuild_links}</label><div class=\"description\">{$lang->dlw_rebuild_links_desc}</div>");
+	$form_container->output_cell($form->generate_numeric_field('dlw_posts_per_page', dlw_default_rebuild_links_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
+	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuild_links')));
+	$form_container->construct_row();
+
+	$form_container->output_cell("<label>{$lang->dlw_rebuild_terms}</label><div class=\"description\">{$lang->dlw_rebuild_terms_desc}</div>");
+	$form_container->output_cell($form->generate_numeric_field('dlw_urls_per_page', dlw_default_rebuild_term_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
+	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuild_terms')));
 	$form_container->construct_row();
 }
 
@@ -1173,65 +1336,65 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 			$mybb->input['page'] = 1;
 		}
 
-		if (isset($mybb->input['do_rebuildlinks'])) {
+		if (isset($mybb->input['do_rebuild_links'])) {
 			if($mybb->input['page'] == 1) {
 				// Log admin action
-				log_admin_action($lang->dlw_admin_log_rebuild);
+				log_admin_action($lang->dwl_success_rebuild_links);
 			}
 
 			if (!$mybb->get_input('dlw_posts_per_page', MyBB::INPUT_INT)) {
-				$mybb->input['dlw_posts_per_page'] = dlw_default_rebuild_items_per_page;
+				$mybb->input['dlw_posts_per_page'] = dlw_default_rebuild_links_items_per_page;
 			}
 
 			$page = $mybb->get_input('page', MyBB::INPUT_INT);
 			$per_page = $mybb->get_input('dlw_posts_per_page', MyBB::INPUT_INT);
 			if ($per_page <= 0) {
-				$per_page = dlw_default_rebuild_items_per_page;
+				$per_page = dlw_default_rebuild_links_items_per_page;
 			}
 			$start = ($page-1) * $per_page;
 			$end = $start + $per_page;
 
 			if ($page == 1) {
+				$db->update_query('posts', array('dlw_got_urls' => 0));
 				$db->write_query('DELETE FROM '.TABLE_PREFIX.'post_urls');
 				$db->write_query('DELETE FROM '.TABLE_PREFIX.'urls');
 			}
 
-			$res = $db->simple_select('posts', 'pid, message', '', array(
-				'order_by'    => 'pid',
-				'order_dir'   => 'ASC',
-				'limit_start' => $start,
-				'limit'       => $per_page,
-			));
-			$inc = $db->num_rows($res);
+			$inc = dlw_extract_and_store_urls_for_posts($per_page);
 
-			$post_urls = $urls_all = [];
-			while (($post = $db->fetch_array($res))) {
-				$urls = dlw_extract_urls($post['message']);
-				$post_urls[$post['pid']] = $urls;
-				$urls_all = array_merge($urls_all, $urls);
-			}
-			$urls_all = array_values(array_unique($urls_all));
-			$db->free_result($res);
-
-			// Don't waste time and bandwidth trying to resolve redirects that have
-			// already been resolved and are stored in the DB.
-			$existing_redirs = [];
-			$res = $db->simple_select('urls', 'url, url_term', 'url in (\''.implode("', '", array_map(array($db, 'escape_string'), $urls)).'\')');
-			while (($row = $db->fetch_array($res))) {
-				$existing_redirs[$row['url']] = $row['url_term'];
-			}
-
-			$redirs = dlw_get_url_term_redirs(array_diff($urls_all, array_keys($existing_redirs)));
-			$redirs = array_merge($existing_redirs, $redirs);
-			foreach ($post_urls as $pid => $urls) {
-				dlw_add_urls_for_pid($urls, $redirs, $pid);
-			}
-
-			$res = $db->simple_select('posts', 'count(*) AS num_posts');
+			$res = $db->simple_select('posts', 'count(*) AS num_posts', 'dlw_got_urls = FALSE');
 			$finish = $db->fetch_array($res)['num_posts'];
 
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
-			check_proceed($finish, $start + $inc, ++$page, $per_page, 'dlw_posts_per_page', 'do_rebuildlinks', $lang->dwl_success_rebuild);
+			check_proceed($finish, $start + $inc, ++$page, $per_page, 'dlw_posts_per_page', 'do_rebuild_links', $lang->dwl_success_rebuild_links);
+		}
+
+		if (isset($mybb->input['do_rebuild_terms'])) {
+			if($mybb->input['page'] == 1) {
+				// Log admin action
+				log_admin_action($lang->dlw_admin_log_rebuild_terms);
+			}
+
+			if (!$mybb->get_input('dlw_urls_per_page', MyBB::INPUT_INT)) {
+				$mybb->input['dlw_urls_per_page'] = dlw_default_rebuild_term_items_per_page;
+			}
+
+			$page = $mybb->get_input('page', MyBB::INPUT_INT);
+			$per_page = $mybb->get_input('dlw_urls_per_page', MyBB::INPUT_INT);
+			if ($per_page <= 0) {
+				$per_page = dlw_default_rebuild_term_items_per_page;
+			}
+			$start = ($page-1) * $per_page;
+			$end = $start + $per_page;
+
+			if ($page == 1) {
+				$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET got_term = 0, term_tries = 0, last_term_try = 0, url_term = url, url_term_norm = url_norm');
+			}
+
+			$inc = dlw_get_and_store_terms($per_page, true, $finish);
+
+			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
+			check_proceed($finish, $inc, ++$page, $per_page, 'dlw_urls_per_page', 'do_rebuild_terms', $lang->dwl_success_rebuild_terms);
 		}
 	}
 }

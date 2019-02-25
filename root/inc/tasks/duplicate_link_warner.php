@@ -5,14 +5,6 @@ if (!defined('IN_MYBB')) {
 	die('Direct access to this file is not allowed.');
 }
 
-const dlw_term_tries_secs = array(
-	15*60,         // 15 minutes
-	60*60,         // 1 hour
-	24*60*60,      // 1 day
-	7*24*60*60,    // 1 week
-	28*7*24*60*60, // 4 weeks
-);
-
 function task_duplicate_link_warner($task) {
 	global $db, $lang;
 
@@ -20,36 +12,22 @@ function task_duplicate_link_warner($task) {
 		$lang->load('duplicate_link_warner');
 	}
 
-	$rows = $urls = [];
+	// Process first any posts whose URLs have not yet been extracted.
 
-	$res = $db->simple_select('urls', 'url, urlid, last_term_try, term_tries', 'got_term = false AND term_tries <= '.count(dlw_term_tries_secs));
+	$res = $db->simple_select('posts', 'count(*) as cnt', 'dlw_got_urls = FALSE');
+	$cnt = $db->fetch_array($res)['cnt'];
 
-	while (($row = $db->fetch_array($res))) {
-		if (in_array(dlw_get_scheme($row['url']), array('http', 'https', ''))
-		    &&
-		    ($row['term_tries'] == 0 || ($row['last_term_try'] + dlw_term_tries_secs[$row['term_tries']-1] < time()))
-		) {
-			$urls[] = $row['url'];
-			$ids[$row['url']] = $row['urlid'];
-		}
+	// Defensive programming: this loop should always terminate but we set a maximum number of
+	// iterations just in case, as roughly double that which we would expect.
+	$max_iterations = ceil($cnt/dlw_default_rebuild_links_items_per_page) * 2;
+	while (dlw_extract_and_store_urls_for_posts(dlw_default_rebuild_links_items_per_page) > 0 && $i < $max_iterations) {
+		$i++;
 	}
 
-	$terms = dlw_get_url_term_redirs($urls);
-
-	foreach ($terms as $url => $term) {
-		if ($term !== null) {
-			if ($term === false) {
-				$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().' WHERE urlid='.$ids[$url]);
-			} else  {
-				$fields = array(
-					'url_term'      => $db->escape_string($term),
-					'url_term_norm' => $db->escape_string(dlw_normalise_url($term)),
-					'got_term'      => 1,
-				);
-				$db->update_query('urls', $fields, 'urlid = '.$ids[$url]);
-			}
-		}
-	}
+	// We only iterate once in this task when getting terminating redirects - we don't want to
+	// waste bandwidth in case the task times out towards the end of an iteration, and the task
+	// will run again soon anyhow.
+	dlw_get_and_store_terms(dlw_default_rebuild_term_items_per_page);
 
 	add_task_log($task, $lang->dlw_task_ran);
 }
