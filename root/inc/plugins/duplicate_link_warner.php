@@ -33,6 +33,10 @@ const dlw_ignored_query_params = array(
 const dlw_default_rebuild_links_items_per_page = 250;
 const dlw_default_rebuild_term_items_per_page = 150;
 
+const dlw_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
+const dlw_check_for_html_redirects = true;
+const dlw_check_for_canonical_tags = true;
+
 const dlw_rehit_delay_in_secs = 3;
 
 const dlw_term_tries_secs = array(
@@ -656,10 +660,14 @@ function dlw_get_norm_server_from_url($url) {
  *         $deferred_urls lists any URLs that were deferred because requesting it would have polled its
  *                        server within dlw_rehit_delay_in_secs seconds of the last time it was polled.
  */
-function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_method = true) {
+function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_method = true, $check_html_redirects = false, $check_html_canonical_tag = false) {
 	$redirs = $deferred_urls = $curl_handles = [];
 
 	if (!$urls) return [$redirs, $deferred_urls];
+
+	if ($check_html_redirects || $check_html_canonical_tag) {
+		$use_head_method = false;
+	}
 
 	$ts_now = microtime(true);
 	$seen_servers = [];
@@ -750,12 +758,19 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 			    ($response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE)) !== false
 			) {
 				$headers = substr($content, 0, $header_size);
+				$html = substr($content, $header_size);
 				$target = $url;
-				if ($response_code != 200) {
-					if (preg_match('/^Location:(.+)$/im', $headers, $matches)) {
-						$target = trim($matches[1]);
-						$target = dlw_check_absolutise_relative_uri($target, $url);
-					}
+				if ($response_code != 200 && preg_match('/^Location:(.+)$/im', $headers, $matches)
+				    ||
+				    // Not a perfectly reliable regex in that it fails to match when redundant
+				    // attributes are prepended into the tag, but those should be rare.
+				    $check_html_redirects && preg_match('((?|<\\s*meta\\s+http-equiv\\s*=\\s*"\\s*refresh\\s*"\\s*content\\s*=\\s*"\\s*(?:\\d+\\s*;)?\\s*url\\s*=\\s*([^\"]+)"|<\\s*meta\\s+content\\s*=\\s*"\\s*(?:\\d+\\s*;)?\\s*url\\s*=\\s*([^\"]+)"\\s*http-equiv\\s*=\\s*"\\s*refresh\\s*"))is', $html, $matches)
+				    ||
+				    // As above.
+				    $check_html_canonical_tag && preg_match('((?|<\\s*link\\s+rel\\s*=\\s*"\\s*canonical\\s*"\\s*href\\s*=\\s*"\\s*([^\"]+)"|<\\s*link\\s+href\\s*=\\s*"\\s*([^\"]+)"\\s*rel\\s*=\\s*"\\s*canonical\\s*"))is', $html, $matches)
+				   ) {
+					$target = trim($matches[1]);
+					$target = dlw_check_absolutise_relative_uri($target, $url);
 				}
 				$redirs[$url] = $target;
 			} else {
@@ -890,8 +905,8 @@ function dlw_get_url_term_redirs($urls) {
 
 	$redirs = dlw_get_url_term_redirs_auto($urls);
 
-	$use_head_method = true;
-	list($redirs2, $deferred_urls) = dlw_get_url_redirs(array_diff($urls, array_keys($redirs)), $server_last_hit_times, $use_head_method);
+	$use_head_method = dlw_use_head_method;
+	list($redirs2, $deferred_urls) = dlw_get_url_redirs(array_diff($urls, array_keys($redirs)), $server_last_hit_times, $use_head_method, dlw_check_for_html_redirects, dlw_check_for_canonical_tags);
 	if ($redirs2 === false && !$redirs) {
 		return false;
 	}
@@ -940,7 +955,7 @@ function dlw_get_url_term_redirs($urls) {
 
 		usleep($min_wait * 1000000);
 
-		list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls2, $server_last_hit_times, $use_head_method);
+		list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls2, $server_last_hit_times, $use_head_method, dlw_check_for_html_redirects, dlw_check_for_canonical_tags);
 		if ($redirs2 === false) {
 			return false;
 		}
