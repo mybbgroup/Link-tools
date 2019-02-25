@@ -30,7 +30,7 @@ const dlw_ignored_query_params = array(
 	'email_work_card',
 );
 
-const dlw_default_rebuild_links_items_per_page = 250;
+const dlw_default_rebuild_links_items_per_page = 500;
 const dlw_default_rebuild_term_items_per_page = 150;
 
 const dlw_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
@@ -112,14 +112,14 @@ CREATE TABLE '.TABLE_PREFIX.'urls (
   urlid         int unsigned NOT NULL auto_increment,
   url           varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   url_norm      varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  url_term      varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT url,
-  url_term_norm varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT url_norm,
+  url_term      varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_term_norm varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   got_term      boolean       NOT NULL DEFAULT FALSE,
   term_tries    tinyint unsigned NOT NULL DEFAULT 0,
   last_term_try int unsigned  NOT NULL default 0,
-  UNIQUE        url           (url(400)),
-  KEY           url_norm      (url_norm(200)),
-  KEY           url_term_norm (url_term_norm(200)),
+  KEY           url           (url(168)),
+  KEY           url_norm      (url_norm(166)),
+  KEY           url_term_norm (url_term_norm(166)),
   PRIMARY KEY   (urlid)
 )'.$db->build_create_table_collation().';');
 	}
@@ -587,20 +587,29 @@ function dlw_add_urls_for_pid($urls, $redirs, $pid) {
 			if ($row = $db->fetch_array($res)) {
 				$urlid = $row['urlid'];
 			} else {
-				if (!$db->write_query('INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try) VALUES (\''.$db->escape_string($url).'\', \''.$db->escape_string(dlw_normalise_url($url)).'\', \''.$db->escape_string($target === false ? $url : $target).'\', \''.$db->escape_string(dlw_normalise_url($target === false ? $url : $target)).'\', '.($target === false ? "0, '1', '$now'" : "'1', 0, 0").')', /* $hide_errors = */ $try < 2)) {
-					// We retry in this scenario (without raising the error) because
-					// it is theoretically possible that the URL was inserted
-					// by another process in between the select and the insert,
-					// and that the error is due to a violation of the uniqueness
-					// constraint on the `url` column.
+				// Simulate the enforcement of a UNIQUE constraint on the `url` column
+				// using a SELECT with a HAVING condition. This prevents the possibility of
+				// rows with duplicate values for `url`.
+				if (!$db->write_query('
+INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try)
+       SELECT \''.$db->escape_string($url).'\', \''.$db->escape_string(dlw_normalise_url($url)).'\', \''.$db->escape_string($target === false ? $url : $target).'\', \''.$db->escape_string(dlw_normalise_url($target === false ? $url : $target)).'\', '.($target === false ? "0, '1', '$now'" : "'1', 0, 0").'
+       FROM mybb_urls WHERE url=\''.$db->escape_string($url).'\'
+       HAVING COUNT(*) = 0')
+				    ||
+				    $db->affected_rows() <= 0) {
+					// We retry in this scenario because it is theoretically possible
+					// that the URL was inserted by another process in between the
+					// select and the insert, and that the false return is due to the
+					// HAVING condition failing.
 					continue;
 				}
 				$urlid = $db->insert_id();
 			}
 
 			// We hide errors here because there is a race condition in which this insert could
-			// be performed by another process before the current process performs it, in which
-			// case the database will reject the insert as violating the uniqueness of the primary
+			// be performed by another process (a task or rebuild) before the current process
+			// performs it, in which case the database will reject the insert as violating the
+			// uniqueness of the primary
 			// key (urlid, pid).
 			$db->write_query('INSERT INTO '.TABLE_PREFIX."post_urls (urlid, pid) VALUES ($urlid, $pid)", /* $hide_errors = */true);
 
@@ -1378,10 +1387,10 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 			$inc = dlw_extract_and_store_urls_for_posts($per_page);
 
 			$res = $db->simple_select('posts', 'count(*) AS num_posts', 'dlw_got_urls = FALSE');
-			$finish = $db->fetch_array($res)['num_posts'];
+			$num_left = $db->fetch_array($res)['num_posts'];
 
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
-			check_proceed($finish, $start + $inc, ++$page, $per_page, 'dlw_posts_per_page', 'do_rebuild_links', $lang->dwl_success_rebuild_links);
+			check_proceed($num_left, 0, ++$page, $per_page, 'dlw_posts_per_page', 'do_rebuild_links', $lang->dwl_success_rebuild_links);
 		}
 
 		if (isset($mybb->input['do_rebuild_terms'])) {
