@@ -49,6 +49,12 @@ const dlw_term_tries_secs = array(
 );
 
 /**
+ * @todo Add a status display in the plugin's panel in the admin plugin console. The status should display
+ *       number of posts with unextracted links versus total posts, and number of links for which redirects
+ *       have not been resolved, both the ones which have not been attempted yet as well as those which have
+ *       been and in which the attempt failed, versus total links. Provide the user with a means to run
+ *       processes which do what's necessary - this could be achieved via a POST request to the rebuild tasks
+ *       with the "page" parameter set to greater than one, to avoid first clearing out the tables.
  * @todo Consider whether we should be checking robots.txt.
  * @todo Provide for renormalisation of database URLs in the event that dlw_ignored_query_params is changed.
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
@@ -1375,8 +1381,6 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 			if ($per_page <= 0) {
 				$per_page = dlw_default_rebuild_links_items_per_page;
 			}
-			$start = ($page-1) * $per_page;
-			$end = $start + $per_page;
 
 			if ($page == 1) {
 				$db->update_query('posts', array('dlw_got_urls' => 0));
@@ -1408,8 +1412,6 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 			if ($per_page <= 0) {
 				$per_page = dlw_default_rebuild_term_items_per_page;
 			}
-			$start = ($page-1) * $per_page;
-			$end = $start + $per_page;
 
 			if ($page == 1) {
 				$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET got_term = 0, term_tries = 0, last_term_try = 0, url_term = url, url_term_norm = url_norm');
