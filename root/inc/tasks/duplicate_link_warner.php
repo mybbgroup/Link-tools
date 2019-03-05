@@ -24,6 +24,8 @@ function task_duplicate_link_warner($task) {
 		$i++;
 	}
 
+	// Next, resolve any as-yet unresolved terminating redirects.
+
 	// We only iterate once in this task when getting terminating redirects - we don't want to
 	// waste bandwidth in case the task times out towards the end of an iteration, and the task
 	// will run again soon anyhow.

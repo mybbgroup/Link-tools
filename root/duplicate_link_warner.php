@@ -3,7 +3,11 @@
 define("IN_MYBB", 1);
 require_once "./global.php";
 
-/** @todo Limit the size of the output in case many large posts match. */
+/**
+ * @todo Implement permissions: only those with the right to post
+ *       should be able to make requests to this page.
+ * @todo Limit the size of the output in case many large posts match.
+ */
 
 header("Content-type: application/json; charset={$charset}");
 
