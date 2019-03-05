@@ -23,6 +23,7 @@ const dlw_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
 const dlw_ignored_query_params = array(
 	'fbclid',
 	'feature=youtu.be',
+	't' => 'youtube.com',
 	'CMP',
 	'utm_medium',
 	'utm_source',
@@ -38,6 +39,9 @@ const dlw_check_for_html_redirects = true;
 const dlw_check_for_canonical_tags = true;
 
 const dlw_rehit_delay_in_secs = 3;
+const dlw_max_allowable_redirects_for_a_url = 25;
+const dlw_max_allowable_redirect_resolution_runtime_secs = 60;
+const dlw_curl_timeout = 10;
 
 const dlw_term_tries_secs = array(
 	0,             // First attempt has no limits.
@@ -49,6 +53,13 @@ const dlw_term_tries_secs = array(
 );
 
 /**
+ * @todo Consider whether to resolve redirects (at the very least those resolved by
+ *       dlw_get_url_term_redirs_auto() without the need for querying external servers) of URLs in a
+ *       submitted post *prior* to comparing with URLs in the DB. This is currently the only "hole" in
+ *       the plugin's detection of matches. We would probably then also want to store those resolved
+ *       redirects in the DB, and to get rid of calls to dlw_clean_up_dangling_urls().
+ * @todo Add a lock (independent of the task lock) for dlw_get_and_store_terms(), given that it can be
+ *       called from both the task as well as the rebuild tool.
  * @todo Add a status display in the plugin's panel in the admin plugin console. The status should display
  *       number of posts with unextracted links versus total posts, and number of links for which redirects
  *       have not been resolved, both the ones which have not been attempted yet as well as those which have
@@ -394,7 +405,8 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array(), $paged_urls =
 		'filter_badwords' => 1
 	);
 
-	$conds = "u.url_term_norm IN ('".implode("', '", array_map(array($db, 'escape_string'), $urls_norm))."')";
+	$url_paren_list = "('".implode("', '", array_map(array($db, 'escape_string'), $urls_norm))."')";
+	$conds = 'u.url_norm IN '.$url_paren_list.' OR u.url_term_norm IN '.$url_paren_list;
 
 	$fids = get_unviewable_forums(true);
 	if ($inact_fids = get_inactive_forums()) {
@@ -407,7 +419,7 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array(), $paged_urls =
 	$conds = '('.$conds.') and p.visible > 0';
 
 	$res = $db->query('
-SELECT          u2.url as matching_url, u.url_norm AS queried_norm_url,
+SELECT DISTINCT u2.url as matching_url, u.url_norm AS queried_norm_url,
                 p.pid, p.uid AS uid_post, p.username AS username_post, p.dateline as dateline_post, p.message, p.subject AS subject_post, p.edittime,
                 t.tid, t.uid AS uid_thread, t.username AS username_thread, t.subject AS subject_thread, t.firstpost, t.dateline as dateline_thread,
                 (p.pid = t.firstpost) AS isfirstpost,
@@ -599,7 +611,7 @@ function dlw_add_urls_for_pid($urls, $redirs, $pid) {
 				if (!$db->write_query('
 INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try)
        SELECT \''.$db->escape_string($url).'\', \''.$db->escape_string(dlw_normalise_url($url)).'\', \''.$db->escape_string($target === false ? $url : $target).'\', \''.$db->escape_string(dlw_normalise_url($target === false ? $url : $target)).'\', '.($target === false ? "0, '1', '$now'" : "'1', 0, 0").'
-       FROM mybb_urls WHERE url=\''.$db->escape_string($url).'\'
+       FROM '.TABLE_PREFIX.'urls WHERE url=\''.$db->escape_string($url).'\'
        HAVING COUNT(*) = 0')
 				    ||
 				    $db->affected_rows() <= 0) {
@@ -675,7 +687,7 @@ function dlw_get_norm_server_from_url($url) {
  *         $deferred_urls lists any URLs that were deferred because requesting it would have polled its
  *                        server within dlw_rehit_delay_in_secs seconds of the last time it was polled.
  */
-function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_method = true, $check_html_redirects = false, $check_html_canonical_tag = false) {
+function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_urls = [], $use_head_method = true, $check_html_redirects = false, $check_html_canonical_tag = false) {
 	$redirs = $deferred_urls = $curl_handles = [];
 
 	if (!$urls) return [$redirs, $deferred_urls];
@@ -734,7 +746,7 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_HEADER         => true,
 			CURLOPT_NOBODY         => $use_head_method,
-			CURLOPT_TIMEOUT        => 10,
+			CURLOPT_TIMEOUT        => dlw_curl_timeout,
 			CURLOPT_USERAGENT      => 'The MyBB Duplicate Link Warner plugin',
 		))) {
 			curl_close($ch);
@@ -775,19 +787,38 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), $use_head_
 				$headers = substr($content, 0, $header_size);
 				$html = substr($content, $header_size);
 				$target = $url;
-				if ($response_code != 200 && preg_match('/^Location:(.+)$/im', $headers, $matches)
-				    ||
-				    // Not a perfectly reliable regex in that it fails to match when redundant
-				    // attributes are prepended into the tag, but those should be rare.
+				$got = false;
+				if ($response_code != 200 && preg_match('/^\\s*Location\\s*:(.+)$/im', $headers, $matches)) {
+					$got    = true;
+					$decode = false;
+				} else if ($check_html_canonical_tag && preg_match('(^\\s*Link\\s*:.*<([^>]+)>\\s*;\\s*rel\\s*=\\s*"\\s*canonical\\s*"\\s*)im', $headers, $matches)) {
+					$got    = true;
+					$decode = false;
+				} else if (
+				    // Not a perfectly reliable regex in that:
+				    // (1) It doesn't check that the tag occurs within the <head> section.
+				    // (2) It fails to match when redundant attributes are prepended into
+				    //     the tag, but those scenarios should be rare.
 				    $check_html_redirects && preg_match('((?|<\\s*meta\\s+http-equiv\\s*=\\s*"\\s*refresh\\s*"\\s*content\\s*=\\s*"\\s*(?:\\d+\\s*;)?\\s*url\\s*=\\s*([^\"]+)"|<\\s*meta\\s+content\\s*=\\s*"\\s*(?:\\d+\\s*;)?\\s*url\\s*=\\s*([^\"]+)"\\s*http-equiv\\s*=\\s*"\\s*refresh\\s*"))is', $html, $matches)
-				    ||
+				) {
+					$got    = true;
+					$decode = true;
+				} else if (
 				    // As above.
 				    $check_html_canonical_tag && preg_match('((?|<\\s*link\\s+rel\\s*=\\s*"\\s*canonical\\s*"\\s*href\\s*=\\s*"\\s*([^\"]+)"|<\\s*link\\s+href\\s*=\\s*"\\s*([^\"]+)"\\s*rel\\s*=\\s*"\\s*canonical\\s*"))is', $html, $matches)
-				   ) {
+				) {
+					$got    = true;
+					$decode = true;
+				}
+				if ($got) {
 					$target = trim($matches[1]);
+					if ($decode) {
+						$target = html_entity_decode($target);
+					}
 					$target = dlw_check_absolutise_relative_uri($target, $url);
 				}
 				$redirs[$url] = $target;
+				$origin_urls[$target] = $origin_urls[$url];
 			} else {
 				$redirs[$url] = false;
 			}
@@ -861,6 +892,9 @@ function dlw_get_url_term_redirs_auto($urls) {
 	static $repl_regexes = array(
 		'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?v=([^&]+)(?:&feature=youtu\\.be)?$)'
 						=> 'https://www.youtube.com/watch?v=\\1',
+		'(^http(?:s)?://youtu\\.be/([^\\?/]+)$)'
+						=> 'https://www.youtube.com/watch?v=\\1',
+
 		'(^http(?:s)?://(?:(?:www|en)\\.)wikipedia.org/wiki/(.*)$)'
 						=> 'https://en.wikipedia.org/wiki/\\1',
 		'(^http(?:s)?://(?:(?:www|en)\\.)wikipedia.org/w/index.php\\?title=([^&]+)$)'
@@ -903,8 +937,13 @@ function dlw_get_url_term_redirs_auto($urls) {
 function dlw_get_url_term_redirs($urls) {
 	$terms = $redirs = $server_urls = $server_last_hit_times = $to_retry = array();
 	static $min_wait_flag_value = 99999;
+	static $want_use_head_method = dlw_use_head_method && !(dlw_check_for_canonical_tags || dlw_check_for_html_redirects);
 
 	if (!$urls) return $terms;
+
+	$ts_start = time();
+
+	$origin_urls = array_combine($urls, $urls);
 
 	foreach ($urls as $url) {
 		$norm_server = dlw_get_norm_server_from_url($url);
@@ -917,11 +956,12 @@ function dlw_get_url_term_redirs($urls) {
 	foreach ($server_urls as $cnt) {
 		$max_urls_for_a_server = max($max_urls_for_a_server, $cnt);
 	}
+	$num_servers = count($server_urls);
 
 	$redirs = dlw_get_url_term_redirs_auto($urls);
 
-	$use_head_method = dlw_use_head_method;
-	list($redirs2, $deferred_urls) = dlw_get_url_redirs(array_diff($urls, array_keys($redirs)), $server_last_hit_times, $use_head_method, dlw_check_for_html_redirects, dlw_check_for_canonical_tags);
+	$use_head_method = $want_use_head_method;
+	list($redirs2, $deferred_urls) = dlw_get_url_redirs(array_diff($urls, array_keys($redirs)), $server_last_hit_times, $origin_urls, $use_head_method, dlw_check_for_html_redirects, dlw_check_for_canonical_tags);
 	if ($redirs2 === false && !$redirs) {
 		return false;
 	}
@@ -929,11 +969,27 @@ function dlw_get_url_term_redirs($urls) {
 	$redirs = array_merge($redirs, $redirs2);
 
 	// Defensive programming: in case this loop somehow becomes infinite,
-	// terminate it based on the rough heuristic that there would be no more
-	// than 15 iterations (redirects) on average for each URL.
-	$max_iterations = $max_urls_for_a_server * 15;
+	// terminate it based on:
+	//  1. A roughly-determined (and very generous) maximum iteration count.
+	//  2. A maximum run time of dlw_max_allowable_redirect_resolution_runtime_secs seconds.
+	//  3. A maximum per-url redirect count of dlw_max_allowable_redirects_for_a_url.
+	$max_iterations = $max_urls_for_a_server * ($num_servers < 5 ? 5 : $num_servers) * floor(dlw_max_allowable_redirects_for_a_url/3);
 	$num_iterations = 0;
+	$max_runtime = max(dlw_rehit_delay_in_secs, dlw_curl_timeout) * $max_iterations;
+	$ts_max = $ts_start + dlw_max_allowable_redirect_resolution_runtime_secs;
 	do {
+		$max_num_redirected_for_a_url = 0;
+		$max_url = null;
+		foreach (array_count_values($origin_urls) as $url => $cnt) {
+			if ($cnt > $max_num_redirected_for_a_url) {
+				$max_url = $url;
+				$max_num_redirected_for_a_url = $cnt - 1; // We subtract one because the original URL itself is included in the count of "redirects".
+			}
+		}
+		if ($max_num_redirected_for_a_url > dlw_max_allowable_redirects_for_a_url) {
+			break;
+		}
+
 		$urls2 = $to_retry = [];
 		foreach ($redirs as $url => $target) {
 			if ($target && $target !== -1 && !isset($redirs[$target])) {
@@ -942,7 +998,7 @@ function dlw_get_url_term_redirs($urls) {
 				$to_retry[] = $url;
 			}
 		}
-		$urls2 = array_values(array_unique(array_merge($deferred_urls, $urls2)));
+		$urls2 = array_values(array_unique(array_merge($urls2, $deferred_urls)));
 		if (!$urls2 && $to_retry) {
 			$use_head_method = false;
 			$urls2 = $to_retry;
@@ -950,7 +1006,7 @@ function dlw_get_url_term_redirs($urls) {
 
 		$min_wait = $min_wait_flag_value;
 		$ts_now = microtime(true);
-		foreach ($urls2 as $url) {
+ 		foreach ($urls2 as $url) {
 			$server = dlw_get_norm_server_from_url($url);
 			if (!$server || !isset($server_last_hit_times[$server])) {
 				$min_wait = 0;
@@ -970,7 +1026,7 @@ function dlw_get_url_term_redirs($urls) {
 
 		usleep($min_wait * 1000000);
 
-		list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls2, $server_last_hit_times, $use_head_method, dlw_check_for_html_redirects, dlw_check_for_canonical_tags);
+		list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls2, $server_last_hit_times, $origin_urls, $use_head_method, dlw_check_for_html_redirects, dlw_check_for_canonical_tags);
 		if ($redirs2 === false) {
 			return false;
 		}
@@ -983,9 +1039,10 @@ function dlw_get_url_term_redirs($urls) {
 
 		$redirs = array_merge($redirs, $redirs2);
 
-		$use_head_method = true;
+		$use_head_method = $want_use_head_method;
 		$num_iterations++;
-	} while (($urls2 || $deferred_urls) && $num_iterations < $max_iterations);
+	} while (($urls2 || $deferred_urls) && $num_iterations < $max_iterations && time() < $ts_max);
+
 	foreach ($redirs as $url => &$target) {
 		if ($target === -1) {
 			$target = false;
@@ -1005,7 +1062,22 @@ function dlw_get_url_term_redirs($urls) {
 			}
 			$seen[$term] = true;
 		}
-		$terms[$url] = $term;
+		// If we broke out of the main loop due to a timeout,
+		// we might not have a terminating redirect,
+		// i.e., one in which the final entry has the
+		// same key as value. In that case, return null
+		// for that URL. Otherwise, return the terminating
+		// redirect.
+		/**
+		 * @todo Better, in that case, would be to return the
+		 *       last URL we've got in the chain but indicate
+		 *       to the caller that it's not necessarily the
+		 *       final one, so as not to set `got_term` to true
+		 *       in the corresponding row of the `urls` table.
+		 */
+		if ($term != $redirs[$term]) {
+			$terms[$url] = null;
+		} else	$terms[$url] = $term;
 	}
 
 	return $terms;
@@ -1105,7 +1177,7 @@ function dlw_normalise_url($url) {
 				$param = $domains;
 				$domains = '*';
 			}
-			if (trim($domains) !== '*') {
+			if (!(!is_array($domain) && trim($domains) === '*')) {
 				$domains = (array)$domains;
 				foreach ($domains as &$dom) {
 					$dom = dlw_normalise_domain($dom);
@@ -1179,12 +1251,19 @@ function dlw_hookin__class_moderation_delete_post($pid) {
 function dlw_clean_up_dangling_urls() {
 	global $db;
 
+	// We nest the subquery in a redundant subquery because otherwise MySQL (but not MariaDB)
+	// errors out with this message:
+	// "SQL Error: 1093 - You can't specify target table 'mybb_urls' for update in FROM clause"
+	// This inner nesting technique was discovered here: https://stackoverflow.com/a/45498
 	$db->write_query('
-DELETE FROM mybb_urls
+DELETE FROM '.TABLE_PREFIX.'urls
 WHERE urlid in (
-  SELECT urlid FROM mybb_urls u WHERE 0 = (
-    SELECT count(*) FROM mybb_post_urls pu where pu.urlid = u.urlid
-  )
+  SELECT urlid FROM (
+    SELECT urlid FROM '.TABLE_PREFIX.'urls u
+    WHERE 0 = (
+      SELECT count(*) FROM '.TABLE_PREFIX.'post_urls pu
+      WHERE pu.urlid = u.urlid)
+  ) AS nested
 )');
 }
 
@@ -1239,7 +1318,7 @@ function dlw_extract_and_store_urls_for_posts($num_posts) {
 }
 
 function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0) {
-	global $db;
+	global $db, $mybb;
 
 	$servers = $urls_final = $ids = [];
 
@@ -1247,7 +1326,7 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 	$conds_ltt = '';
 	foreach (dlw_term_tries_secs as $i => $secs) {
 		if ($conds_ltt) $conds_ltt .= ' OR ';
-		$conds_ltt .= '(last_term_try = '.$i.' AND last_term_try + '.dlw_term_tries_secs[$i].' < '.time().')';
+		$conds_ltt .= '(term_tries = '.$i.' AND last_term_try + '.dlw_term_tries_secs[$i].' < '.time().')';
 	}
 	if ($conds_ltt) $conds .= ' AND ('.$conds_ltt.')';
 
@@ -1259,6 +1338,12 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 	// Maximise the number of different servers that we will query at a time, which
 	// tends to minimise duration because we don't query any given server any more
 	// than once every dlw_rehit_delay_in_secs seconds.
+	//
+	// Note that this is not an optimal approach: optimal would be to ensure that
+	// the ratio of numbers of URLs from different servers in our urls to be requested
+	// is the same as that of as-yet unresolved URLs in the database.
+	//
+	/** @todo So, a potential todo is to optimise our approach as just described. */
 	$start = 0;
 	do {
 		$urls_new = array();
@@ -1319,19 +1404,25 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 	} while (count($urls_new) >= $num_urls && count($servers) < $num_urls);
 
 	$terms = dlw_get_url_term_redirs($urls_final);
-
-	foreach ($terms as $url => $term) {
-		if ($term !== null) {
-			if ($term === false) {
-				$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().' WHERE urlid='.$ids[$url]);
-			} else  {
-				$fields = array(
-					'url_term'      => $db->escape_string($term),
-					'url_term_norm' => $db->escape_string(dlw_normalise_url($term)),
-					'got_term'      => 1,
-				);
-				$db->update_query('urls', $fields, 'urlid = '.$ids[$url]);
+	if ($terms) {
+		// Reopen the DB connection in case it has "gone away" given the potentially long delay while
+		// we resolved redirects. This was occurring at times on our (Psience Quest's) host, Hostgator.
+		$db->close();
+		$db->connect($mybb->config['database']);
+		foreach ($terms as $url => $term) {
+			if ($term !== null) {
+				if ($term === false) {
+					$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().' WHERE urlid='.$ids[$url]);
+				} else  {
+					$fields = array(
+						'url_term'      => $db->escape_string($term),
+						'url_term_norm' => $db->escape_string(dlw_normalise_url($term)),
+						'got_term'      => 1,
+					);
+					$db->update_query('urls', $fields, 'urlid = '.$ids[$url]);
+				}
 			}
+
 		}
 	}
 
