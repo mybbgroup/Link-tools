@@ -1,16 +1,9 @@
-/**
- * @todo Remove functionality related to the all_urls arrays because now that
- * the server-side code of this plugin has been updated to use database tables,
- * this functionality fails in certain cases, i.e., its entries cannot be relied
- * upon for matching because they are not in normalised-terminating form (and nor
- * are the URLs in the draft against which they are compared).
- */
 var DLW = {
 	// Should semantically match the equivalent variable in ../inc/plugins/duplicate_link_warner.php
 	valid_schemes: ['http', 'https', 'ftp', 'sftp', ''],
 
 	matching_posts: {},
-	checked_urls: [],
+	checked_urls: {},
 
 	link: document.createElement('a'),
 
@@ -181,14 +174,15 @@ var DLW = {
 		var new_urls = [];
 		var old_urls = [];
 		for (var i = 0; i < urls.length; i++) {
-			var already_checked = ($.inArray(urls[i], DLW.checked_urls) >= 0);
+			var already_checked = DLW.checked_urls[urls[i]];
 			if (!already_checked) {
 				new_urls.push(urls[i]);
-				DLW.checked_urls.push(urls[i]);
+				DLW.checked_urls[urls[i]] = {'post_urls': {}, 'active': true};
 			} else {
 				old_urls.push(urls[i]);
 				console.debug('Already checked <'+urls[i]+'>.');
 			}
+			DLW.checked_urls[urls[i]].active = true;
 		}
 
 		// Reinsert as required into the matching_urls and undismissed_urls lists of DLW.matching_posts entries
@@ -196,26 +190,21 @@ var DLW = {
 		// requery the server for those URLs).
 		var readded_undismissed = false;
 		for (var i = 0; i < old_urls.length; i++) {
-			for (var pid in DLW.matching_posts) {
-				/** @todo Consider whether to fix the problem that this match can fail when
-				 * the protocol/domain of the URL in old_url[i] is capitalised differently than
-				 * in the matching post - it's quite a minor problem and the match will be caught
-				 * anyway (if it is undismissed) when trying to post the thread, so it might be OK
-				 * to leave it as-is. Otherwise we could implement normalisation of protocols+domains
-				 * on this client side when comparing URLs.
-				 */
-				if ($.inArray(old_urls[i], DLW.matching_posts[pid].all_urls) >= 0) {
+			if (DLW.checked_urls[old_urls[i]] && DLW.checked_urls[old_urls[i]].active) {
+				for (var pid in DLW.checked_urls[old_urls[i]].post_urls) {
+					DLW.checked_urls[old_urls[i]].post_urls[pid];
 					if ($.inArray(old_urls[i], DLW.matching_posts[pid].matching_urls) <= -1) {
 						console.debug('Adding <'+old_urls[i]+'> back onto the matching_urls list of the post with id ' +
-						pid + ' as it has been reinserted into the edit pane contents.');
+						pid + ' as it has been reinserted into the edit pane contents. Also adding <'+DLW.checked_urls[old_urls[i]].post_urls[pid]+'> correspondingly back onto the matching_urls_in_post list of that same post.');
 						DLW.matching_posts[pid].matching_urls.push(old_urls[i]);
+						DLW.matching_posts[pid].matching_urls_in_post.push(DLW.checked_urls[old_urls[i]].post_urls[pid]);
 					}
 					if ($.inArray(old_urls[i], DLW.matching_posts[pid].dismissed_urls) <= -1
 					    &&
 					    $.inArray(old_urls[i], DLW.matching_posts[pid].undismissed_urls) <= -1
 					) {
 						console.debug('Adding <'+old_urls[i]+'> back onto the undismissed_urls list of the post with id ' +
-						DLW.matching_posts[pid].pid +
+						              DLW.matching_posts[pid].pid +
 						              ' as it has been reinserted into the edit pane contents and not yet dismissed for this post.');
 						DLW.matching_posts[pid].undismissed_urls.push(old_urls[i]);
 						readded_undismissed = true;
@@ -228,24 +217,29 @@ var DLW = {
 		// any URLs that the user has deleted or edited out of the edit pane contents
 		// since last check.
 		var removed_undismissed = false;
-		for (var i = 0; i < DLW.checked_urls.length; i++) {
-			if ($.inArray(DLW.checked_urls[i], urls) <= -1) {
+		for (var checked_url in DLW.checked_urls) {
+			if ($.inArray(checked_url, urls) <= -1) {
+				DLW.checked_urls[checked_url].active = false;
 				for (var pid in DLW.matching_posts) {
-					var idx = DLW.matching_posts[pid].matching_urls.indexOf(DLW.checked_urls[i]);
-					if (idx >= 0) {
-						console.debug('Removing <' + DLW.checked_urls[i] + '> from the matching_urls list ' +
-						              'of the post with id ' + pid +
-						              ' because it appears to no longer exist in the edit pane contents.');
-						DLW.matching_posts[pid].matching_urls.splice(idx, 1);
-					}
-					idx = DLW.matching_posts[pid].undismissed_urls.indexOf(DLW.checked_urls[i]);
-					if (idx >= 0) {
-						console.debug('Removing <' + DLW.checked_urls[i] + '> from the undismissed_urls list ' +
-						              'of the post with id ' + pid +
-						              ' because it appears to no longer exist in the edit pane contents.');
-						DLW.matching_posts[pid].undismissed_urls.splice(idx, 1);
-						removed_undismissed = true;
-					}
+					do {
+						var idx = DLW.matching_posts[pid].matching_urls.indexOf(checked_url);
+						if (idx >= 0) {
+							console.debug('Removing <' + checked_url + '> from the matching_urls list ' +
+								'of the post with id ' + pid +
+								' because it appears to no longer exist in the edit pane contents.');
+							DLW.matching_posts[pid].matching_urls.splice(idx, 1);
+						}
+					} while (idx >= 0);
+					do {
+						idx = DLW.matching_posts[pid].undismissed_urls.indexOf(checked_url);
+						if (idx >= 0) {
+							console.debug('Removing <' + checked_url + '> from the undismissed_urls list ' +
+								'of the post with id ' + pid +
+								' because it appears to no longer exist in the edit pane contents.');
+							DLW.matching_posts[pid].undismissed_urls.splice(idx, 1);
+							removed_undismissed = true;
+						}
+					} while (idx >= 0);
 				}
 			}
 		}
@@ -253,13 +247,14 @@ var DLW = {
 		// If new, unchecked URLs have been edited into the post, then query the server for matching posts.
 		if (new_urls.length > 0) {
 			var data_to_send = {};
-			data_to_send.url = new_urls;
-			data_to_send.pid = [];
-			data_to_send.edtm = [];
-			for (var i = 0; i < DLW.matching_posts.length; i++) {
-				data_to_send.pid [i] = DLW.matching_posts[i].pid;
-				data_to_send.edtm[i] =  DLW.matching_posts[i].edittime;
+			data_to_send.urls  = new_urls;
+			data_to_send.pids  = [];
+			data_to_send.edtms = [];
+			for (var pid in DLW.matching_posts) {
+				data_to_send.pids .push(pid);
+				data_to_send.edtms.push(DLW.matching_posts[pid].edittime);
 			}
+
 			// Let the server know which posts we've already got and their last edit time
 			// so that it doesn't return the contents (or any other redundant properties) of
 			// any of those posts which match and which have not been edited since last check.
@@ -280,6 +275,12 @@ var DLW = {
 				var urls_in_edit_pane = new_urls.concat(old_urls);
 				var added_matching_post = false;
 				for (var pid_in in data.matching_posts) {
+					for (var k = 0; k < data.matching_posts[pid_in].matching_urls.length; k++) {
+						var url_res         = data.matching_posts[pid_in].matching_urls[k];
+						var url_res_in_post = data.matching_posts[pid_in].matching_urls_in_post[k];
+						DLW.checked_urls[url_res].post_urls[pid_in] = url_res_in_post;
+					}
+
 					var already_downloaded = false;
 					for (var pid in DLW.matching_posts) {
 						if (pid_in == pid) {
@@ -299,11 +300,22 @@ var DLW = {
 									}
 								}
 								DLW.matching_posts[pid].all_urls = data.matching_posts[pid_in].all_urls.slice();
-								DLW.matching_posts[pid].matching_urls = DLW.matching_posts[pid].matching_urls.concat(data.matching_posts[pid_in].matching_urls);
-								DLW.matching_posts[pid].matching_urls_in_post = DLW.matching_posts[pid].matching_urls_in_post.concat(data.matching_posts[pid_in].matching_urls_in_post);
 							}
 
+							DLW.matching_posts[pid].matching_urls = DLW.matching_posts[pid].matching_urls.concat(data.matching_posts[pid_in].matching_urls);
+							DLW.matching_posts[pid].matching_urls_in_post = DLW.matching_posts[pid].matching_urls_in_post.concat(data.matching_posts[pid_in].matching_urls_in_post);
+
 							// If necessary, add any URLs to the post's undismissed_urls and matching_urls lists.
+							for (var k = 0; k < data.matching_posts[pid_in].matching_urls.length; k++) {
+								var url = data.matching_posts[pid_in].matching_urls[k];
+								if ($.inArray(url, DLW.matching_posts[pid].dismissed_urls) <= -1
+								    &&
+								    $.inArray(url, DLW.matching_posts[pid].undismissed_urls) <= -1
+								) {
+									DLW.matching_posts[pid].undismissed_urls.push(url);
+									console.debug('(1) Adding <' + url + '> to the undismissed_urls list for the post with pid ' + DLW.matching_posts[pid].pid);
+								}
+							}
 							for (var k = 0; k < DLW.matching_posts[pid].all_urls.length; k++) {
 								var url = DLW.matching_posts[pid].all_urls[k];
 								if ($.inArray(url, urls_in_edit_pane) >= 0) {
@@ -327,7 +339,7 @@ var DLW = {
 									     || $.inArray(url, edited_in_urls) >= 0)
 									) {
 										DLW.matching_posts[pid].undismissed_urls.push(url);
-										console.debug('Adding <' + url + '> to the undismissed_urls list for the post with pid ' + DLW.matching_posts[pid].pid);
+										console.debug('(2) Adding <' + url + '> to the undismissed_urls list for the post with pid ' + DLW.matching_posts[pid].pid);
 									}
 									if ($.inArray(url, DLW.matching_posts[pid].matching_urls) <= -1) {
 										DLW.matching_posts[pid].matching_urls.push(url);
@@ -336,7 +348,6 @@ var DLW = {
 									}
 								}
 							}
-							break;
 						}
 					}
 					if (!already_downloaded) {

@@ -513,17 +513,6 @@ ORDER BY        isfirstpost DESC, p.dateline DESC');
 		        );
 	});
 
-	// Strip all values other than pid and edittime from any matching posts for which,
-	// based on the supplied function parameter $post_edit_times, the caller
-	// already has the relevant information because the post has not been edited since
-	// last returned.
-	foreach ($matching_posts as &$post) {
-		if (array_key_exists($post['pid'], $post_edit_times) && $post_edit_times[$post['pid']] == $post['edittime']) {
-			$post = array_intersect_key($post, array('pid' => true, 'edittime' => true));
-		}
-	}
-	unset($post);
-
 	$missing_fids = array();
 	foreach ($forum_names as $fid => $name) {
 		if (is_null($name)) {
@@ -538,14 +527,22 @@ ORDER BY        isfirstpost DESC, p.dateline DESC');
 	}
 
 	foreach ($matching_posts as &$post) {
-		$post['flinks'     ] = dlw_get_flinks($post['parentlist'], $forum_names);
-		$post['tlink'      ] = dlw_get_threadlink($post['tid'], $post['subject_thread']);
-		$post['nav_bit_img'] = '<img src="images/nav_bit.png" alt="" />';
-		$post['ulink_p'    ] = dlw_get_usernamelink($post['uid_post'], $post['username_post']);
-		$post['ulink_t'    ] = dlw_get_usernamelink($post['uid_thread'], $post['username_thread']);
-		$post['dtlink_t'   ] = my_date('relative', $post['dateline_thread']);
-		$post['dtlink_p'   ] = my_date('relative', $post['dateline_post']);
-		$post['plink'      ] = dlw_get_postlink($post['pid'], $post['subject_post']);
+		if (array_key_exists($post['pid'], $post_edit_times) && $post_edit_times[$post['pid']] == $post['edittime']) {
+			// Strip all values other than pid, edittime, matching_urls, and matching_urls_in_post
+			// from any matching posts for which, based on the supplied function parameter
+			// $post_edit_times, the caller already has the relevant information because the post
+			// has not been edited since last returned.
+			$post = array_intersect_key($post, array('pid' => true, 'edittime' => true, 'matching_urls' => true, 'matching_urls_in_post' => true));
+		} else {
+			$post['flinks'     ] = dlw_get_flinks($post['parentlist'], $forum_names);
+			$post['tlink'      ] = dlw_get_threadlink($post['tid'], $post['subject_thread']);
+			$post['nav_bit_img'] = '<img src="images/nav_bit.png" alt="" />';
+			$post['ulink_p'    ] = dlw_get_usernamelink($post['uid_post'], $post['username_post']);
+			$post['ulink_t'    ] = dlw_get_usernamelink($post['uid_thread'], $post['username_thread']);
+			$post['dtlink_t'   ] = my_date('relative', $post['dateline_thread']);
+			$post['dtlink_p'   ] = my_date('relative', $post['dateline_post']);
+			$post['plink'      ] = dlw_get_postlink($post['pid'], $post['subject_post']);
+		}
 	}
 
 	return array($matching_posts, $forum_names, $unreturned_count);

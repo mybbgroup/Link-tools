@@ -16,16 +16,16 @@ if (!function_exists('dlw_get_posts_for_urls')) {
 	die(json_encode(array('error' => $lang->dlw_err_not_active)));
 }
 
-if (!empty($mybb->input['url'])) {
-	$urls = (array)$mybb->input['url'];
+if (!empty($mybb->input['urls'])) {
+	$urls = (array)$mybb->input['urls'];
 	$post_edit_times = array();
-	if (!empty($mybb->input['pid']) && !empty($mybb->input['edtm'])) {
-		foreach ((array)$mybb->input['pid'] as $i => $pid) {
-			$post_edit_times[$pid] = ((array)$mybb->input['edtm'])[$i];
+	if (!empty($mybb->input['pids']) && !empty($mybb->input['edtms'])) {
+		foreach ((array)$mybb->input['pids'] as $i => $pid) {
+			$post_edit_times[$pid] = ((array)$mybb->input['edtms'])[$i];
 		}
 	}
 	$paged_urls = !empty($mybb->input['paged_urls']) ? (array)$mybb->input['paged_urls'] : array();
 	$paged_ids = !empty($mybb->input['paged_ids']) ? (array)$mybb->input['paged_ids'] : array();
-	list($matching_posts, $forum_names, $unreturned_count) = dlw_get_posts_for_urls($mybb->input['url'], $post_edit_times, $paged_urls, $paged_ids);
+	list($matching_posts, $forum_names, $unreturned_count) = dlw_get_posts_for_urls($mybb->input['urls'], $post_edit_times, $paged_urls, $paged_ids);
 	echo json_encode(array('matching_posts' => $matching_posts, 'unreturned_count' => $unreturned_count));
 }
