@@ -294,12 +294,6 @@ var DLW = {
 								DLW.matching_posts[pid].subject = data.matching_posts[pid_in].subject;
 								DLW.matching_posts[pid].message = data.matching_posts[pid_in].message;
 								var edited_in_urls = [];
-								for (var i = 0; i < data.matching_posts[pid_in].all_urls.length; i++) {
-									if ($.inArray(data.matching_posts[pid_in].all_urls[i], DLW.matching_posts[pid].all_urls) <= -1) {
-										edited_in_urls.push(data.matching_posts[pid_in].all_urls[i]);
-									}
-								}
-								DLW.matching_posts[pid].all_urls = data.matching_posts[pid_in].all_urls.slice();
 							}
 
 							DLW.matching_posts[pid].matching_urls = DLW.matching_posts[pid].matching_urls.concat(data.matching_posts[pid_in].matching_urls);
@@ -314,38 +308,6 @@ var DLW = {
 								) {
 									DLW.matching_posts[pid].undismissed_urls.push(url);
 									console.debug('(1) Adding <' + url + '> to the undismissed_urls list for the post with pid ' + DLW.matching_posts[pid].pid);
-								}
-							}
-							for (var k = 0; k < DLW.matching_posts[pid].all_urls.length; k++) {
-								var url = DLW.matching_posts[pid].all_urls[k];
-								if ($.inArray(url, urls_in_edit_pane) >= 0) {
-									if ($.inArray(url, DLW.matching_posts[pid].dismissed_urls) <= -1
-									    &&
-									    $.inArray(url, DLW.matching_posts[pid].undismissed_urls) <= -1
-									    &&
-									    // Don't add a URL to the undismissed_urls list of a post
-									    // that has been edited since last checking unless there are
-									    // no URLs in the dismissed_urls list (i.e., the pre-edited
-									    // post has not already been "checked" by the user) or
-									    // the URL was edited in during the edit (i.e. any
-									    // user-"checked" version of the post did not already
-									    // contain the URL - it was added since last user "check").
-									    //
-									    // "Check" and "checked" are quoted because posts can be
-									    // bulk-dismissed, in which case the user might not have
-									    // actually sighted this individual post's contents.
-									    (!has_been_edited
-									     || DLW.matching_posts[pid].dismissed_urls.length <= 0
-									     || $.inArray(url, edited_in_urls) >= 0)
-									) {
-										DLW.matching_posts[pid].undismissed_urls.push(url);
-										console.debug('(2) Adding <' + url + '> to the undismissed_urls list for the post with pid ' + DLW.matching_posts[pid].pid);
-									}
-									if ($.inArray(url, DLW.matching_posts[pid].matching_urls) <= -1) {
-										DLW.matching_posts[pid].matching_urls.push(url);
-										DLW.matching_posts[pid].matching_urls_in_post.push(url);
-										console.debug('Adding <' + url + '> to the matching_urls list for the post with pid ' + pid);
-									}
 								}
 							}
 						}
@@ -647,7 +609,7 @@ var DLW = {
 			$('#dlw-msg-sidebar-div').append('<button id="dlw-btn-undismiss" type="button">'+'Undismiss all duplicate link warnings'+'</button>');
 			$('#dlw-btn-undismiss').bind('click', function(e) {
 				for (var pid in DLW.matching_posts) {
-					DLW.matching_posts[pid].undismissed_urls = DLW.get_intersect(DLW.matching_posts[pid].matching_urls, DLW.matching_posts[pid].all_urls);
+					DLW.matching_posts[pid].undismissed_urls = DLW.matching_posts[pid].matching_urls.slice();
 					DLW.matching_posts[pid].dismissed_urls = [];
 					$(this).hide();
 				}
@@ -660,7 +622,7 @@ var DLW = {
 
 	have_dismissed: function() {
 		for (var pid in DLW.matching_posts) {
-			if (DLW.get_intersect(DLW.matching_posts[pid].dismissed_urls, DLW.matching_posts[pid].all_urls).length > 0) {
+			if (DLW.matching_posts[pid].dismissed_urls.length > 0) {
 				return true;
 			}
 		}
