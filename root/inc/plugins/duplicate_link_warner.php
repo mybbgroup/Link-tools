@@ -607,7 +607,7 @@ function dlw_add_urls_for_pid($urls, $redirs, $pid) {
 				// rows with duplicate values for `url`.
 				if (!$db->write_query('
 INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try)
-       SELECT \''.$db->escape_string($url).'\', \''.$db->escape_string(dlw_normalise_url($url)).'\', \''.$db->escape_string($target === false ? $url : $target).'\', \''.$db->escape_string(dlw_normalise_url($target === false ? $url : $target)).'\', '.($target === false ? "0, '1', '$now'" : "'1', 0, 0").'
+       SELECT \''.$db->escape_string($url).'\', \''.$db->escape_string(dlw_normalise_url($url)).'\', \''.$db->escape_string($target == false ? $url : $target).'\', \''.$db->escape_string(dlw_normalise_url($target == false ? $url : $target)).'\', '.($target == false ? "0, '1', '$now'" : "'1', 0, 0").'
        FROM '.TABLE_PREFIX.'urls WHERE url=\''.$db->escape_string($url).'\'
        HAVING COUNT(*) = 0')
 				    ||
@@ -1065,13 +1065,6 @@ function dlw_get_url_term_redirs($urls) {
 		// same key as value. In that case, return null
 		// for that URL. Otherwise, return the terminating
 		// redirect.
-		/**
-		 * @todo Better, in that case, would be to return the
-		 *       last URL we've got in the chain but indicate
-		 *       to the caller that it's not necessarily the
-		 *       final one, so as not to set `got_term` to true
-		 *       in the corresponding row of the `urls` table.
-		 */
 		if ($term != $redirs[$term]) {
 			$terms[$url] = null;
 		} else	$terms[$url] = $term;
