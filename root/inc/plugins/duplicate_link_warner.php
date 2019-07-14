@@ -1155,7 +1155,7 @@ function dlw_normalise_url($url) {
 				$param = $domains;
 				$domains = '*';
 			}
-			if (!(!is_array($domain) && trim($domains) === '*')) {
+			if (!(!is_array($domains) && trim($domains) === '*')) {
 				$domains = (array)$domains;
 				foreach ($domains as &$dom) {
 					$dom = dlw_normalise_domain($dom);
