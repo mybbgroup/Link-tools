@@ -33,6 +33,7 @@ const dlw_ignored_query_params = array(
 
 const dlw_default_rebuild_links_items_per_page = 500;
 const dlw_default_rebuild_term_items_per_page = 150;
+const dlw_default_rebuild_renorm_items_per_page = 500;
 
 const dlw_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
 const dlw_check_for_html_redirects = true;
@@ -1417,6 +1418,11 @@ function dlw_hookin__admin_tools_recount_rebuild_output_list() {
 	$form_container->output_cell($form->generate_numeric_field('dlw_urls_per_page', dlw_default_rebuild_term_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
 	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuild_terms')));
 	$form_container->construct_row();
+
+	$form_container->output_cell("<label>{$lang->dlw_rebuild_renorm}</label><div class=\"description\">{$lang->dlw_rebuild_renorm_desc}</div>");
+	$form_container->output_cell($form->generate_numeric_field('dlw_renorm_per_page', dlw_default_rebuild_renorm_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
+	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuild_renorm')));
+	$form_container->construct_row();
 }
 
 function dlw_hookin__admin_tools_recount_rebuild() {
@@ -1485,6 +1491,46 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
 			check_proceed($finish, $inc, ++$page, $per_page, 'dlw_urls_per_page', 'do_rebuild_terms', $lang->dwl_success_rebuild_terms);
+		}
+
+
+		if (isset($mybb->input['do_rebuild_renorm'])) {
+			if($mybb->input['page'] == 1) {
+				// Log admin action
+				log_admin_action($lang->dlw_admin_log_rebuild_renorm);
+			}
+
+			if (!$mybb->get_input('dlw_renorm_per_page', MyBB::INPUT_INT)) {
+				$mybb->input['dlw_renorm_per_page'] = dlw_default_rebuild_renorm_items_per_page;
+			}
+
+			$page = $mybb->get_input('page', MyBB::INPUT_INT);
+			$per_page = $mybb->get_input('dlw_renorm_per_page', MyBB::INPUT_INT);
+			if ($per_page <= 0) {
+				$per_page = dlw_default_rebuild_renorm_items_per_page;
+			}
+
+			$offset = ($page - 1) * $per_page;
+			$res = $db->simple_select('urls', 'urlid, url, url_term', '', array(
+				'order_by'    => 'urlid',
+				'order_dir'   => 'ASC',
+				'limit_start' => $offset,
+				'limit'       => $per_page
+			));
+			$updates = array();
+			while (($row = $db->fetch_array($res))) {
+				$updates[$row['urlid']] = array(
+					'url_norm'      => $db->escape_string(dlw_normalise_url($row['url'     ])),
+					'url_term_norm' => $db->escape_string(dlw_normalise_url($row['url_term'])),
+				);
+			}
+			foreach ($updates as $urlid => $update_fields) {
+				$db->update_query('urls', $update_fields, "urlid=$urlid");
+			}
+			$finish = $db->fetch_array($db->simple_select('urls', 'count(*) AS count'))['count'];
+
+			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
+			check_proceed($finish, $offset + $per_page, ++$page, $per_page, 'dlw_renorm_per_page', 'do_rebuild_renorm', $lang->dwl_success_rebuild_renorm);
 		}
 	}
 }
