@@ -18,6 +18,10 @@ if (!function_exists('dlw_get_posts_for_urls')) {
 
 if (!empty($mybb->input['urls'])) {
 	$urls = (array)$mybb->input['urls'];
+
+	// Add any missing URLs to the DB after resolving redirects
+	dlw_get_and_add_urls($urls);
+
 	$post_edit_times = array();
 	if (!empty($mybb->input['pids']) && !empty($mybb->input['edtms'])) {
 		foreach ((array)$mybb->input['pids'] as $i => $pid) {

@@ -53,11 +53,6 @@ const dlw_term_tries_secs = array(
 );
 
 /**
- * @todo Consider whether to resolve redirects (at the very least those resolved by
- *       dlw_get_url_term_redirs_auto() without the need for querying external servers) of URLs in a
- *       submitted post *prior* to comparing with URLs in the DB. This is currently the only "hole" in
- *       the plugin's detection of matches. We would probably then also want to store those resolved
- *       redirects in the DB, and to get rid of calls to dlw_clean_up_dangling_urls().
  * @todo Add a lock (independent of the task lock) for dlw_get_and_store_terms(), given that it can be
  *       called from both the task as well as the rebuild tool.
  * @todo Add a status display in the plugin's panel in the admin plugin console. The status should display
@@ -555,10 +550,12 @@ function dlw_handle_new_post($posthandler) {
 	));
 }
 
-function dlw_get_and_add_urls_of_post($message, $pid) {
-	global $db;
+function dlw_get_and_add_urls_of_post($message, $pid = null) {
+	dlw_get_and_add_urls(dlw_extract_urls($message), $pid);
+}
 
-	$urls = dlw_extract_urls($message);
+function dlw_get_and_add_urls($urls, $pid = null) {
+	global $db;
 
 	// Don't waste time and bandwidth resolving redirects for URLs already in the DB.
 	$res = $db->simple_select('urls', 'url', "url in ('".implode("', '", array_map(array($db, 'escape_string'), $urls))."')");
@@ -566,16 +563,16 @@ function dlw_get_and_add_urls_of_post($message, $pid) {
 	while (($row = $db->fetch_array($res))) {
 		$existing_urls[] = $row['url'];
 	}
-	$redirs = dlw_get_url_term_redirs(array_diff($urls, $existing_urls));
+	$redirs = dlw_get_url_term_redirs(array_diff($urls, $existing_urls), $got_terms);
 
 	if ($urls) {
-		dlw_add_urls_for_pid($urls, $redirs, $pid);
+		dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid);
 	}
 
 	return $urls;
 }
 
-function dlw_add_urls_for_pid($urls, $redirs, $pid) {
+function dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 	global $db;
 
 	$now = time();
@@ -591,7 +588,7 @@ function dlw_add_urls_for_pid($urls, $redirs, $pid) {
 				// rows with duplicate values for `url`.
 				if (!$db->write_query('
 INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try)
-       SELECT \''.$db->escape_string($url).'\', \''.$db->escape_string(dlw_normalise_url($url)).'\', \''.$db->escape_string($target == false ? $url : $target).'\', \''.$db->escape_string(dlw_normalise_url($target == false ? $url : $target)).'\', '.($target == false ? "0, '1', '$now'" : "'1', 0, 0").'
+       SELECT \''.$db->escape_string($url).'\', \''.$db->escape_string(dlw_normalise_url($url)).'\', \''.$db->escape_string($target == false ? $url : $target).'\', \''.$db->escape_string(dlw_normalise_url($target == false ? $url : $target)).'\', '.($got_terms[$url] == false ? '0' : '1').", '1', '$now'".'
        FROM '.TABLE_PREFIX.'urls WHERE url=\''.$db->escape_string($url).'\'
        HAVING COUNT(*) = 0')
 				    ||
@@ -605,18 +602,20 @@ INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_te
 				$urlid = $db->insert_id();
 			}
 
-			// We hide errors here because there is a race condition in which this insert could
-			// be performed by another process (a task or rebuild) before the current process
-			// performs it, in which case the database will reject the insert as violating the
-			// uniqueness of the primary
-			// key (urlid, pid).
-			$db->write_query('INSERT INTO '.TABLE_PREFIX."post_urls (urlid, pid) VALUES ($urlid, $pid)", /* $hide_errors = */true);
+			if ($pid !== null) {
+				// We hide errors here because there is a race condition in which this insert could
+				// be performed by another process (a task or rebuild) before the current process
+				// performs it, in which case the database will reject the insert as violating the
+				// uniqueness of the primary
+				// key (urlid, pid).
+				$db->write_query('INSERT INTO '.TABLE_PREFIX."post_urls (urlid, pid) VALUES ($urlid, $pid)", /* $hide_errors = */true);
+			}
 
 			break;
 		}
 	}
 
-	$db->update_query('posts', array('dlw_got_urls' => 1), "pid=$pid");
+	if ($pid !== null) $db->update_query('posts', array('dlw_got_urls' => 1), "pid=$pid");
 }
 
 function dlw_normalise_urls($urls) {
@@ -915,7 +914,7 @@ function dlw_get_url_term_redirs_auto($urls) {
  *         3. Null in the case that a non-link-specific error occurred, such as failure to
  *            initialise a generic cURL handle.
  */
-function dlw_get_url_term_redirs($urls) {
+function dlw_get_url_term_redirs($urls, &$got_terms = array()) {
 	$terms = $redirs = $server_urls = $server_last_hit_times = $to_retry = array();
 	static $min_wait_flag_value = 99999;
 	static $want_use_head_method = dlw_use_head_method && !(dlw_check_for_canonical_tags || dlw_check_for_html_redirects);
@@ -1043,15 +1042,15 @@ function dlw_get_url_term_redirs($urls) {
 			}
 			$seen[$term] = true;
 		}
+		$terms[$url] = $term;
+
 		// If we broke out of the main loop due to a timeout,
 		// we might not have a terminating redirect,
 		// i.e., one in which the final entry has the
-		// same key as value. In that case, return null
-		// for that URL. Otherwise, return the terminating
-		// redirect.
-		if ($term != $redirs[$term]) {
-			$terms[$url] = null;
-		} else	$terms[$url] = $term;
+		// same key as value. In that case, indicate to the
+		// calling function that got_term should be set to
+		// zero in the database.
+		$got_terms[$url] = ($term == $redirs[$term]);
 	}
 
 	return $terms;
@@ -1209,7 +1208,7 @@ function dlw_hookin__common__class_moderation_delete_thread($tid) {
 	} else if ($pids_stored) {
 		$pids = implode(',', $pids_stored);
 		$db->delete_query('post_urls', "pid IN ($pids)");
-		dlw_clean_up_dangling_urls();
+//		dlw_clean_up_dangling_urls();
 
 		$tid_stored = $pids_stored = null;
 	}
@@ -1219,7 +1218,7 @@ function dlw_hookin__class_moderation_delete_post($pid) {
 	global $db;
 
 	$db->delete_query('post_urls', "pid=$pid");
-	dlw_clean_up_dangling_urls();
+//	dlw_clean_up_dangling_urls();
 }
 
 function dlw_clean_up_dangling_urls() {
@@ -1251,7 +1250,6 @@ function dlw_hookin__datahandler_post_update_end($posthandler) {
 	global $db;
 
 	$db->delete_query('post_urls', "pid={$posthandler->pid}");
-	dlw_clean_up_dangling_urls();
 	if (isset($posthandler->data['message'])) {
 		// Ensure that if the user cancels while the page is loading, the parsing
 		// out of, and especially the resolution of redirects of, and then the
@@ -1284,8 +1282,9 @@ function dlw_extract_and_store_urls_for_posts($num_posts) {
 	$db->free_result($res);
 
 	$redirs = array_combine($urls_all, array_fill(0, count($urls_all), false));
+	$got_terms = $redirs;
 	foreach ($post_urls as $pid => $urls) {
-		dlw_add_urls_for_pid($urls, $redirs, $pid);
+		dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid);
 	}
 
 	return $inc;
@@ -1377,7 +1376,7 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 
 	} while (count($urls_new) >= $num_urls && count($servers) < $num_urls);
 
-	$terms = dlw_get_url_term_redirs($urls_final);
+	$terms = dlw_get_url_term_redirs($urls_final, $got_terms);
 	if ($terms) {
 		// Reopen the DB connection in case it has "gone away" given the potentially long delay while
 		// we resolved redirects. This was occurring at times on our (Psience Quest's) host, Hostgator.
@@ -1505,6 +1504,9 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 	if (!$urls) {
 		return;
 	}
+
+	// Add any missing URLs to the DB after resolving redirects
+	dlw_get_and_add_urls($urls);
 
 	list($matching_posts, $forum_names) = dlw_get_posts_for_urls($urls);
 
