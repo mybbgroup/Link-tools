@@ -24,9 +24,13 @@ const dlw_ignored_query_params = array(
 	'fbclid',
 	'feature=youtu.be',
 	't' => 'youtube.com',
+	'time_continue' => 'youtube.com',
 	'CMP',
 	'utm_medium',
 	'utm_source',
+	'utm_campaign',
+	'utm_term',
+	'utm_content',
 	'akid',
 	'email_work_card',
 );
