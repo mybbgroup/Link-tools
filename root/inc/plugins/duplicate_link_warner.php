@@ -67,7 +67,6 @@ const dlw_term_tries_secs = array(
  *       processes which do what's necessary - this could be achieved via a POST request to the rebuild tasks
  *       with the "page" parameter set to greater than one, to avoid first clearing out the tables.
  * @todo Consider whether we should be checking robots.txt.
- * @todo Provide for renormalisation of database URLs in the event that dlw_ignored_query_params is changed.
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
  * @todo Warn upon installation/activation that the link table needs to be populated.
  * @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database
