@@ -62,15 +62,8 @@ const dlw_term_tries_secs = array(
 /**
  * @todo Add a lock (independent of the task lock) for dlw_get_and_store_terms(), given that it can be
  *       called from both the task as well as the rebuild tool.
- * @todo Add a status display in the plugin's panel in the admin plugin console. The status should display
- *       number of posts with unextracted links versus total posts, and number of links for which redirects
- *       have not been resolved, both the ones which have not been attempted yet as well as those which have
- *       been and in which the attempt failed, versus total links. Provide the user with a means to run
- *       processes which do what's necessary - this could be achieved via a POST request to the rebuild tasks
- *       with the "page" parameter set to greater than one, to avoid first clearing out the tables.
  * @todo Consider whether we should be checking robots.txt.
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
- * @todo Warn upon installation/activation that the link table needs to be populated.
  * @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database
  *       column is posted.
  * @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts.
@@ -91,12 +84,13 @@ $plugins->add_hook('admin_tools_recount_rebuild'            , 'dlw_hookin__admin
 define('C_DLW', str_replace('.php', '', basename(__FILE__)));
 
 function duplicate_link_warner_info() {
-	global $lang;
+	global $lang, $db, $mybb;
+
 	if (!isset($lang->duplicate_link_warner)) {
 		$lang->load('duplicate_link_warner');
 	}
 
-	return array(
+	$ret = array(
 		'name'          => $lang->dlw_name,
 		'description'   => $lang->dlw_desc,
 		'website'       => '',
@@ -107,6 +101,49 @@ function duplicate_link_warner_info() {
 		'codename'      => C_DLW,
 		'compatibility' => '18*'
 	);
+
+	$desc = '';
+	$desc .= '<ul>'.PHP_EOL;
+
+	$res = $db->simple_select('posts', 'count(*) AS cnt', 'dlw_got_urls = 0');
+	$cnt = $db->fetch_array($res)['cnt'];
+	$res = $db->simple_select('posts', 'count(*) AS cnt');
+	$cnt_tot = $db->fetch_array($res)['cnt'];
+	$desc .= '	<li style="list-style-image: url(styles/default/images/icons/';
+	if ($cnt == 0) {
+		$desc .= 'success.png)">All links have successfully been extracted from all posts.';
+	} else {
+		$desc .= 'warning.png)">'.$cnt.' of '.$cnt_tot.' posts have not yet had links extracted from them.';
+		if ($cnt > 0) {
+			/** @todo split the language here out into the language file. */
+			$desc .= ' To extract links from those '.$cnt.' posts, click <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form> (or simply leave it up to the scheduled task, assuming you have not disabled it).';
+		}
+	}
+	$desc .= '</li>'.PHP_EOL;
+
+	$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = 0');
+	$cnt1 = $db->fetch_array($res)['cnt'];
+	$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = 0 AND term_tries > 0');
+	$cnt2 = $db->fetch_array($res)['cnt'];
+	$res = $db->simple_select('urls', 'count(*) AS cnt');
+	$cnt_tot = $db->fetch_array($res)['cnt'];
+	$desc .= '	<li style="list-style-image: url(styles/default/images/icons/';
+	if ($cnt1 == 0) {
+		$desc .= 'success.png)">Terminations for all extracted links have successfully been determined.';
+	} else {
+		$desc .= 'warning.png)">'.$cnt1.' of '.$cnt_tot.' links have not yet had their terminating links determined. Attempts have already been unsuccessfully made for '.$cnt2.' of them.';
+		if ($cnt1 > 0) {
+			/** @todo split the language here out into the language file. */
+			$desc .= ' To attempt to determine the terminating links for those '.$cnt1.' posts, click <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form> (or simply leave it up to the scheduled task, assuming you have not disabled it).';
+		}
+	}
+	$desc .= '</li>'.PHP_EOL;
+
+	$desc .= '</ul>'.PHP_EOL;
+
+	$ret['description'] .= $desc;
+
+	return $ret;
 }
 
 function duplicate_link_warner_install() {
