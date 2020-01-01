@@ -610,9 +610,7 @@ function dlw_get_and_add_urls($urls, $pid = null) {
 	}
 	$redirs = dlw_get_url_term_redirs(array_diff($urls, $existing_urls), $got_terms);
 
-	if ($urls) {
-		dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid);
-	}
+	dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid);
 
 	return $urls;
 }
