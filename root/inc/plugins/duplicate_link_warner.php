@@ -39,6 +39,8 @@ const dlw_default_rebuild_links_items_per_page = 500;
 const dlw_default_rebuild_term_items_per_page = 150;
 const dlw_default_rebuild_renorm_items_per_page = 500;
 
+const dlw_max_matching_posts = 10;
+
 const dlw_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
 const dlw_check_for_html_redirects = true;
 const dlw_check_for_canonical_tags = true;
@@ -71,12 +73,7 @@ const dlw_term_tries_secs = array(
  * @todo Warn upon installation/activation that the link table needs to be populated.
  * @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database
  *       column is posted.
- * @todo We are currently handling HTTP redirects (via the term columns of the url table); consider whether we
- *       should also handle (1) HTML redirects and (2) "canonical" <link> tags (which, sadly, would mean we could
- *       no longer use the HEAD method, and thus would waste bandwidth. Perhaps it could be a setting).
  * @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts.
- * @todo Limit the number of returned matching posts to a sane value and consider how to provide access to the
- *       remainder.
  */
 
 $plugins->add_hook('datahandler_post_insert_thread'         , 'dlw_hookin__datahandler_post_insert_thread'         );
@@ -344,49 +341,15 @@ function dlw_extract_urls($text) {
 	return array_values(array_unique($urls));
 }
 
-// The below notes are on the intended post-implementation behaviour - but it hasn't yet
-// been implemented; none of these parameters/returns are yet functional. Their aim is to
-// prevent a situation in which a vast number of posts match a URL, the full contents of
-// which are downloaded to the browser. i.e., the intend is to allow for the implementation
-// of paging in the event of a large number of matches. A simpler alternative to consider is
-// to just provide a message something like "[X] other posts also contain this/these URL(s)".
-//
-// ---
-//
-// The third entry of the returned array, $unreturned_count, includes in the count
-// only unreturned matching posts that do not contain any of the URLs in $paged_urls,
-// since those posts are assumed to have already been counted by the caller via one or more
-// prior calls to this function.
-//
-// In theory, it is possible that none of those URLs were present in one or more matching posts
-// at last call, and have since been edited into that/those matching posts, and thus that
-// that/those post/s *should* be counted, but handling such rare scenarios seems to me
-// to be overly obsessive.
-//
-// And, to be clear: $unreturned_count of course does not include any posts with IDs in the $paged_ids
-// argument either.
-function dlw_get_posts_for_urls($urls, $post_edit_times = array(), $paged_urls = array(), $paged_ids = array()) {
-	global $db, $parser;
+function dlw_get_url_search_sql($urls, $already_normalised = false) {
+	global $db;
 
-	$unreturned_count = 0;
-
-	sort($urls);
-
-	$urls_norm = dlw_normalise_urls($urls);
-
-	if (!$parser) {
-		require_once MYBB_ROOT.'inc/class_parser.php';
-		$parser = new postParser;
+	if ($already_normalised) {
+		$urls_norm = $urls;
+	} else {
+		sort($urls);
+		$urls_norm = dlw_normalise_urls($urls);
 	}
-	$parse_opts = array(
-		'allow_html'   => false,
-		'allow_mycode' => true,
-		'allow_smilies' => true,
-		'allow_imgcode' => true,
-		'allow_videocode' => true,
-		'nofollow_on' => 1,
-		'filter_badwords' => 1
-	);
 
 	$url_paren_list = "('".implode("', '", array_map(array($db, 'escape_string'), $urls_norm))."')";
 	$conds = 'u.url_norm IN '.$url_paren_list.' OR u.url_term_norm IN '.$url_paren_list;
@@ -397,11 +360,21 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array(), $paged_urls =
 		$fids .= $inact_fids;
 	}
 	if ($fids) {
-		$conds = '('.$conds.') and f.fid NOT IN ('.$fids.')';
+		$conds = '('.$conds.') AND f.fid NOT IN ('.$fids.')';
 	}
-	$conds = '('.$conds.') and p.visible > 0';
+	$onlyusfids = array();
+	foreach ($group_permissions as $fid => $forum_permissions) {
+		if ($forum_permissions['canonlyviewownthreads'] == 1) {
+			$onlyusfids[] = $fid;
+		}
+	}
+	if ($onlyusfids) {
+		$conds .= '('.
+		$conds.' AND ((t.fid IN('.implode(',', $onlyusfids).') AND t.uid="'.$mybb->user['uid'].'") OR t.fid NOT IN('.implode(',', $onlyusfids).')))';
+	}
+	$conds = '('.$conds.') AND p.visible > 0';
 
-	$res = $db->query('
+	return '
 SELECT DISTINCT u2.url as matching_url, u.url_norm AS queried_norm_url,
                 p.pid, p.uid AS uid_post, p.username AS username_post, p.dateline as dateline_post, p.message, p.subject AS subject_post, p.edittime,
                 t.tid, t.uid AS uid_thread, t.username AS username_thread, t.subject AS subject_thread, t.firstpost, t.dateline as dateline_thread,
@@ -422,12 +395,42 @@ ON              p.tid = t.tid
 LEFT OUTER JOIN '.$db->table_prefix.'threadprefixes x
 ON              t.prefix = x.pid
 WHERE           '.$conds.'
-ORDER BY        isfirstpost DESC, p.dateline DESC');
+ORDER BY        isfirstpost DESC, p.dateline DESC';
+}
+
+// Returns at most dlw_max_matching_posts results. Indicates whether there are further results via the third entry of the returned array.
+function dlw_get_posts_for_urls($urls, $post_edit_times = array()) {
+	global $db, $parser;
+
+	sort($urls);
+	$urls_norm = dlw_normalise_urls($urls);
+
+	if (!$parser) {
+		require_once MYBB_ROOT.'inc/class_parser.php';
+		$parser = new postParser;
+	}
+	$parse_opts = array(
+		'allow_html'   => false,
+		'allow_mycode' => true,
+		'allow_smilies' => true,
+		'allow_imgcode' => true,
+		'allow_videocode' => true,
+		'nofollow_on' => 1,
+		'filter_badwords' => 1
+	);
+
+	$sql = dlw_get_url_search_sql($urls_norm, /*$already_normalised= */true);
+	$res = $db->query($sql);
 
 	$all_matching_urls_in_quotes_flag = false;
 	$forum_names = array();
 	$matching_posts = array();
+	$further_results = false;
 	while (($row = $db->fetch_array($res))) {
+		if (count($matching_posts) == dlw_max_matching_posts) {
+			$further_results = true;
+			break;
+		}
 		$forum_names[$row['fid']] = $row['forum_name'];
 		if (!isset($matching_posts[$row['pid']])) {
 			$matching_posts[$row['pid']] = $row;
@@ -462,7 +465,7 @@ ORDER BY        isfirstpost DESC, p.dateline DESC');
 	$db->free_result($res);
 
 	if (!$matching_posts) {
-		return array(null, $forum_names, 0);
+		return array(null, $forum_names, false);
 	}
 
 	uasort($matching_posts, function ($post1, $post2) use ($urls) {
@@ -528,7 +531,8 @@ ORDER BY        isfirstpost DESC, p.dateline DESC');
 		}
 	}
 
-	return array($matching_posts, $forum_names, $unreturned_count);
+	// Earlier return possible
+	return array($matching_posts, $forum_names, $further_results);
 }
 
 function dlw_hookin__datahandler_post_insert_post_end($posthandler) {

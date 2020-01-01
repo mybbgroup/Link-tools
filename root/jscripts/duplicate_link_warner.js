@@ -4,6 +4,7 @@ var DLW = {
 
 	matching_posts: {},
 	checked_urls: {},
+	further_results: false,
 
 	link: document.createElement('a'),
 
@@ -263,6 +264,9 @@ var DLW = {
 					}
 					return;
 				}
+				if (data.further_results) {
+					DLW.further_results = true;
+				}
 				var urls_in_edit_pane = new_urls.concat(old_urls);
 				var added_matching_post = false;
 				for (var pid_in in data.matching_posts) {
@@ -377,6 +381,9 @@ var DLW = {
 					msg += 'An existing post contains';
 				}
 			} else {
+				if (DLW.further_results) {
+					msg += 'More than ';
+				}
 				if (op_post_ids.length == cnt) {
 					msg += cnt + ' existing <strong>opening posts</strong> contain';
 				} else {
@@ -415,6 +422,22 @@ var DLW = {
 				var css = '';
 				for (var a in css_obj) css += a+':'+css_obj[a]+';';
 				msg += '<div id="dlw-extra-info" style="'+css+'max-height: '+($(window).height() - 50)+'px; text-align: left; overflow-y: scroll;">';
+				if (DLW.further_results) {
+					var urls_enc = '';
+					for (var checked_url in DLW.checked_urls) {
+						if (DLW.checked_urls[checked_url].active) {
+							if (urls_enc) urls_enc += ',';
+							urls_enc += encodeURIComponent(checked_url);
+						}
+					}
+					var url = 'dlw_search.php?urls='+urls_enc+'&resulttype=posts';
+					/** @todo Perhaps split the style out into a customisable stylesheet, and move this wording into a language file. */
+					var further_results_pre = '<div class="further_results" style="background-color: orange; border: 1px solid black;">The first '+cnt+' matching posts are shown in full ';
+					var further_results_post = '. Click here for <a href="'+url+'">ALL matching posts</a>.</div>';
+					var further_results_below = further_results_pre + 'below' + further_results_post;
+					var futher_results_above = further_results_pre + 'above' + further_results_post;
+					msg += further_results_below;
+				}
 				var ids = op_post_ids.concat(non_op_post_ids);
 				for (var i = 0; i < ids.length; i++) {
 					var pid = ids[i];
@@ -449,6 +472,9 @@ var DLW = {
 						msg += '<div id="dlw-post-inner-'+pid+'" style="'+css+'">'+post['message']+'</div>'+"\n";
 						msg += '</div>'+"\n";
 					}
+				}
+				if (DLW.further_results) {
+					msg += futher_results_above;
 				}
 				msg += '</div>';
 			}

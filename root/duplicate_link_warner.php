@@ -28,8 +28,6 @@ if (!empty($mybb->input['urls'])) {
 			$post_edit_times[$pid] = ((array)$mybb->input['edtms'])[$i];
 		}
 	}
-	$paged_urls = !empty($mybb->input['paged_urls']) ? (array)$mybb->input['paged_urls'] : array();
-	$paged_ids = !empty($mybb->input['paged_ids']) ? (array)$mybb->input['paged_ids'] : array();
-	list($matching_posts, $forum_names, $unreturned_count) = dlw_get_posts_for_urls($mybb->input['urls'], $post_edit_times, $paged_urls, $paged_ids);
-	echo json_encode(array('matching_posts' => $matching_posts, 'unreturned_count' => $unreturned_count));
+	list($matching_posts, $forum_names, $further_results) = dlw_get_posts_for_urls($urls, $post_edit_times);
+	echo json_encode(array('matching_posts' => $matching_posts, 'further_results' => $further_results));
 }
