@@ -41,6 +41,8 @@ const dlw_default_rebuild_renorm_items_per_page = 500;
 
 const dlw_max_matching_posts = 10;
 
+const urls_limit_for_get_and_store_terms = 2000;
+
 const dlw_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
 const dlw_check_for_html_redirects = true;
 const dlw_check_for_canonical_tags = true;
@@ -130,7 +132,7 @@ function duplicate_link_warner_info() {
 	} else {
 		$desc .= 'warning.png)">'.number_format($cnt_posts_unextracted).' of '.number_format($cnt_posts_tot).' posts have not yet had links extracted from them.';
 		if ($cnt_posts_unextracted > 0) {
-			$desc .= ' To extract links from that/those '.$cnt_posts_unextracted.' post(s), click <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form> (or simply leave it up to the scheduled Duplicate Link Warner task, assuming you have not disabled it). Note that at the end of the process, the success message will read "Successfully repopulated the links tables for the Duplicate Link Warner." Rest assured that despite that confusing message, the links table is not repopulated from scratch: links are extracted only from the aforementioned posts from which links have not yet been extracted; posts from which links have already been extracted are left untouched.';
+			$desc .= ' To extract links from that/those '.$cnt_posts_unextracted.' post(s), click <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form> (or simply leave it up to the scheduled Duplicate Link Warner task, assuming you have not disabled it). Note that at the end of the process, the success message will read "Successfully repopulated the links tables for the Duplicate Link Warner." Rest assured that despite that message, when that function is run from here the links table is not repopulated from scratch: links are extracted only from the aforementioned posts from which links have not yet been extracted; posts from which links have already been extracted are left untouched.';
 		}
 	}
 	$desc .= '</li>'.PHP_EOL;
@@ -145,9 +147,8 @@ function duplicate_link_warner_info() {
 			$desc .= ' Attempts have been unsuccessfully made for '.($cnt_links_unresolved == $cnt_links_unresolved_tried ? 'all ' : '').number_format($cnt_links_unresolved_tried).' of them.';
 			if ($cnt_given_up) $desc .= ' We\'ve given up on '.number_format($cnt_given_up).' of them.';
 		}
-		$tot_can_try = $cnt_eligible + ($cnt_links_unresolved - $cnt_links_unresolved_tried);
-		if ($tot_can_try > 0) {
-			$desc .= ' '.number_format($tot_can_try).' link(s) is/are eligible for a resolution attempt right now by clicking <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>. Note that at the end of the process, the success message will read "Successfully repopulated the terminating redirects in the links table for the Duplicate Link Warner." Rest assured that despite that confusing message, the links table is not repopulated from scratch: only the aforementioned eligible unresolved links are resolved; already-resolved links are left untouched.';
+		if ($cnt_eligible > 0) {
+			$desc .= ' '.number_format($cnt_eligible).' link(s) is/are eligible for a resolution attempt right now by clicking <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>. Note that at the end of the process, the success message will read "Successfully repopulated the terminating redirects in the links table for the Duplicate Link Warner." Rest assured that despite that message, when that function is run from here the links table is not repopulated from scratch: only the aforementioned eligible unresolved links are resolved; already-resolved links are left untouched.';
 		} else {
 			$desc .= ' None of these links is eligible for another resolution attempt right now: reattempts of failed resolutions are subject to staggered delays as there is typically no point in retrying immediately; instead, the need is to wait for any network/server problem(s) to be fixed.';
 		}
@@ -1363,26 +1364,73 @@ function dlw_get_sql_conds_for_ltt() {
 function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0) {
 	global $db, $mybb;
 
-	$servers = $urls_final = $ids = [];
+	$servers = $servers_sought = $servers_tot = $urls_final = $ids = [];
 
+	// The next one hundred or so lines of code ensure that the ratio of the numbers
+	// of URLs from different servers in our urls to be polled is the same as that of
+	// as-yet unresolved URLs in the database.
+	//
+	// Why? Because, given that we only make only one request of each server at a time,
+	// and pause between successive requests to that server, this optimises the total
+	// runtime of all operations - or, at least, that's my understanding unless/until
+	// somebody corrects me.
 	$conds = dlw_get_sql_conds_for_ltt();
+	$start = 0;
+	$continue = true;
+	while ($continue) {
+		$res = $db->simple_select(
+			'urls',
+			'url',
+			$conds,
+			array(
+				'limit_start' => $start,
+				'limit' => urls_limit_for_get_and_store_terms
+			),
+			array(
+				'order_by' => 'urlid',
+				'order_dir' => 'ASC'
+			)
+		);
 
-	if ($retrieve_count) {
-		$res = $db->simple_select('urls', 'count(url) as cnt', $conds);
-		$count = $db->fetch_array($res)['cnt'];
+		$continue = false;
+		while ($row = $db->fetch_array($res)) {
+			$norm_server = dlw_get_norm_server_from_url($row['url']);
+			if (!$norm_server) continue;
+			$continue = true;
+			$count++;
+			$start++;
+			if (!isset($servers_tot[$norm_server])) {
+				$servers_tot[$norm_server] = 0;
+			}
+			$servers_tot[$norm_server]++;
+		}
+	}
+	asort($servers_tot);
+	$servers_tot = array_reverse($servers_tot);
+	$sought_cnt = 0;
+	foreach ($servers_tot as $server => $cnt) {
+		$x = ceil($cnt * $num_urls / $count);
+		$servers_sought[$server] = $x;
+		$sought_cnt += $x;
+		$servers[$server] = 0;
+		if ($sought_cnt >= $num_urls) {
+			break;
+		}
 	}
 
-	// Maximise the number of different servers that we will query at a time, which
-	// tends to minimise duration because we don't query any given server any more
-	// than once every dlw_rehit_delay_in_secs seconds.
-	//
-	// Note that this is not an optimal approach: optimal would be to ensure that
-	// the ratio of numbers of URLs from different servers in our urls to be requested
-	// is the same as that of as-yet unresolved URLs in the database.
-	//
-	/** @todo So, a potential todo is to optimise our approach as just described. */
 	$start = 0;
+	$num_got = 0;
 	do {
+		if ($start > 0) {
+			$done = true;
+			foreach ($servers_sought as $server => $cnt) {
+				if ($servers[$server] < $cnt) {
+					$done = false;
+					break;
+				}
+			}
+			if ($done) break;
+		}
 		$urls_new = array();
 		$res = $db->simple_select(
 			'urls',
@@ -1404,41 +1452,27 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 
 		if (!$urls_new) break;
 
-		if ($start == 0) {
-			$urls_final = $urls_new;
-			if (count($urls_final) < $num_urls) {
-				break;
+		foreach ($urls_new as $url1) {
+			$norm_server = dlw_get_norm_server_from_url($url1);
+			if (!$norm_server) {
+				continue;
 			}
-			foreach ($urls_final as $url) {
-				$norm_server = dlw_get_norm_server_from_url($url);
+			if (array_key_exists($norm_server, $servers_sought) && $servers[$norm_server] < $servers_sought[$norm_server]) {
+				$urls_final[] = $url1;
 				if (!isset($servers[$norm_server])) {
 					$servers[$norm_server] = 0;
 				}
 				$servers[$norm_server]++;
+				$num_got++;
 			}
-		} else if (count($servers) < $num_urls) {
-			foreach ($urls_new as $url1) {
-				$norm_server1 = dlw_get_norm_server_from_url($url1);
-				if (isset($servers[$norm_server1])) {
-					continue;
-				}
-				for ($i = 0; $i < count($urls_final); $i++) {
-					$url2 = $urls_final[$i];
-					$norm_server2 = dlw_get_norm_server_from_url($url2);
-					if ($servers[$norm_server2] > 1) {
-						unset($ids[$url2]);
-						$urls_final[$i] = $url1;
-						$servers[$norm_server1] = 1;
-						$servers[$norm_server2]--;
-						break;
-					}
-				}
+			if ($num_got >= $num_urls) {
+				break;
 			}
-		} else 	break;
+		}
 
 		$start += $num_urls;
 
-	} while (count($urls_new) >= $num_urls && count($servers) < $num_urls);
+	} while (count($urls_new) >= $num_urls);
 
 	$terms = dlw_get_url_term_redirs($urls_final, $got_terms);
 	if ($terms) {
