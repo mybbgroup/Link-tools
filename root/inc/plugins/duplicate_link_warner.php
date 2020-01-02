@@ -43,6 +43,10 @@ const dlw_max_matching_posts = 10;
 
 const urls_limit_for_get_and_store_terms = 2000;
 
+// 2083 was chosen because it is the maximum size URL that Internet Explorer will accept
+// (other major browsers have higher limits).
+const c_max_url_len = 2083;
+
 const dlw_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
 const dlw_check_for_html_redirects = true;
 const dlw_check_for_canonical_tags = true;
@@ -66,8 +70,6 @@ const dlw_term_tries_secs = array(
  *       called from both the task as well as the rebuild tool.
  * @todo Consider whether we should be checking robots.txt.
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
- * @todo Consider what (should) happen(s) when a URL whose length exceeds the size of its associated database
- *       column is posted.
  * @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts.
  */
 
@@ -166,20 +168,16 @@ function duplicate_link_warner_install() {
 	global $db;
 
 	if (!$db->table_exists('urls')) {
-		// 2083 was chosen because it is the maximum size URL
-		// that Internet Explorer will accept
-		// (other major browsers have higher limits).
-		//
 		// utf8_bin collation was chosen for the varchar columns
 		// so that SELECTs are case-sensitive, given that everything
 		// after the server name in URLs is case-sensitive.
 		$db->query('
 CREATE TABLE '.TABLE_PREFIX.'urls (
   urlid         int unsigned NOT NULL auto_increment,
-  url           varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  url_norm      varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  url_term      varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  url_term_norm varchar(2083) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url           varchar('.c_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_norm      varchar('.c_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_term      varchar('.c_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_term_norm varchar('.c_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   got_term      boolean       NOT NULL DEFAULT FALSE,
   term_tries    tinyint unsigned NOT NULL DEFAULT 0,
   last_term_try int unsigned  NOT NULL default 0,
@@ -642,12 +640,16 @@ function dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 			if ($row = $db->fetch_array($res)) {
 				$urlid = $row['urlid'];
 			} else {
+				$url_fit         = substr($url   , 0, c_max_url_len);
+				$url_norm_fit    = substr(dlw_normalise_url($url), 0, c_max_url_len);
+				$target_fit      = substr($target, 0, c_max_url_len);
+				$target_norm_fit = substr(dlw_normalise_url($target == false ? $url : $target), 0, c_max_url_len);
 				// Simulate the enforcement of a UNIQUE constraint on the `url` column
 				// using a SELECT with a HAVING condition. This prevents the possibility of
 				// rows with duplicate values for `url`.
 				if (!$db->write_query('
 INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try)
-       SELECT \''.$db->escape_string($url).'\', \''.$db->escape_string(dlw_normalise_url($url)).'\', \''.$db->escape_string($target == false ? $url : $target).'\', \''.$db->escape_string(dlw_normalise_url($target == false ? $url : $target)).'\', '.($got_terms[$url] == false ? '0' : '1').", '1', '$now'".'
+       SELECT \''.$db->escape_string($url_fit).'\', \''.$db->escape_string($url_norm_fit).'\', \''.$db->escape_string($target == false ? $url_fit : $target_fit).'\', \''.$db->escape_string($target_norm_fit).'\', '.($got_terms[$url] == false ? '0' : '1').", '1', '$now'".'
        FROM '.TABLE_PREFIX.'urls WHERE url=\''.$db->escape_string($url).'\'
        HAVING COUNT(*) = 0')
 				    ||
@@ -1485,9 +1487,11 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 				if ($term === false) {
 					$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().' WHERE urlid='.$ids[$url]);
 				} else  {
+					$term_fit      = substr($term     , 0, c_max_url_len);
+					$term_norm_fit = substr($term_norm, 0, c_max_url_len);
 					$fields = array(
-						'url_term'      => $db->escape_string($term),
-						'url_term_norm' => $db->escape_string(dlw_normalise_url($term)),
+						'url_term'      => $db->escape_string($term_fit     ),
+						'url_term_norm' => $db->escape_string($term_norm_fit),
 						'got_term'      => 1,
 					);
 					$db->update_query('urls', $fields, 'urlid = '.$ids[$url]);
@@ -1617,8 +1621,8 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 			$updates = array();
 			while (($row = $db->fetch_array($res))) {
 				$updates[$row['urlid']] = array(
-					'url_norm'      => $db->escape_string(dlw_normalise_url($row['url'     ])),
-					'url_term_norm' => $db->escape_string(dlw_normalise_url($row['url_term'])),
+					'url_norm'      => $db->escape_string(substr(dlw_normalise_url($row['url'     ]), 0, c_max_url_len)),
+					'url_term_norm' => $db->escape_string(substr(dlw_normalise_url($row['url_term']), 0, c_max_url_len)),
 				);
 			}
 			foreach ($updates as $urlid => $update_fields) {
