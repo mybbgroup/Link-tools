@@ -4,7 +4,7 @@ $l['dlw_name'             ] = 'Duplicate link warner';
 $l['dlw_desc'             ] = 'Warns a member if a link in a thread they are about to start has already been shared to the forum.';
 
 $l['dlw_rebuild_links'     ] = 'Rebuild Link Tables For The Duplicate Link Warner';
-$l['dlw_rebuild_links_desc'] = 'When this is run, the database tables that store the links from within posts are repopulated from scratch. Generally, the only reason to run this rebuild is to initialise the tables immediately after the plugin is first installed, because the plugin also installs a task that periodically "catches up" with any posts whose links have not yet been extracted and stored.';
+$l['dlw_rebuild_links_desc'] = 'When this is run, the database tables that store the links from within posts are repopulated from scratch. Generally, the only reason to run this rebuild is to initialise the tables immediately after the plugin is first installed, because the plugin also installs a task that periodically "catches up" with any posts whose links have not yet been extracted and stored. After running this task, you will then need to run the subsequent task, "Repopulate Terminating Redirects For The Duplicate Link Warner", since the information about terminating redirects will be deleted when this task runs.';
 $l['dlw_admin_log_rebuild_links'] = 'Repopulating the links tables for the Duplicate Link Warner.';
 $l['dwl_success_rebuild_links'] = 'Successfully repopulated the links tables for the Duplicate Link Warner.';
 
