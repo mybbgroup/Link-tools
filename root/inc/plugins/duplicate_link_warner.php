@@ -629,6 +629,10 @@ function dlw_get_and_add_urls($urls, $pid = null) {
 	return $urls;
 }
 
+/**
+ * If $got_terms is false, then it indicates that no attempt was even made at resolving terminating redirects.
+ * Otherwise, it is an array indexed by URLs indicating (true/false) whether or not a terminating redirect was found for the given URL.
+ */
 function dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 	global $db;
 
@@ -649,7 +653,7 @@ function dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 				// rows with duplicate values for `url`.
 				if (!$db->write_query('
 INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try)
-       SELECT \''.$db->escape_string($url_fit).'\', \''.$db->escape_string($url_norm_fit).'\', \''.$db->escape_string($target == false ? $url_fit : $target_fit).'\', \''.$db->escape_string($target_norm_fit).'\', '.($got_terms[$url] == false ? '0' : '1').", '1', '$now'".'
+       SELECT \''.$db->escape_string($url_fit).'\', \''.$db->escape_string($url_norm_fit).'\', \''.$db->escape_string($target == false ? $url_fit : $target_fit).'\', \''.$db->escape_string($target_norm_fit).'\', \''.(!$got_terms || $got_terms[$url] == false ? '0' : '1')."', '".(!$got_terms ? '0' : '1')."', '$now'".'
        FROM '.TABLE_PREFIX.'urls WHERE url=\''.$db->escape_string($url).'\'
        HAVING COUNT(*) = 0')
 				    ||
@@ -828,6 +832,7 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 				$headers = substr($content, 0, $header_size);
 				$html = substr($content, $header_size);
 				$target = $url;
+				$matchid = 1;
 				$got = false;
 				if ($response_code != 200 && preg_match('/^\\s*Location\\s*:(.+)$/im', $headers, $matches)) {
 					$got    = true;
@@ -840,10 +845,11 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 				    // (1) It doesn't check that the tag occurs within the <head> section.
 				    // (2) It fails to match when redundant attributes are prepended into
 				    //     the tag, but those scenarios should be rare.
-				    $check_html_redirects && preg_match('((?|<\\s*meta\\s+http-equiv\\s*=\\s*"\\s*refresh\\s*"\\s*content\\s*=\\s*"\\s*(?:\\d+\\s*;)?\\s*url\\s*=\\s*([^\"]+)"|<\\s*meta\\s+content\\s*=\\s*"\\s*(?:\\d+\\s*;)?\\s*url\\s*=\\s*([^\"]+)"\\s*http-equiv\\s*=\\s*"\\s*refresh\\s*"))is', $html, $matches)
+				    $check_html_redirects && preg_match('((?|<\\s*meta\\s+http-equiv\\s*=\\s*"\\s*refresh\\s*"\\s*content\\s*=\\s*"\\s*(?:\\d+\\s*;)?\\s*url\\s*=\\s*(\\\'|)?\\s*([^\"\\\']+)\\s*\\1\\s*"|<\\s*meta\\s+content\\s*=\\s*"\\s*(?:\\d+\\s*;)?\\s*url\\s*=\\s*(\\\'|)?\\s*([^\"\\\']+)\\s*\\1\\s*"\\s*(?:http-equiv\\s*=\\s*"\\s*)?refresh\\s*"))is', $html, $matches)
 				) {
 					$got    = true;
 					$decode = true;
+					$matchid = 2;
 				} else if (
 				    // As above.
 				    $check_html_canonical_tag && preg_match('((?|<\\s*link\\s+rel\\s*=\\s*"\\s*canonical\\s*"\\s*href\\s*=\\s*"\\s*([^\"]+)"|<\\s*link\\s+href\\s*=\\s*"\\s*([^\"]+)"\\s*rel\\s*=\\s*"\\s*canonical\\s*"))is', $html, $matches)
@@ -852,7 +858,7 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 					$decode = true;
 				}
 				if ($got) {
-					$target = trim($matches[1]);
+					$target = trim($matches[$matchid]);
 					if ($decode) {
 						$target = html_entity_decode($target);
 					}
@@ -1343,9 +1349,8 @@ function dlw_extract_and_store_urls_for_posts($num_posts) {
 	$db->free_result($res);
 
 	$redirs = array_combine($urls_all, array_fill(0, count($urls_all), false));
-	$got_terms = $redirs;
 	foreach ($post_urls as $pid => $urls) {
-		dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid);
+		dlw_add_urls_for_pid($urls, $redirs, false, $pid);
 	}
 
 	return $inc;
@@ -1487,8 +1492,8 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 				if ($term === false) {
 					$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().' WHERE urlid='.$ids[$url]);
 				} else  {
-					$term_fit      = substr($term     , 0, c_max_url_len);
-					$term_norm_fit = substr($term_norm, 0, c_max_url_len);
+					$term_fit      = substr($term                   , 0, c_max_url_len);
+					$term_norm_fit = substr(dlw_normalise_url($term), 0, c_max_url_len);
 					$fields = array(
 						'url_term'      => $db->escape_string($term_fit     ),
 						'url_term_norm' => $db->escape_string($term_norm_fit),
