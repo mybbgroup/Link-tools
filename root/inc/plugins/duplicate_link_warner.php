@@ -106,35 +106,50 @@ function duplicate_link_warner_info() {
 	$desc .= '<ul>'.PHP_EOL;
 
 	$res = $db->simple_select('posts', 'count(*) AS cnt', 'dlw_got_urls = 0');
-	$cnt = $db->fetch_array($res)['cnt'];
+	$cnt_posts_unextracted = $db->fetch_array($res)['cnt'];
 	$res = $db->simple_select('posts', 'count(*) AS cnt');
-	$cnt_tot = $db->fetch_array($res)['cnt'];
+	$cnt_posts_tot = $db->fetch_array($res)['cnt'];
+
+	$res = $db->simple_select('urls', 'count(*) AS cnt');
+	$cnt_links_tot = $db->fetch_array($res)['cnt'];
+	$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE');
+	$cnt_links_unresolved = $db->fetch_array($res)['cnt'];
+	if ($cnt_links_unresolved > 0) {
+		$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE AND term_tries > 0');
+		$cnt_links_unresolved_tried = $db->fetch_array($res)['cnt'];
+		$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE AND term_tries >= '.count(dlw_term_tries_secs));
+		$cnt_given_up = $db->fetch_array($res)['cnt'];
+		$res = $db->simple_select('urls', 'count(*) as cnt', dlw_get_sql_conds_for_ltt());
+		$cnt_eligible = $db->fetch_array($res)['cnt'];
+	}
+
 	$desc .= '	<li style="list-style-image: url(styles/default/images/icons/';
-	if ($cnt == 0) {
-		$desc .= 'success.png)">All links have successfully been extracted from all posts.';
+	/** @todo split the language here out into the language file. */
+	if ($cnt_posts_unextracted == 0) {
+		$desc .= 'success.png)">All '.number_format($cnt_links_tot).' links have been successfully extracted from all '.number_format($cnt_posts_tot).' posts.';
 	} else {
-		$desc .= 'warning.png)">'.$cnt.' of '.$cnt_tot.' posts have not yet had links extracted from them.';
-		if ($cnt > 0) {
-			/** @todo split the language here out into the language file. */
-			$desc .= ' To extract links from those '.$cnt.' posts, click <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form> (or simply leave it up to the scheduled task, assuming you have not disabled it).';
+		$desc .= 'warning.png)">'.number_format($cnt_posts_unextracted).' of '.number_format($cnt_posts_tot).' posts have not yet had links extracted from them.';
+		if ($cnt_posts_unextracted > 0) {
+			$desc .= ' To extract links from that/those '.$cnt_posts_unextracted.' post(s), click <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form> (or simply leave it up to the scheduled Duplicate Link Warner task, assuming you have not disabled it). Note that at the end of the process, the success message will read "Successfully repopulated the links tables for the Duplicate Link Warner." Rest assured that despite that confusing message, the links table is not repopulated from scratch: links are extracted only from the aforementioned posts from which links have not yet been extracted; posts from which links have already been extracted are left untouched.';
 		}
 	}
 	$desc .= '</li>'.PHP_EOL;
 
-	$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = 0');
-	$cnt1 = $db->fetch_array($res)['cnt'];
-	$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = 0 AND term_tries > 0');
-	$cnt2 = $db->fetch_array($res)['cnt'];
-	$res = $db->simple_select('urls', 'count(*) AS cnt');
-	$cnt_tot = $db->fetch_array($res)['cnt'];
-	$desc .= '	<li style="list-style-image: url(styles/default/images/icons/';
-	if ($cnt1 == 0) {
-		$desc .= 'success.png)">Terminations for all extracted links have successfully been determined.';
+	$desc .= '	<li style="list-style-image: url(styles/default/images/icons/'.($cnt_links_unresolved == 0 ? 'success' : ($cnt_eligible == 0 ? 'no_change' : 'warning')).'.png)">';
+	/** @todo split the language here out into the language file. */
+	if ($cnt_links_unresolved == 0) {
+		$desc .= 'Terminating links have been successfully resolved for all extracted links.';
 	} else {
-		$desc .= 'warning.png)">'.$cnt1.' of '.$cnt_tot.' links have not yet had their terminating links determined. Attempts have already been unsuccessfully made for '.$cnt2.' of them.';
-		if ($cnt1 > 0) {
-			/** @todo split the language here out into the language file. */
-			$desc .= ' To attempt to determine the terminating links for those '.$cnt1.' posts, click <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form> (or simply leave it up to the scheduled task, assuming you have not disabled it).';
+		$desc .= number_format($cnt_links_unresolved).' of '.number_format($cnt_links_tot).' links have not been resolved into their terminating links.';
+		if ($cnt_links_unresolved_tried > 0    ) {
+			$desc .= ' Attempts have been unsuccessfully made for '.($cnt_links_unresolved == $cnt_links_unresolved_tried ? 'all ' : '').number_format($cnt_links_unresolved_tried).' of them.';
+			if ($cnt_given_up) $desc .= ' We\'ve given up on '.number_format($cnt_given_up).' of them.';
+		}
+		$tot_can_try = $cnt_eligible + ($cnt_links_unresolved - $cnt_links_unresolved_tried);
+		if ($tot_can_try > 0) {
+			$desc .= ' '.number_format($tot_can_try).' link(s) is/are eligible for a resolution attempt right now by clicking <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>. Note that at the end of the process, the success message will read "Successfully repopulated the terminating redirects in the links table for the Duplicate Link Warner." Rest assured that despite that confusing message, the links table is not repopulated from scratch: only the aforementioned eligible unresolved links are resolved; already-resolved links are left untouched.';
+		} else {
+			$desc .= ' None of these links is eligible for another resolution attempt right now: reattempts of failed resolutions are subject to staggered delays as there is typically no point in retrying immediately; instead, the need is to wait for any network/server problem(s) to be fixed.';
 		}
 	}
 	$desc .= '</li>'.PHP_EOL;
@@ -1333,11 +1348,7 @@ function dlw_extract_and_store_urls_for_posts($num_posts) {
 	return $inc;
 }
 
-function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0) {
-	global $db, $mybb;
-
-	$servers = $urls_final = $ids = [];
-
+function dlw_get_sql_conds_for_ltt() {
 	$conds = 'got_term = FALSE';
 	$conds_ltt = '';
 	foreach (dlw_term_tries_secs as $i => $secs) {
@@ -1345,6 +1356,16 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 		$conds_ltt .= '(term_tries = '.$i.' AND last_term_try + '.dlw_term_tries_secs[$i].' < '.time().')';
 	}
 	if ($conds_ltt) $conds .= ' AND ('.$conds_ltt.')';
+
+	return $conds;
+}
+
+function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0) {
+	global $db, $mybb;
+
+	$servers = $urls_final = $ids = [];
+
+	$conds = dlw_get_sql_conds_for_ltt();
 
 	if ($retrieve_count) {
 		$res = $db->simple_select('urls', 'count(url) as cnt', $conds);
