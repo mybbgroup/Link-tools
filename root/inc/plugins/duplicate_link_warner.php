@@ -1403,7 +1403,9 @@ dlw_get_and_store_terms_start:
 		$continue = false;
 		while ($row = $db->fetch_array($res)) {
 			$norm_server = dlw_get_norm_server_from_url($row['url']);
-			if (!$norm_server) continue;
+			if (!$norm_server) {
+				$norm_server = '';
+			}
 			$continue = true;
 			$count++;
 			$start++;
@@ -1467,7 +1469,7 @@ dlw_get_and_store_terms_start:
 		foreach ($urls_new as $url1) {
 			$norm_server = dlw_get_norm_server_from_url($url1);
 			if (!$norm_server) {
-				continue;
+				$norm_server = '';
 			}
 			if (array_key_exists($norm_server, $servers_sought) && $servers[$norm_server] < $servers_sought[$norm_server]) {
 				$urls_final[] = $url1;
