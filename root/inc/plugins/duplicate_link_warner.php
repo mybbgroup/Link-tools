@@ -127,31 +127,33 @@ function duplicate_link_warner_info() {
 	}
 
 	$desc .= '	<li style="list-style-image: url(styles/default/images/icons/';
-	/** @todo split the language here out into the language file. */
 	if ($cnt_posts_unextracted == 0) {
-		$desc .= 'success.png)">All '.number_format($cnt_links_tot).' links have been successfully extracted from all '.number_format($cnt_posts_tot).' posts.';
+		$desc .= 'success.png)">'.$lang->sprintf($lang->dlw_all_links_extracted, number_format($cnt_links_tot), number_format($cnt_posts_tot));
 	} else {
-		$desc .= 'warning.png)">'.number_format($cnt_posts_unextracted).' of '.number_format($cnt_posts_tot).' posts have not yet had links extracted from them.';
+		$desc .= 'warning.png)">'.$lang->sprintf($lang->dlw_x_of_y_posts_unextracted, number_format($cnt_posts_unextracted), number_format($cnt_posts_tot));
 		if ($cnt_posts_unextracted > 0) {
-			$desc .= ' To extract links from that/those '.$cnt_posts_unextracted.' post(s), click <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form> (or simply leave it up to the scheduled Duplicate Link Warner task, assuming you have not disabled it). Note that at the end of the process, the success message will read "Successfully repopulated the links tables for the Duplicate Link Warner." Rest assured that despite that message, when that function is run from here the links table is not repopulated from scratch: links are extracted only from the aforementioned posts from which links have not yet been extracted; posts from which links have already been extracted are left untouched.';
+			$desc .= $lang->sprintf($lang->dlw_to_extract_links_click_here, $cnt_posts_unextracted, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
 		}
 	}
 	$desc .= '</li>'.PHP_EOL;
 
 	$desc .= '	<li style="list-style-image: url(styles/default/images/icons/'.($cnt_links_unresolved == 0 ? 'success' : ($cnt_eligible == 0 ? 'no_change' : 'warning')).'.png)">';
-	/** @todo split the language here out into the language file. */
 	if ($cnt_links_unresolved == 0) {
-		$desc .= 'Terminating links have been successfully resolved for all extracted links.';
+		$desc .= $lang->dlw_all_term_links_resolved;
 	} else {
-		$desc .= number_format($cnt_links_unresolved).' of '.number_format($cnt_links_tot).' links have not been resolved into their terminating links.';
+		$desc .= $lang->sprintf($lang->dlw_x_of_y_links_unresolved, number_format($cnt_links_unresolved), number_format($cnt_links_tot));
 		if ($cnt_links_unresolved_tried > 0    ) {
-			$desc .= ' Attempts have been unsuccessfully made for '.($cnt_links_unresolved == $cnt_links_unresolved_tried ? 'all ' : '').number_format($cnt_links_unresolved_tried).' of them.';
-			if ($cnt_given_up) $desc .= ' We\'ve given up on '.number_format($cnt_given_up).' of them.';
+			if ($cnt_links_unresolved == $cnt_links_unresolved_tried) {
+				$desc .= $lang->sprintf($lang->dlw_attempts_unsuccess_made_all_links, number_format($cnt_links_unresolved_tried));
+			} else {
+				$desc .= $lang->sprintf($lang->dlw_attempts_unsuccess_made_x_links, number_format($cnt_links_unresolved_tried));
+			}
+			if ($cnt_given_up) $desc .= $lang->sprintf($lang->dlw_given_up_on_x_links, number_format($cnt_given_up));
 		}
 		if ($cnt_eligible > 0) {
-			$desc .= ' '.number_format($cnt_eligible).' link(s) is/are eligible for a resolution attempt right now by clicking <form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="here" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>. Note that at the end of the process, the success message will read "Successfully repopulated the terminating redirects in the links table for the Duplicate Link Warner." Rest assured that despite that message, when that function is run from here the links table is not repopulated from scratch: only the aforementioned eligible unresolved links are resolved; already-resolved links are left untouched.';
+			$desc .= $lang->sprintf($lang->dlw_to_resolve_links_click_here, number_format($cnt_eligible), '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
 		} else {
-			$desc .= ' None of these links is eligible for another resolution attempt right now: reattempts of failed resolutions are subject to staggered delays as there is typically no point in retrying immediately; instead, the need is to wait for any network/server problem(s) to be fixed.';
+			$desc .= $lang->dlw_no_links_eligible_for_resolution;
 		}
 	}
 	$desc .= '</li>'.PHP_EOL;

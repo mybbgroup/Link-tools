@@ -2,6 +2,16 @@
 
 $l['dlw_name'             ] = 'Duplicate link warner';
 $l['dlw_desc'             ] = 'Warns a member if a link in a thread they are about to start has already been shared to the forum.';
+$l['dlw_all_links_extracted'              ] = ' All {1} links have been successfully extracted from all {2} posts.';
+$l['dlw_x_of_y_posts_unextracted'         ] = '{1} of {2} posts have not yet had links extracted from them.';
+$l['dlw_to_extract_links_click_here'      ] = ' To extract links from that/those {1} post(s), click {2}here{3} (or simply leave it up to the scheduled Duplicate Link Warner task, assuming you have not disabled it). Note that at the end of the process, the success message will read "Successfully repopulated the links tables for the Duplicate Link Warner." Rest assured that despite that message, when that function is run from here the links table is not repopulated from scratch: links are extracted only from the aforementioned posts from which links have not yet been extracted; posts from which links have already been extracted are left untouched.';
+$l['dlw_all_term_links_resolved'          ] = 'Terminating links have been successfully resolved for all extracted links.';
+$l['dlw_x_of_y_links_unresolved'          ] = '{1} of {2} links have not been resolved into their terminating links.';
+$l['dlw_attempts_unsuccess_made_all_links'] = ' Attempts have been unsuccessfully made for all {1} of them.';
+$l['dlw_attempts_unsuccess_made_x_links'  ] = ' Attempts have been unsuccessfully made for {1} of them.';
+$l['dlw_given_up_on_x_links'              ] = ' We\'ve given up on {1} of them.';
+$l['dlw_to_resolve_links_click_here'      ] = ' {1} link(s) is/are eligible for a resolution attempt right now by clicking {2}here{3}. Note that at the end of the process, the success message will read "Successfully repopulated the terminating redirects in the links table for the Duplicate Link Warner." Rest assured that despite that message, when that function is run from here the links table is not repopulated from scratch: only the aforementioned eligible unresolved links are resolved; already-resolved links are left untouched.';
+$l['dlw_no_links_eligible_for_resolution' ] = ' None of these links is eligible for another resolution attempt right now: reattempts of failed resolutions are subject to staggered delays as there is typically no point in retrying immediately; instead, the need is to wait for any network/server problem(s) to be fixed.';
 
 $l['dlw_rebuild_links'     ] = 'Rebuild Link Tables For The Duplicate Link Warner';
 $l['dlw_rebuild_links_desc'] = 'When this is run, the database tables that store the links from within posts are repopulated from scratch. Generally, the only reason to run this rebuild is to initialise the tables immediately after the plugin is first installed, because the plugin also installs a task that periodically "catches up" with any posts whose links have not yet been extracted and stored. After running this task, you will then need to run the subsequent task, "Repopulate Terminating Redirects For The Duplicate Link Warner", since the information about terminating redirects will be deleted when this task runs.';
