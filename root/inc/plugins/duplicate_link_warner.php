@@ -323,7 +323,7 @@ function dlw_strip_unmatched_closing_parens($url) {
 # with the second and fourth regexes from MyBB core's postParser::mycode_auto_url(),
 # and the first and third adapted independently to support bare URLs within MyCode
 # tags such as (where the "=option" is optional):
-#     [tag=option]http://www.example.com/dir/file.html?key1=val1&keys2[0]=val2.1&keys2[1]=val2.2[/tag]
+#     [tag=option]http://www.example.com/dir/file.html?key1=val1&keys2.1=val2.1&keys2.2=val2.2[/tag]
 # (the first regex)... as well as without the 'http://' (the third regex).
 #
 # The independently adapted regexes are necessary over core regexes because in

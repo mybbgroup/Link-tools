@@ -54,26 +54,31 @@ var DLW = {
 	// Based on the corresponding function in ../inc/plugins/duplicate_link_warner.php
 	extract_bare_urls: function(text, urls) {
 		var re1, re2, match;
-		var re_start = '[\\s\\(\\)\\[\\>]';
 		var supports_unicode = true;
 		var urls_matched = [];
 		text = ' ' + text;
 		var text_new = text;
 
-		re1_noflags = '(' + re_start + ')(http|https|ftp|news|irc|ircs|irc6){1}(://)([^\\/\\"\s\\<\\[\\.]+\.([^\\/\\"\\s\\<\\[\\.]+\\.)*[\\w]+(:[0-9]+)?(/([^\\"\\s<\\[]|\\[\\])*)?([\\w\\/\\)]))';
-		re2_noflags = '(' + re_start + ')(www|ftp)(\\.)(([^\\/\\"\\s\\<\\[\\.]+\\.)*[\\w]+(:[0-9]+)?(/([^\\"\\s<\\[]|\\[\\])*)?([\\w\\/\\)]))';
+		re1_noflags = '\\[([^\\]]+)(?:=[^\\]]+)?\\](http|https|ftp|news|irc|ircs|irc6){1}(://)([^\\/"\\s\\<\\[\\.]+\\.([^\\/"\\s\\<\\[\\.]+\\.)*[\\w]+(:[0-9]+)?(/([^"\\s<\\[]|\\[\\])*)?)\\[/\\1\\]';
+		re2_noflags = '([\\s\\(\\)\\[\\>])(http|https|ftp|news|irc|ircs|irc6){1}(://)([^\\/\\"\\s\\<\\[\\.]+\.([^\\/\\"\\s\\<\\[\\.]+\\.)*[\\w]+(:[0-9]+)?(/([^\\"\\s<\\[]|\\[\\])*)?([\\w\\/\\)]))';
+		re3_noflags = '\\[([^\\]]+)(?:=[^\\]]+)?\\](www|ftp)(\.)(([^\\/"\\s\\<\\[\\.]+\\.)*[\\w]+(:[0-9]+)?(/([^"\\s<\\[]|\\[\\])*)?)\\[/\\1\\]';
+		re4_noflags = '([\\s\\(\\)\\[\\>])(www|ftp)(\\.)(([^\\/\\"\\s\\<\\[\\.]+\\.)*[\\w]+(:[0-9]+)?(/([^\\"\\s<\\[]|\\[\\])*)?([\\w\\/\\)]))';
 		try {
 			// First, try the Unicode-aware regex.
 			re1 = new RegExp(re1_noflags, 'giu');
 			re2 = new RegExp(re2_noflags, 'giu');
+			re3 = new RegExp(re3_noflags, 'giu');
+			re4 = new RegExp(re4_noflags, 'giu');
 		} catch (err) {
 			supports_unicode = false;
 			re1 = new RegExp(re1_noflags, 'gi');
 			re2 = new RegExp(re2_noflags, 'gi');
+			re3 = new RegExp(re3_noflags, 'gi');
+			re4 = new RegExp(re4_noflags, 'gi');
 		}
 
-		var r = [re1, re2];
-		for (var i = 0; i < 2/*r.length*/; i++) {
+		var r = [re1, re2, re3];
+		for (var i = 0; i < r.length; i++) {
 			var re = r[i];
 			while ((match = re.exec(text)) !== null) {
 				url = match[2] + match[3] + DLW.strip_unmatched_closing_parens(match[4]);
