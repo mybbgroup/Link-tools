@@ -1417,7 +1417,11 @@ dlw_get_and_store_terms_start:
 	$servers_tot = array_reverse($servers_tot);
 	$sought_cnt = 0;
 	foreach ($servers_tot as $server => $cnt) {
-		$x = ceil($cnt * $num_urls / $count);
+		if ($count <= $num_urls) {
+			$x = $cnt;
+		} else {
+			$x = ceil($cnt * $num_urls / $count);
+		}
 		$servers_sought[$server] = $x;
 		$sought_cnt += $x;
 		$servers[$server] = 0;
