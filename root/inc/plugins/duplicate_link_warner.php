@@ -416,6 +416,7 @@ function dlw_get_url_search_sql($urls, $already_normalised = false) {
 		$conds = '('.$conds.') AND f.fid NOT IN ('.$fids.')';
 	}
 	$onlyusfids = array();
+	$group_permissions = forum_permissions();
 	foreach ($group_permissions as $fid => $forum_permissions) {
 		if ($forum_permissions['canonlyviewownthreads'] == 1) {
 			$onlyusfids[] = $fid;
