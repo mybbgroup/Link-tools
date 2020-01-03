@@ -55,6 +55,7 @@ const dlw_rehit_delay_in_secs = 3;
 const dlw_max_allowable_redirects_for_a_url = 25;
 const dlw_max_allowable_redirect_resolution_runtime_secs = 60;
 const dlw_curl_timeout = 10;
+const c_max_url_lock_time = 120;
 
 const dlw_term_tries_secs = array(
 	0,             // First attempt has no limits.
@@ -66,8 +67,6 @@ const dlw_term_tries_secs = array(
 );
 
 /**
- * @todo Add a lock (independent of the task lock) for dlw_get_and_store_terms(), given that it can be
- *       called from both the task as well as the rebuild tool.
  * @todo Consider whether we should be checking robots.txt.
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
  * @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts.
@@ -181,6 +180,7 @@ CREATE TABLE '.TABLE_PREFIX.'urls (
   got_term      boolean       NOT NULL DEFAULT FALSE,
   term_tries    tinyint unsigned NOT NULL DEFAULT 0,
   last_term_try int unsigned  NOT NULL default 0,
+  lock_time     int unsigned  NOT NULL default 0,
   KEY           url           (url(168)),
   KEY           url_norm      (url_norm(166)),
   KEY           url_term_norm (url_term_norm(166)),
@@ -1371,6 +1371,7 @@ function dlw_get_sql_conds_for_ltt() {
 function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0) {
 	global $db, $mybb;
 
+dlw_get_and_store_terms_start:
 	$servers = $servers_sought = $servers_tot = $urls_final = $ids = [];
 
 	// The next one hundred or so lines of code ensure that the ratio of the numbers
@@ -1381,7 +1382,7 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 	// and pause between successive requests to that server, this optimises the total
 	// runtime of all operations - or, at least, that's my understanding unless/until
 	// somebody corrects me.
-	$conds = dlw_get_sql_conds_for_ltt();
+	$conds = '('.dlw_get_sql_conds_for_ltt().') AND '.time().' > lock_time + '.c_max_url_lock_time;
 	$start = 0;
 	$continue = true;
 	while ($continue) {
@@ -1481,6 +1482,26 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 
 	} while (count($urls_new) >= $num_urls);
 
+	// Lock the relevant rows in the urls table for two minutes (c_max_url_lock_time).
+	// If we find that they have ALL already been locked (by some other process also
+	// accessing this function) in between the above and now, then go back to the
+	// beginning of this function and try again (to find any other unlocked urls).
+	$now = time();
+	$cnt = 0;
+	foreach ($urls_final as $url) {
+		if ($db->write_query('
+UPDATE '.TABLE_PREFIX.'urls SET lock_time = '.$now.'
+WHERE url = \''.$db->escape_string($url).'\' AND '.
+      $now.' > lock_time + '.c_max_url_lock_time)
+		    &&
+		    $db->affected_rows() >= 1) {
+			$cnt++;
+		}
+	}
+	if (count($urls_final) > 0 && $cnt <= 0) {
+		goto dlw_get_and_store_terms_start;
+	}
+
 	$terms = dlw_get_url_term_redirs($urls_final, $got_terms);
 	if ($terms) {
 		// Reopen the DB connection in case it has "gone away" given the potentially long delay while
@@ -1490,7 +1511,7 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 		foreach ($terms as $url => $term) {
 			if ($term !== null) {
 				if ($term === false) {
-					$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().' WHERE urlid='.$ids[$url]);
+					$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().', lock_time = 0 WHERE urlid='.$ids[$url]);
 				} else  {
 					$term_fit      = substr($term                   , 0, c_max_url_len);
 					$term_norm_fit = substr(dlw_normalise_url($term), 0, c_max_url_len);
@@ -1498,6 +1519,7 @@ function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0
 						'url_term'      => $db->escape_string($term_fit     ),
 						'url_term_norm' => $db->escape_string($term_norm_fit),
 						'got_term'      => 1,
+						'lock_time'     => 0,
 					);
 					$db->update_query('urls', $fields, 'urlid = '.$ids[$url]);
 				}
