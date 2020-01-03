@@ -378,29 +378,32 @@ var DLW = {
 		var msg = '';
 		if (cnt > 0) {
 			if (enc_summ) msg += '<div id="dlw-warn-summ-box-contents-summ">';
-			/** @todo Move constant strings such as the below into the language file. */
 			if (cnt == 1) {
 				if (op_post_ids.length == 1) {
-					msg += 'An existing <strong>opening post</strong> contains';
+					msg += dlw_exist_open_post_contains;
 				} else {
-					msg += 'An existing post contains';
+					msg += dlw_exist_post_contains;
 				}
 			} else {
 				if (DLW.further_results) {
-					msg += 'More than ';
+					msg += dlw_more_than;
 				}
 				if (op_post_ids.length == cnt) {
-					msg += cnt + ' existing <strong>opening posts</strong> contain';
+					msg += dlw_x_exist_open_post_contain.replace('{1}', cnt);
 				} else {
-					msg += cnt + ' existing posts contain';
+					msg += dlw_x_exist_posts_contain    .replace('{1}', cnt);
 				}
 			}
-			msg += ' ' + (urls_uniq.length > 1 ? urls_uniq.length + ' ' + 'of the URLs' : 'a URL') + ' added to your draft.';
+			if (urls_uniq.length > 1) {
+				msg += dlw_x_of_urls_added.replace('{1}', urls_uniq.length);
+			} else {
+				msg += dlw_a_url_added;
+			}
 			if (op_post_ids.length > 0 && op_post_ids.length != cnt) {
 				if (op_post_ids.length == 1) {
-					msg += ' ' + op_post_ids.length + ' of these is an <strong>opening post</strong>.';
+					msg += dlw_one_is_an_opening_post;
 				} else {
-					msg += ' ' + op_post_ids.length + ' of these are <strong>opening posts</strong>.';
+					msg += dlw_x_are_opening_posts.replace('{1}', op_post_ids.length);
 				}
 			}
 			if (enc_summ) msg += '</div>';
@@ -435,12 +438,15 @@ var DLW = {
 							urls_enc += encodeURIComponent(checked_url);
 						}
 					}
-					var url = 'dlw_search.php?urls='+urls_enc+'&resulttype=posts';
-					/** @todo Perhaps split the style out into a customisable stylesheet, and move this wording into a language file. */
-					var further_results_pre = '<div class="further_results" style="background-color: orange; border: 1px solid black;">The first '+cnt+' matching posts are shown in full ';
-					var further_results_post = '. Click here for <a href="'+url+'">ALL matching posts</a>.</div>';
-					var further_results_below = further_results_pre + 'below' + further_results_post;
-					var futher_results_above = further_results_pre + 'above' + further_results_post;
+					/** @todo Perhaps split the style out into a customisable stylesheet. */
+					var div_open = '<div class="further_results" style="background-color: orange; border: 1px solid black;">';
+					var url_esc = DLW.htmlspecialchars('dlw_search.php?urls='+urls_enc+'&resulttype=posts');
+					var further_results_below = dlw_further_results_below.replace('{1}', cnt);
+					further_results_below     = further_results_below    .replace('{2}', url_esc);
+					further_results_below     = div_open+further_results_below+'</div>';
+					var further_results_above = dlw_further_results_above.replace('{1}', cnt);
+					further_results_above     = further_results_above    .replace('{2}', url_esc)+'</div>';
+					further_results_above     = div_open+further_results_above+'</div>';
 					msg += further_results_below;
 				}
 				var ids = op_post_ids.concat(non_op_post_ids);
@@ -454,7 +460,7 @@ var DLW = {
 						msg += '<div>'+dlw_msg_started_by+' '+post['ulink_t']+', '+post['dtlink_t']+'</div>'+"\n";
 						/** @todo Perhaps split this out into a stylesheet that can be customised. */
 						msg += '<div>'+(is_first_post ? '<span style="border: 1px solid #a5161a; background-color: #fbe3e4; color: #a5161a; border-radius: 10px; -moz-border-radius: 10px; -webkit-border-radius: 10px; padding-left: 10px; padding-right: 10px;">'+dlw_msg_opening_post+'</span>' : dlw_msg_non_opening_post+' '+post['plink']+' '+dlw_msg_posted_by+' '+post['ulink_p']+', '+post['dtlink_p'])+'</div>'+"\n";
-						msg += '<button id="dlw-btn-dismiss-'+pid+'" type="button" style="float: right;">'+'Dismiss warning for this post'+'</button>';
+						msg += '<button id="dlw-btn-dismiss-'+pid+'" type="button" style="float: right;">'+dlw_dismiss_warn_for_post+'</button>';
 						msg += '<div>'+(post.undismissed_urls.length == 1 ? dlw_msg_matching_url_singular : dlw_msg_matching_urls_plural)+"\n";
 						msg += '<ul style="padding: 0 auto; margin: 0;">'+"\n";
 						for (var j in post.undismissed_urls) {
@@ -479,7 +485,7 @@ var DLW = {
 					}
 				}
 				if (DLW.further_results) {
-					msg += futher_results_above;
+					msg += further_results_above;
 				}
 				msg += '</div>';
 			}
@@ -577,7 +583,7 @@ var DLW = {
 				'word-wrap'            : 'break-word'     // Internet Explorer 5.5+
 			       
 			})
-			.append('<button id="dlw-btn-dismiss-summ" type="button">'+'Dismiss all warnings'+'</button><button id="dlw-btn-details-summ-on" type="button">'+'Show more'+'</button><button id="dlw-btn-details-summ-off" type="button">'+'Show less'+'</button>')
+			.append('<button id="dlw-btn-dismiss-summ" type="button">'+'Dismiss all warnings'+'</button><button id="dlw-btn-details-summ-on" type="button">'+dlw_show_more+'</button><button id="dlw-btn-details-summ-off" type="button">'+dlw_show_less+'</button>')
 			.append('<span id="dlw-warn-summ-box-contents"></span>');
 			$('#dlw-btn-dismiss-summ, #dlw-btn-details-summ-on, #dlw-btn-details-summ-off').css('float', 'right');
 			$('#dlw-warn-summ-box-contents').html(msg);
@@ -628,7 +634,7 @@ var DLW = {
 		if ($('#dlw-btn-undismiss').length) {
 			$('#dlw-btn-undismiss').show();
 		} else if ($('#dlw-msg-sidebar-div').length) {
-			$('#dlw-msg-sidebar-div').append('<button id="dlw-btn-undismiss" type="button">'+'Undismiss all duplicate link warnings'+'</button>');
+			$('#dlw-msg-sidebar-div').append('<button id="dlw-btn-undismiss" type="button">'+dlw_undismiss_all_warns+'</button>');
 			$('#dlw-btn-undismiss').bind('click', function(e) {
 				for (var pid in DLW.matching_posts) {
 					DLW.matching_posts[pid].undismissed_urls = DLW.matching_posts[pid].matching_urls.slice();
@@ -686,7 +692,7 @@ var DLW = {
 
 		var dlw_sidebar_div = $('#dlw-msg-sidebar-div');
 		if (dlw_sidebar_div.length) {
-			dlw_sidebar_div.append('<input type="checkbox" id="dlw-cbx-do-warn" name="dlw-cbx-do-warn" checked="checked" /> <span title="' + 'If existing forum posts contain URLs present in your draft, you will be visibly warned about them in real time if you check this box.' + '">' + 'Warn about duplicate links' + '</span>');
+			dlw_sidebar_div.append('<input type="checkbox" id="dlw-cbx-do-warn" name="dlw-cbx-do-warn" checked="checked" /> <span title="' + dlw_title_warn_about_links + '">' + dlw_warn_about_links + '</span>');
 			$('#dlw-cbx-do-warn').bind('click', function(e) {
 				if (!$('#dlw-cbx-do-warn').prop('checked')) {
 					if ($('#dlw-warn-summ-box').length) {
