@@ -83,6 +83,18 @@ $plugins->add_hook('class_moderation_delete_thread_start'   , 'dlw_hookin__commo
 $plugins->add_hook('class_moderation_delete_thread'         , 'dlw_hookin__common__class_moderation_delete_thread' );
 $plugins->add_hook('admin_tools_recount_rebuild_output_list', 'dlw_hookin__admin_tools_recount_rebuild_output_list');
 $plugins->add_hook('admin_tools_recount_rebuild'            , 'dlw_hookin__admin_tools_recount_rebuild'            );
+$plugins->add_hook('global_start'                           , 'dlw_hookin__global_start'                           );
+
+function dlw_hookin__global_start() {
+	if (defined('THIS_SCRIPT')) {
+		global $templatelist;
+
+		if (THIS_SCRIPT== 'newthread.php') {
+			if (isset($templatelist)) $templatelist .= ',';
+			$templatelist .= 'duplicatelinkwarner_div';
+		}
+	}
+}
 
 define('C_DLW', str_replace('.php', '', basename(__FILE__)));
 
@@ -100,6 +112,9 @@ function duplicate_link_warner_info() {
 		'author'        => 'Laird Shaw',
 		'authorsite'    => '',
 		'version'       => '0.0.5.dev.code-may-change',
+		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
+		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
+		'version_code'  => '5',
 		'guid'          => '',
 		'codename'      => C_DLW,
 		'compatibility' => '18*'
@@ -205,6 +220,8 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD dlw_got_urls boolean NOT NULL default FALSE");
 	}
 
+	dlw_create_templategroup();
+	dlw_insert_templates();
 	dlw_create_stylesheet();
 }
 
@@ -224,6 +241,9 @@ function duplicate_link_warner_uninstall() {
 	}
 
 	$db->delete_query('tasks', "file='duplicate_link_warner'");
+
+	$db->delete_query('templates', "title LIKE 'duplicatelinkwarner_%'");
+	$db->delete_query('templategroups', "prefix in ('duplicatelinkwarner')");
 
 	$db->delete_query('themestylesheets', "name = 'duplicate_link_warner.css' AND tid = 1");
 }
@@ -270,6 +290,114 @@ function duplicate_link_warner_deactivate() {
 	find_replace_templatesets('newthread', '({\\$duplicate_link_warner_div})', '', 0);
 	find_replace_templatesets('newthread', '({\\$duplicate_link_warner_js})' , '', 0);
 	$db->update_query('tasks', array('enabled' => 0), 'file=\'duplicate_link_warner\'');
+}
+
+function dlw_create_templategroup() {
+	global $db;
+
+	$templateset = array(
+		'prefix' => 'duplicatelinkwarner',
+		'title' => 'Duplicate Link Warner',
+	);
+	$db->insert_query('templategroups', $templateset);
+}
+
+function dlw_insert_templates() {
+	global $mybb, $db;
+
+	$templates = array(
+		'duplicatelinkwarner_div'
+			=> '<div id="dlw-msg-sidebar-div" style="margin: auto; width: 170px; margin-top: 20px;"></div>',
+		'duplicatelinkwarner_op_post_div'
+			=>'<div><span class="first-post">{$lang->dlw_opening_post}</span></div>',
+		'duplicatelinkwarner_non_op_post_div'
+			=> '<div>{$lang->dlw_non_opening_post} {$post[\'plink\']} {$lang->dlw_posted_by} {$post[\'ulink_p\']}, {$post[\'dtlink_p\']}</div>',
+		'duplicatelinkwarner_matching_url_item'
+			=> '<li style="padding: 0; margin: 0;">$matching_url_msg</li>',
+		'duplicatelinkwarner_matching_post' =>
+			'<div$div_main_class>
+	<div>{$post[\'flinks\']}<br />{$post[\'nav_bit_img\']}{$post[\'tlink\']}</div>
+	<div>{$lang->dlw_started_by} {$post[\'ulink_t\']}, {$post[\'dtlink_t\']}</div>
+	$div_posted_by
+	<div>
+		$lang_matching_url_or_urls
+		<ul class="matching-urls">
+			$matching_urls_list
+		</ul>
+	</div>
+	<div class="dlw-post-message">{$post[\'message\']}</div>
+</div>',
+		'duplicatelinkwarner_review_buttons'
+			=> '<div style="text-align:center">
+	<input type="submit" class="button" name="ignore_dup_link_warn" value="{$lang->dlw_post_anyway}" accesskey="s" />
+	<input type="submit" class="button" name="previewpost" value="{$lang->preview_post}" />
+	{$savedraftbutton}
+</div>',
+		'duplicatelinkwarner_toggle_button'
+	              => '<div style="text-align:center"><button id="id_btn_toggle_quote_posts" onclick="dlw_toggle_hidden_posts();" type="button">{$lang->dlw_btn_toggle_msg_hide}</button></div>',
+		'duplicatelinkwarner_review_page'
+			=> '<html>
+<head>
+<title>{$mybb->settings[\'bbname\']}</title>
+{$headerinclude}
+</head>
+<body>
+{$header}
+<form action="newthread.php?fid={$fid}&amp;processed=1" method="post" enctype="multipart/form-data" name="input">
+{$inputs}
+{$matching_posts_warning_div}
+{$btns}
+{$toggle_btn}
+{$dlw_found_posts}
+{$btns}
+</form>
+<br class="clear" />
+{$footer}
+<script type="text/javascript">
+//<![CDATA[
+function dlw_toggle_hidden_posts() {
+	var nodes = document.querySelectorAll(\'.all_matching_urls_in_quotes\');
+	if (nodes.length > 0) {
+		var val = (nodes[0].style.display == \'none\' ? \'\' : \'none\');
+		for (var i = 0; i < nodes.length; i++) {
+			nodes[i].style.display = val;
+		}
+		document.getElementById(\'id_btn_toggle_quote_posts\').innerHTML = (val == \'none\' ? \'{$lang->dlw_btn_toggle_msg_show}\' : \'{$lang->dlw_btn_toggle_msg_hide}\');
+	}
+}
+//]]>
+</script>
+</body>
+</html>',
+		'duplicate_link_warner_matching_posts_warning_div'
+			=> '<div class="red_alert">$matching_posts_warning_msg</div>',
+	);
+
+	$info = duplicate_link_warner_info();
+	$plugin_version_code = $info['version_code'];
+	// Left-pad the version code with any zero that we forbade in duplicate_link_warner_info(),
+	// where it would have been interpreted as octal.
+	while(strlen($plugin_version_code) < 6)
+	{
+		$plugin_version_code = '0'.$plugin_version_code;
+	}
+
+	// Insert templates into the Master group (sid=-2) with a (string) version set to a value that
+	// will compare greater than the current MyBB version_code. We set the version to this value so that
+	// the SQL comparison "m.version > t.version" in the query to find updated templates
+	// (in admin/modules/style/templates.php) is true for templates modified by the user:
+	// MyBB sets the version for modified templates to the value of $mybb->version_code.
+	$version = substr($mybb->version_code.'_'.$plugin_version_code, 0, 20);
+	foreach ($templates as $template_title => $template_data) {
+		$insert_templates = array(
+			'title'    => $db->escape_string($template_title),
+			'template' => $db->escape_string($template_data),
+			'sid'      => '-2',
+			'version'  => $version,
+			'dateline' => TIME_NOW
+		);
+		$db->insert_query('templates', $insert_templates);
+	}
 }
 
 function dlw_get_css() {
@@ -344,6 +472,18 @@ function dlw_get_css() {
 
 #dlw-btn-dismiss-summ, #dlw-btn-details-summ-on, #dlw-btn-details-summ-off {
 	float: right;
+}
+
+ul.matching-urls {
+	padding: 0 auto;
+	margin: 0;
+}
+
+.dlw-post-message {
+	padding-top: 10px;
+	padding-bottom: 10px;
+	border: 1px solid grey;
+	background-color: white;	
 }
 EOF;
 }
@@ -1812,7 +1952,9 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 		return;
 	}
 
-	$dlw_found_posts_count = '<div class="red_alert">'.$lang->sprintf($dismissed_arr ?  $lang->dlw_found_posts_count_undismissed : $lang->dlw_found_posts_count, count($matching_posts), count($matching_posts) == 1 ? $lang->dlw_post_singular : $lang->dlw_posts_plural).'</div>';
+	$matching_posts_warning_msg = $lang->sprintf($dismissed_arr ?  $lang->dlw_found_posts_count_undismissed : $lang->dlw_found_posts_count, count($matching_posts), count($matching_posts) == 1 ? $lang->dlw_post_singular : $lang->dlw_posts_plural);
+	eval("\$matching_posts_warning_div = \"".$templates->get('duplicate_link_warner_matching_posts_warning_div', 1, 0)."\";");
+
 	$dlw_found_posts = '';
 	foreach ($matching_posts as $post) {
 		if ($dlw_found_posts) $dlw_found_posts .= '<br />'."\n";
@@ -1825,73 +1967,33 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 	}
 
 	$savedraftbutton = '';
-	if($mybb->user['uid'])
-	{
-		eval("\$savedraftbutton = \"".$templates->get("post_savedraftbutton", 1, 0)."\";");
+	if ($mybb->user['uid']) {
+		eval("\$savedraftbutton = \"".$templates->get('post_savedraftbutton', 1, 0)."\";");
 	}
 
-	/** @todo Perhaps turn this into a template so it can be customised. */
-	$btns = <<<EOF
-<div style="text-align:center">
-	<input type="submit" class="button" name="ignore_dup_link_warn" value="{$lang->dlw_post_anyway}" accesskey="s" />
-	<input type="submit" class="button" name="previewpost" value="{$lang->preview_post}" />
-	{$savedraftbutton}
-</div>
-EOF;
+	eval("\$btns = \"".$templates->get('duplicatelinkwarner_review_buttons', 1, 0)."\";");
 
-	/** @todo Perhaps turn this into a (set of) template(s) so it can be customised. */
-	$toggle_btn = $all_matching_urls_in_quotes_flag
-	              ? '<div style="text-align:center"><button id="id_btn_toggle_quote_posts" onclick="dlw_toggle_hidden_posts();" type="button">'.$lang->dlw_btn_toggle_msg_hide.'</button></div>'
-	              : '';
-	$op = <<<EOF
-<html>
-<head>
-<title>{$mybb->settings['bbname']}</title>
-{$headerinclude}
-</head>
-<body>
-{$header}
-<form action="newthread.php?fid={$fid}&amp;processed=1" method="post" enctype="multipart/form-data" name="input">
-{$inputs}
-{$dlw_found_posts_count}
-{$btns}
-{$toggle_btn}
-{$dlw_found_posts}
-{$btns}
-</form>
-<br class="clear" />
-{$footer}
-<script type="text/javascript">
-//<![CDATA[
-function dlw_toggle_hidden_posts() {
-	var nodes = document.querySelectorAll('.all_matching_urls_in_quotes');
-	if (nodes.length > 0) {
-		var val = (nodes[0].style.display == 'none' ? '' : 'none');
-		for (var i = 0; i < nodes.length; i++) {
-			nodes[i].style.display = val;
-		}
-		document.getElementById('id_btn_toggle_quote_posts').innerHTML = (val == 'none' ? '{$lang->dlw_btn_toggle_msg_show}' : '{$lang->dlw_btn_toggle_msg_hide}');
+	if ($all_matching_urls_in_quotes_flag) {
+		eval("\$toggle_btn = \"".$templates->get('duplicatelinkwarner_toggle_button', 1, 0)."\";");
+	} else {
+		$toggle_btn = '';
 	}
-}
-//]]>
-</script>
-</body>
-</html>
-EOF;
+
+	eval("\$op = \"".$templates->get('duplicatelinkwarner_review_page', 1, 0)."\";");
 
 	output_page($op);
 	exit;
 }
 
 function dlw_hookin__newthread_start() {
-	global $mybb, $lang, $duplicate_link_warner_div, $duplicate_link_warner_js;
+	global $mybb, $lang, $templates, $duplicate_link_warner_div, $duplicate_link_warner_js;
 
 	if (!isset($lang->duplicate_link_warner)) {
 		$lang->load('duplicate_link_warner');
 	}
 
-	/** @todo Perhaps turn this into a template so that the style can be customised. */
-	$duplicate_link_warner_div = "\n".'<div id="dlw-msg-sidebar-div" style="margin: auto; width: 170px; margin-top: 20px;"></div>';
+	$duplicate_link_warner_div = "\n";
+	eval("\$duplicate_link_warner_div .= \"".$templates->get('duplicatelinkwarner_div', 1, 0)."\";");
 	$dlw_msg_started_by       = addslashes($lang->dlw_started_by);
 	$dlw_msg_opening_post     = addslashes($lang->dlw_opening_post);
 	$dlw_msg_non_opening_post = addslashes($lang->dlw_non_opening_post);
@@ -1980,33 +2082,31 @@ function dlw_get_flinks($parentlist, $forum_names) {
 	return $flinks;
 }
 
-/** @todo Perhaps turn this into a (set of) template(s) so it can be customised. */
 function dlw_get_post_output($post, $forum_names) {
-	global $lang;
+	global $lang, $templates;
 
 	$is_first_post = ($post['firstpost'] == $post['pid']);
-	$ret = '<div'.($post['are_all_matching_urls_in_quotes'] ? ' class="all_matching_urls_in_quotes"': '').'>'."\n";
-	$ret .= '<div>'.$post['flinks'].'<br />'.$post['nav_bit_img'].$post['tlink'].'</div>'."\n";
-	$ret .= '<div>'.$lang->dlw_started_by.' '.$post['ulink_t'].', '.$post['dtlink_t'].'</div>'."\n";
-	$ret .= '<div>'.($is_first_post ? '<span style="border: 1px solid #a5161a; background-color: #fbe3e4; color: #a5161a; border-radius: 10px; -moz-border-radius: 10px; -webkit-border-radius: 10px; padding-left: 10px; padding-right: 10px;">'.$lang->dlw_opening_post.'</span>' : $lang->dlw_non_opening_post.' '.$post['plink'].' '.$lang->dlw_posted_by.' '.$post['ulink_p'].', '.$post['dtlink_p']).'</div>'."\n";
-	$ret .= '<div>'.(count($post['matching_urls']) == 1 ? $lang->dlw_matching_url_singular : $lang->dlw_matching_urls_plural)."\n";
-	$ret .= '<ul style="padding: 0 auto; margin: 0;">'."\n";
+	eval("\$div_posted_by = \"".$templates->get($is_first_post ? 'duplicatelinkwarner_op_post_div' : 'duplicatelinkwarner_non_op_post_div', 1, 0)."\";");
+
+	$div_main_class = ($post['are_all_matching_urls_in_quotes'] ? ' class="all_matching_urls_in_quotes"': '');
+	$lang_matching_url_or_urls = count($post['matching_urls']) == 1 ? $lang->dlw_matching_url_singular : $lang->dlw_matching_urls_plural;
+
+	$matching_urls_list = '';
 	for ($i = 0; $i < count($post['matching_urls']); $i++) {
 		$url = $post['matching_urls'][$i];
 		$url_esc = htmlspecialchars_uni($url);
 		$link = '<a href="'.$url_esc.'">'.$url_esc.'</a>';
-		$ret .= '<li style="padding: 0; margin: 0;">';
 		if ($post['matching_urls_in_post'][$i] != $url) {
 			$url2 = $post['matching_urls_in_post'][$i];
 			$url_esc2 = htmlspecialchars_uni($url2);
 			$link2 = '<a href="'.$url_esc2.'">'.$url_esc2.'</a>';
-			$ret .= $lang->sprintf($lang->dlw_msg_url1_as_url2, $link, $link2);
-		} else	$ret .= $link;
-		$ret .= '</li>'."\n";
+			$matching_url_msg = $lang->sprintf($lang->dlw_msg_url1_as_url2, $link, $link2);
+		} else	$matching_url_msg = $link;
+		eval("\$matching_url_item = \"".$templates->get('duplicatelinkwarner_matching_url_item', 1, 0)."\";");
+		$matching_urls_list .= $matching_url_item;
 	}
-	$ret .= '</ul></div>'."\n";
-	$ret .= '<div style="border: 1px solid grey; border-radius: 10px;-moz-border-radius:10px;-webkit-border-radius:10px; padding: 10px; background-color: white;">'.$post['message'].'</div>'."\n";
-	$ret .= '</div>'."\n";
+
+	eval("\$ret = \"".$templates->get('duplicatelinkwarner_matching_post', 1, 0)."\";");
 
 	return $ret;
 }
