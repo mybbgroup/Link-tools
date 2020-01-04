@@ -202,6 +202,8 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 	if (!$db->field_exists('dlw_got_urls', 'posts')) {
 		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD dlw_got_urls boolean NOT NULL default FALSE");
 	}
+
+	dlw_create_stylesheet();
 }
 
 function duplicate_link_warner_uninstall() {
@@ -216,10 +218,12 @@ function duplicate_link_warner_uninstall() {
 	}
 
 	if ($db->field_exists('dlw_got_urls', 'posts')) {
-		$db->query("ALTER TABLE ".TABLE_PREFIX."posts DROP COLUMN dlw_got_urls");
+		$db->query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN dlw_got_urls');
 	}
 
 	$db->delete_query('tasks', "file='duplicate_link_warner'");
+
+	$db->delete_query('themestylesheets', "name = 'duplicate_link_warner.css' AND tid = 1");
 }
 
 function duplicate_link_warner_is_installed() {
@@ -264,6 +268,105 @@ function duplicate_link_warner_deactivate() {
 	find_replace_templatesets('newthread', '({\\$duplicate_link_warner_div})', '', 0);
 	find_replace_templatesets('newthread', '({\\$duplicate_link_warner_js})' , '', 0);
 	$db->update_query('tasks', array('enabled' => 0), 'file=\'duplicate_link_warner\'');
+}
+
+function dlw_get_css() {
+	return <<<EOF
+#dlw-extra-info, .dlw-post-inner {
+	position             : static;
+	border               : 1px solid black;
+	background-color     : white;
+	color                : black;
+	margin               : 20px auto;
+}
+
+#dlw-warn-summ-box {
+	position             : fixed;
+	z-index              : 999;
+	y-overflow           : scroll;
+	border               : 1px solid #a5161a;
+	background-color     : #fbe3e4;
+	color                : #a5161a;
+	margin               : 0;
+}
+
+.first-post {
+	border: 1px solid #a5161a;
+	background-color: #fbe3e4;
+	color: #a5161a;
+}
+
+#dlw-extra-info, .dlw-post-inner, #dlw-warn-summ-box, .first-post {
+	border-radius: 10px;
+	-moz-border-radius: 10px;
+	-webkit-border-radius: 10px;
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
+#dlw-extra-info, .dlw-post-inner, #dlw-warn-summ-box {
+	white-space          : pre-wrap;      /* CSS 3 */
+	white-space          : -moz-pre-wrap; /* Mozilla, since 1999 */
+	white-space          : -pre-wrap;     /* Opera 4-6 */
+	white-space          : -o-pre-wrap;   /* Opera 7 */
+	word-wrap            : break-word;    /* Internet Explorer 5.5+ */
+}
+
+#dlw-extra-info {
+	text-align           : left;
+	overflow-y           : scroll;
+}
+
+#dlw-extra-info div, #dlw-extra-info ul {
+	white-space          : normal;
+	word-wrap            : normal;
+}
+
+.further-results {
+	background-color: orange; border: 1px solid black;
+}
+
+.btn-dismiss {
+	float: right;
+}
+
+.url-list {
+	padding: 0 auto;
+	margin: 0;
+}
+
+.url-list-item {
+	padding: 0;
+	margin: 0;
+}
+
+#dlw-btn-dismiss-summ, #dlw-btn-details-summ-on, #dlw-btn-details-summ-off {
+	float: right;
+}
+EOF;
+}
+
+function dlw_create_stylesheet() {
+	global $db;
+
+	$row = array(
+		'name' => 'duplicate_link_warner.css',
+		'tid' => 1,
+		'attachedto' => 'newthread.php',
+		'stylesheet' => $db->escape_string(dlw_get_css()),
+		'cachefile' => 'duplicate_link_warner.css',
+		'lastmodified' => TIME_NOW
+	);
+
+	require_once MYBB_ADMIN_DIR.'inc/functions_themes.php';
+
+	$sid = $db->insert_query('themestylesheets', $row);
+	$db->update_query('themestylesheets', array('cachefile' => 'css.php?stylesheet='.$sid), "sid = '".$sid."'", 1);
+
+	$tids = $db->simple_select('themes', 'tid');
+	while ($theme = $db->fetch_array($tids)) {
+		update_theme_stylesheet_list($theme['tid']);
+	}
 }
 
 function dlw_get_scheme($url) {

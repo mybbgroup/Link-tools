@@ -409,27 +409,7 @@ var DLW = {
 			if (enc_summ) msg += '</div>';
 			if (ext) {
 				var radius = 10;
-				/** @todo Perhaps split this out into a stylesheet that can be customised. */
-				var css_obj = {
-					'position'             : 'static',
-					'background-color'     : 'white',
-					'color'                : 'black',
-					'border'               : '1px solid black',
-					'border-radius'        : radius + 'px',
-					'-moz-border-radius'   : radius + 'px',
-					'-webkit-border-radius': radius + 'px',
-					'padding-left'         : radius + 'px',
-					'padding-right'        : radius + 'px',
-					'margin'               : '20px auto',
-					'white-space'          : 'pre-wrap',      /* CSS 3 */
-					'white-space'          : '-moz-pre-wrap', /* Mozilla, since 1999 */
-					'white-space'          : '-pre-wrap',     /* Opera 4-6 */
-					'white-space'          : '-o-pre-wrap',   /* Opera 7 */
-					'word-wrap'            : 'break-word'     /* Internet Explorer 5.5+ */
-				};
-				var css = '';
-				for (var a in css_obj) css += a+':'+css_obj[a]+';';
-				msg += '<div id="dlw-extra-info" style="'+css+'max-height: '+($(window).height() - 50)+'px; text-align: left; overflow-y: scroll;">';
+				msg += '<div id="dlw-extra-info" style="max-height: '+($(window).height() - 50)+'px;">';
 				if (DLW.further_results) {
 					var urls_enc = '';
 					for (var checked_url in DLW.checked_urls) {
@@ -438,8 +418,7 @@ var DLW = {
 							urls_enc += encodeURIComponent(checked_url);
 						}
 					}
-					/** @todo Perhaps split the style out into a customisable stylesheet. */
-					var div_open = '<div class="further_results" style="background-color: orange; border: 1px solid black;">';
+					var div_open = '<div class="further-results">';
 					var url_esc = DLW.htmlspecialchars('dlw_search.php?urls='+urls_enc+'&resulttype=posts');
 					var further_results_below = dlw_further_results_below.replace('{1}', cnt);
 					further_results_below     = further_results_below    .replace('{2}', url_esc);
@@ -458,16 +437,15 @@ var DLW = {
 						msg += '<div id="dlw-post-outer-'+pid+'">'+"\n";
 						msg += '<div>'+post['flinks']+'<br />'+post['nav_bit_img']+post['tlink']+'</div>'+"\n";
 						msg += '<div>'+dlw_msg_started_by+' '+post['ulink_t']+', '+post['dtlink_t']+'</div>'+"\n";
-						/** @todo Perhaps split this out into a stylesheet that can be customised. */
-						msg += '<div>'+(is_first_post ? '<span style="border: 1px solid #a5161a; background-color: #fbe3e4; color: #a5161a; border-radius: 10px; -moz-border-radius: 10px; -webkit-border-radius: 10px; padding-left: 10px; padding-right: 10px;">'+dlw_msg_opening_post+'</span>' : dlw_msg_non_opening_post+' '+post['plink']+' '+dlw_msg_posted_by+' '+post['ulink_p']+', '+post['dtlink_p'])+'</div>'+"\n";
-						msg += '<button id="dlw-btn-dismiss-'+pid+'" type="button" style="float: right;">'+dlw_dismiss_warn_for_post+'</button>';
+						msg += '<div>'+(is_first_post ? '<span class="first-post">'+dlw_msg_opening_post+'</span>' : dlw_msg_non_opening_post+' '+post['plink']+' '+dlw_msg_posted_by+' '+post['ulink_p']+', '+post['dtlink_p'])+'</div>'+"\n";
+						msg += '<button id="dlw-btn-dismiss-'+pid+'" type="button" class="btn-dismiss">'+dlw_dismiss_warn_for_post+'</button>';
 						msg += '<div>'+(post.undismissed_urls.length == 1 ? dlw_msg_matching_url_singular : dlw_msg_matching_urls_plural)+"\n";
-						msg += '<ul style="padding: 0 auto; margin: 0;">'+"\n";
+						msg += '<ul class="url-list">'+"\n";
 						for (var j in post.undismissed_urls) {
 							var url = post.undismissed_urls[j];
 							var url_esc = DLW.htmlspecialchars(url);
 							var link = '<a href="'+url_esc+'">'+url_esc+'</a>';
-							msg += '<li style="padding: 0; margin: 0;">';
+							msg += '<li class="url-list-item">';
 							var idx = $.inArray(url, post.matching_urls);
 							if (idx >= 0 && post.matching_urls_in_post[idx] != url) {
 								var url2 = post.matching_urls_in_post[idx];
@@ -480,7 +458,7 @@ var DLW = {
 							msg += '</li>'+"\n";
 						}
 						msg += '</ul></div>'+"\n";
-						msg += '<div id="dlw-post-inner-'+pid+'" style="'+css+'">'+post['message']+'</div>'+"\n";
+						msg += '<div id="dlw-post-inner-'+pid+'" class="dlw-post-inner">'+post['message']+'</div>'+"\n";
 						msg += '</div>'+"\n";
 					}
 				}
@@ -558,34 +536,15 @@ var DLW = {
 			$('body').append(
 				'<div id="dlw-warn-summ-box"></div>'
 			);
-			/** @todo Perhaps split this out into a stylesheet that can be customised. */
 			$('#dlw-warn-summ-box').css({
-				'position'             : 'fixed',
 				'top'                  : (flash ? ($(window).height()/2) : 0) + 'px',
-				'z-index'              : 999,
-				'y-overflow'           : 'scroll',
 				'left'                 : parseInt(sc_container.offset().left) + 'px',
 				'width'                : summ_box_width,
 				'max-height'           : $(window).height() + 'px',
-				'border'               : '1px solid #a5161a',
-				'background-color'     : '#fbe3e4',
-				'color'                : '#a5161a',
-				'border-radius'        : radius + 'px',
-				'-moz-border-radius'   : radius + 'px',
-				'-webkit-border-radius': radius + 'px',
-				'padding-left'         : radius + 'px',
-				'padding-right'        : radius + 'px',
-				'margin'               : 0,
-				'white-space'          : 'pre-wrap',      // CSS
-				'white-space'          : '-moz-pre-wrap', // Mozilla, since 1999
-				'white-space'          : '-pre-wrap',     // Opera 4-6
-				'white-space'          : '-o-pre-wrap',   // Opera 7
-				'word-wrap'            : 'break-word'     // Internet Explorer 5.5+
 			       
 			})
 			.append('<button id="dlw-btn-dismiss-summ" type="button">'+'Dismiss all warnings'+'</button><button id="dlw-btn-details-summ-on" type="button">'+dlw_show_more+'</button><button id="dlw-btn-details-summ-off" type="button">'+dlw_show_less+'</button>')
 			.append('<span id="dlw-warn-summ-box-contents"></span>');
-			$('#dlw-btn-dismiss-summ, #dlw-btn-details-summ-on, #dlw-btn-details-summ-off').css('float', 'right');
 			$('#dlw-warn-summ-box-contents').html(msg);
 			if (flash) {
 				DLW.flash_entity($('#dlw-warn-summ-box-contents'), 200, 6);
