@@ -90,7 +90,7 @@ function dlw_hookin__global_start() {
 
 		if (THIS_SCRIPT== 'newthread.php') {
 			if (isset($templatelist)) $templatelist .= ',';
-			$templatelist .= 'duplicatelinkwarner_div';
+			$templatelist .= 'duplicatelinkwarner_div,duplicatelinkwarner_op_post_div,duplicatelinkwarner_non_op_post_div,duplicatelinkwarner_matching_url_item,duplicatelinkwarner_matching_post,duplicatelinkwarner_review_buttons,duplicatelinkwarner_toggle_button,duplicatelinkwarner_review_page,duplicate_link_warner_matching_posts_warning_div';
 		}
 	}
 }
