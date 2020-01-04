@@ -347,8 +347,10 @@ function dlw_insert_templates() {
 {$inputs}
 {$matching_posts_warning_div}
 {$btns}
+{$further_results_below_div}
 {$toggle_btn}
 {$dlw_found_posts}
+{$further_results_above_div}
 {$btns}
 </form>
 <br class="clear" />
@@ -1936,7 +1938,7 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 	// Add any missing URLs to the DB after resolving redirects
 	dlw_get_and_add_urls($urls);
 
-	list($matching_posts, $forum_names) = dlw_get_posts_for_urls($urls);
+	list($matching_posts, $forum_names, $further_results) = dlw_get_posts_for_urls($urls);
 
 	$dismissed_arr = $mybb->get_input('dlw_dismissed') ? json_decode($mybb->get_input('dlw_dismissed'), true) : array();
 	foreach ($dismissed_arr as $pid => $dismissed_urls) {
@@ -1952,7 +1954,21 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 		return;
 	}
 
-	$matching_posts_warning_msg = $lang->sprintf($dismissed_arr ?  $lang->dlw_found_posts_count_undismissed : $lang->dlw_found_posts_count, count($matching_posts), count($matching_posts) == 1 ? $lang->dlw_post_singular : $lang->dlw_posts_plural);
+	$matching_posts_warning_msg = $lang->sprintf(
+	  $dismissed_arr
+	    ? ($further_results
+	       ? $lang->dlw_found_more_than_posts_count_undismissed
+	       : $lang->dlw_found_posts_count_undismissed
+	      )
+	    : ($further_results
+	       ? $lang->dlw_found_more_than_posts_count
+	       : $lang->dlw_found_posts_count
+	      ),
+	  count($matching_posts),
+	  count($matching_posts) == 1
+	    ? $lang->dlw_post_singular
+	    : $lang->dlw_posts_plural
+	);
 	eval("\$matching_posts_warning_div = \"".$templates->get('duplicate_link_warner_matching_posts_warning_div', 1, 0)."\";");
 
 	$dlw_found_posts = '';
@@ -1977,6 +1993,20 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 		eval("\$toggle_btn = \"".$templates->get('duplicatelinkwarner_toggle_button', 1, 0)."\";");
 	} else {
 		$toggle_btn = '';
+	}
+
+	if ($further_results) {
+		$urls_list = '';
+		foreach ($urls as $url) {
+			if ($urls_list) $urls_list .= ',';
+			$urls_list .= urlencode($url);
+		}
+		$url_esc = htmlspecialchars('dlw_search.php?urls='.$urls_list.'&resulttype=posts');
+		$further_results_below_div = '<div class="further-results">'.$lang->sprintf($lang->dlw_further_results_below, count($matching_posts), $url_esc).'</div>';
+		$further_results_above_div = '<div class="further-results">'.$lang->sprintf($lang->dlw_further_results_above, count($matching_posts), $url_esc).'</div>';
+	} else {
+		$further_results_below_div = '';
+		$further_results_above_div = '';
 	}
 
 	eval("\$op = \"".$templates->get('duplicatelinkwarner_review_page', 1, 0)."\";");
