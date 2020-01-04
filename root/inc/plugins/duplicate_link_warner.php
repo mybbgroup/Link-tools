@@ -67,7 +67,6 @@ const dlw_term_tries_secs = array(
 );
 
 /**
- * @todo Consider whether we should be checking robots.txt.
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
  * @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts.
  */
