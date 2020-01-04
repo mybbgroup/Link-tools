@@ -105,62 +105,64 @@ function duplicate_link_warner_info() {
 		'compatibility' => '18*'
 	);
 
-	$desc = '';
-	$desc .= '<ul>'.PHP_EOL;
+	if (duplicate_link_warner_is_installed()) {
+		$desc = '';
+		$desc .= '<ul>'.PHP_EOL;
 
-	$res = $db->simple_select('posts', 'count(*) AS cnt', 'dlw_got_urls = 0');
-	$cnt_posts_unextracted = $db->fetch_array($res)['cnt'];
-	$res = $db->simple_select('posts', 'count(*) AS cnt');
-	$cnt_posts_tot = $db->fetch_array($res)['cnt'];
+		$res = $db->simple_select('posts', 'count(*) AS cnt', 'dlw_got_urls = 0');
+		$cnt_posts_unextracted = $db->fetch_array($res)['cnt'];
+		$res = $db->simple_select('posts', 'count(*) AS cnt');
+		$cnt_posts_tot = $db->fetch_array($res)['cnt'];
 
-	$res = $db->simple_select('urls', 'count(*) AS cnt');
-	$cnt_links_tot = $db->fetch_array($res)['cnt'];
-	$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE');
-	$cnt_links_unresolved = $db->fetch_array($res)['cnt'];
-	if ($cnt_links_unresolved > 0) {
-		$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE AND term_tries > 0');
-		$cnt_links_unresolved_tried = $db->fetch_array($res)['cnt'];
-		$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE AND term_tries >= '.count(dlw_term_tries_secs));
-		$cnt_given_up = $db->fetch_array($res)['cnt'];
-		$res = $db->simple_select('urls', 'count(*) as cnt', dlw_get_sql_conds_for_ltt());
-		$cnt_eligible = $db->fetch_array($res)['cnt'];
-	}
-
-	$desc .= '	<li style="list-style-image: url(styles/default/images/icons/';
-	if ($cnt_posts_unextracted == 0) {
-		$desc .= 'success.png)">'.$lang->sprintf($lang->dlw_all_links_extracted, number_format($cnt_links_tot), number_format($cnt_posts_tot));
-	} else {
-		$desc .= 'warning.png)">'.$lang->sprintf($lang->dlw_x_of_y_posts_unextracted, number_format($cnt_posts_unextracted), number_format($cnt_posts_tot));
-		if ($cnt_posts_unextracted > 0) {
-			$desc .= $lang->sprintf($lang->dlw_to_extract_links_click_here, $cnt_posts_unextracted, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
+		$res = $db->simple_select('urls', 'count(*) AS cnt');
+		$cnt_links_tot = $db->fetch_array($res)['cnt'];
+		$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE');
+		$cnt_links_unresolved = $db->fetch_array($res)['cnt'];
+		if ($cnt_links_unresolved > 0) {
+			$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE AND term_tries > 0');
+			$cnt_links_unresolved_tried = $db->fetch_array($res)['cnt'];
+			$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE AND term_tries >= '.count(dlw_term_tries_secs));
+			$cnt_given_up = $db->fetch_array($res)['cnt'];
+			$res = $db->simple_select('urls', 'count(*) as cnt', dlw_get_sql_conds_for_ltt());
+			$cnt_eligible = $db->fetch_array($res)['cnt'];
 		}
-	}
-	$desc .= '</li>'.PHP_EOL;
 
-	$desc .= '	<li style="list-style-image: url(styles/default/images/icons/'.($cnt_links_unresolved == 0 ? 'success' : ($cnt_eligible == 0 ? 'no_change' : 'warning')).'.png)">';
-	if ($cnt_links_unresolved == 0) {
-		$desc .= $lang->dlw_all_term_links_resolved;
-	} else {
-		$desc .= $lang->sprintf($lang->dlw_x_of_y_links_unresolved, number_format($cnt_links_unresolved), number_format($cnt_links_tot));
-		if ($cnt_links_unresolved_tried > 0    ) {
-			if ($cnt_links_unresolved == $cnt_links_unresolved_tried) {
-				$desc .= $lang->sprintf($lang->dlw_attempts_unsuccess_made_all_links, number_format($cnt_links_unresolved_tried));
-			} else {
-				$desc .= $lang->sprintf($lang->dlw_attempts_unsuccess_made_x_links, number_format($cnt_links_unresolved_tried));
-			}
-			if ($cnt_given_up) $desc .= $lang->sprintf($lang->dlw_given_up_on_x_links, number_format($cnt_given_up));
-		}
-		if ($cnt_eligible > 0) {
-			$desc .= $lang->sprintf($lang->dlw_to_resolve_links_click_here, number_format($cnt_eligible), '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
+		$desc .= '	<li style="list-style-image: url(styles/default/images/icons/';
+		if ($cnt_posts_unextracted == 0) {
+			$desc .= 'success.png)">'.$lang->sprintf($lang->dlw_all_links_extracted, number_format($cnt_links_tot), number_format($cnt_posts_tot));
 		} else {
-			$desc .= $lang->dlw_no_links_eligible_for_resolution;
+			$desc .= 'warning.png)">'.$lang->sprintf($lang->dlw_x_of_y_posts_unextracted, number_format($cnt_posts_unextracted), number_format($cnt_posts_tot));
+			if ($cnt_posts_unextracted > 0) {
+				$desc .= $lang->sprintf($lang->dlw_to_extract_links_click_here, $cnt_posts_unextracted, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
+			}
 		}
+		$desc .= '</li>'.PHP_EOL;
+
+		$desc .= '	<li style="list-style-image: url(styles/default/images/icons/'.($cnt_links_unresolved == 0 ? 'success' : ($cnt_eligible == 0 ? 'no_change' : 'warning')).'.png)">';
+		if ($cnt_links_unresolved == 0) {
+			$desc .= $lang->dlw_all_term_links_resolved;
+		} else {
+			$desc .= $lang->sprintf($lang->dlw_x_of_y_links_unresolved, number_format($cnt_links_unresolved), number_format($cnt_links_tot));
+			if ($cnt_links_unresolved_tried > 0    ) {
+				if ($cnt_links_unresolved == $cnt_links_unresolved_tried) {
+					$desc .= $lang->sprintf($lang->dlw_attempts_unsuccess_made_all_links, number_format($cnt_links_unresolved_tried));
+				} else {
+					$desc .= $lang->sprintf($lang->dlw_attempts_unsuccess_made_x_links, number_format($cnt_links_unresolved_tried));
+				}
+				if ($cnt_given_up) $desc .= $lang->sprintf($lang->dlw_given_up_on_x_links, number_format($cnt_given_up));
+			}
+			if ($cnt_eligible > 0) {
+				$desc .= $lang->sprintf($lang->dlw_to_resolve_links_click_here, number_format($cnt_eligible), '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
+			} else {
+				$desc .= $lang->dlw_no_links_eligible_for_resolution;
+			}
+		}
+		$desc .= '</li>'.PHP_EOL;
+
+		$desc .= '</ul>'.PHP_EOL;
+
+		$ret['description'] .= $desc;
 	}
-	$desc .= '</li>'.PHP_EOL;
-
-	$desc .= '</ul>'.PHP_EOL;
-
-	$ret['description'] .= $desc;
 
 	return $ret;
 }
