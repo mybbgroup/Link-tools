@@ -33,6 +33,7 @@ const dlw_ignored_query_params = array(
 	'utm_content',
 	'akid',
 	'email_work_card',
+	'showFullText',
 );
 
 const dlw_default_rebuild_links_items_per_page = 500;
@@ -378,8 +379,7 @@ function dlw_toggle_hidden_posts() {
 	$plugin_version_code = $info['version_code'];
 	// Left-pad the version code with any zero that we forbade in duplicate_link_warner_info(),
 	// where it would have been interpreted as octal.
-	while(strlen($plugin_version_code) < 6)
-	{
+	while (strlen($plugin_version_code) < 6) {
 		$plugin_version_code = '0'.$plugin_version_code;
 	}
 
