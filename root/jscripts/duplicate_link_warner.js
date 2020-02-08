@@ -389,9 +389,9 @@ var DLW = {
 					msg += dlw_more_than;
 				}
 				if (op_post_ids.length == cnt) {
-					msg += dlw_x_exist_open_post_contain.replace('{1}', cnt);
+					msg += dlw_x_exist_open_posts_contain.replace('{1}', cnt);
 				} else {
-					msg += dlw_x_exist_posts_contain    .replace('{1}', cnt);
+					msg += dlw_x_exist_posts_contain     .replace('{1}', cnt);
 				}
 			}
 			if (urls_uniq.length > 1) {
@@ -412,14 +412,17 @@ var DLW = {
 				msg += '<div id="dlw-extra-info" style="max-height: '+($(window).height() - 50)+'px;">';
 				if (DLW.further_results) {
 					var urls_enc = '';
+					var i = 0;
 					for (var checked_url in DLW.checked_urls) {
 						if (DLW.checked_urls[checked_url].active) {
-							if (urls_enc) urls_enc += ',';
-							urls_enc += encodeURIComponent(checked_url);
+							if (urls_enc) urls_enc += '&';
+							urls_enc += 'urls['+i+']='+encodeURIComponent(checked_url);
+							i++;
 						}
 					}
+					urls_enc = urls_enc;
 					var div_open = '<div class="further-results">';
-					var url_esc = DLW.htmlspecialchars('dlw_search.php?urls='+urls_enc+'&resulttype=posts');
+					var url_esc = DLW.htmlspecialchars('dlw_search.php?'+urls_enc+'&resulttype=posts');
 					var further_results_below = dlw_further_results_below.replace('{1}', cnt);
 					further_results_below     = further_results_below    .replace('{2}', url_esc);
 					further_results_below     = div_open+further_results_below+'</div>';

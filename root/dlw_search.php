@@ -6,7 +6,7 @@ define('THIS_SCRIPT', 'dlw_search.php');
 
 require_once './global.php';
 
-$urls = array_map('urldecode', explode(',', $mybb->input['urls']));
+$urls = $mybb->input['urls'];
 $resulttype = $mybb->get_input('resulttype');
 $as_posts = ($resulttype != 'threads');
 
