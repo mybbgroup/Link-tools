@@ -422,7 +422,7 @@ var DLW = {
 					}
 					urls_enc = urls_enc;
 					var div_open = '<div class="further-results">';
-					var url_esc = DLW.htmlspecialchars('dlw_search.php?'+urls_enc+'&resulttype=posts');
+					var url_esc = DLW.htmlspecialchars('dlw_search.php?'+urls_enc+'&showresults=posts');
 					var further_results_below = dlw_further_results_below.replace('{1}', cnt);
 					further_results_below     = further_results_below    .replace('{2}', url_esc);
 					further_results_below     = div_open+further_results_below+'</div>';

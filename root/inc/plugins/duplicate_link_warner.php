@@ -84,6 +84,7 @@ $plugins->add_hook('class_moderation_delete_thread'         , 'dlw_hookin__commo
 $plugins->add_hook('admin_tools_recount_rebuild_output_list', 'dlw_hookin__admin_tools_recount_rebuild_output_list');
 $plugins->add_hook('admin_tools_recount_rebuild'            , 'dlw_hookin__admin_tools_recount_rebuild'            );
 $plugins->add_hook('global_start'                           , 'dlw_hookin__global_start'                           );
+$plugins->add_hook('search_do_search_start'                 , 'dlw_hookin__search_do_search_start'                 );
 
 function dlw_hookin__global_start() {
 	if (defined('THIS_SCRIPT')) {
@@ -640,7 +641,7 @@ function dlw_extract_urls($text) {
 	return array_values(array_unique($urls));
 }
 
-function dlw_get_url_search_sql($urls, $already_normalised = false) {
+function dlw_get_url_search_sql($urls, $already_normalised = false, $extra_conditions = '') {
 	global $db;
 
 	if ($already_normalised) {
@@ -672,7 +673,7 @@ function dlw_get_url_search_sql($urls, $already_normalised = false) {
 		$conds .= '('.
 		$conds.' AND ((t.fid IN('.implode(',', $onlyusfids).') AND t.uid="'.$mybb->user['uid'].'") OR t.fid NOT IN('.implode(',', $onlyusfids).')))';
 	}
-	$conds = '('.$conds.') AND p.visible > 0';
+	$conds = '('.$conds.') AND p.visible > 0 '.$extra_conditions;
 
 	return '
 SELECT DISTINCT u2.url as matching_url, u.url_norm AS queried_norm_url,
@@ -1995,12 +1996,14 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 	}
 
 	if ($further_results) {
-		$urls_list = '';
+		$urls_esc = '';
+		$i = 0;
 		foreach ($urls as $url) {
-			if ($urls_list) $urls_list .= ',';
-			$urls_list .= urlencode($url);
+			if ($urls_esc) $urls_esc .= '&';
+			$urls_esc .= 'urls['.$i.']='.urlencode($url);
+			$i++;
 		}
-		$url_esc = htmlspecialchars('dlw_search.php?urls='.$urls_list.'&resulttype=posts');
+		$url_esc = htmlspecialchars('dlw_search.php?'.$urls_esc.'&showresults=posts');
 		$further_results_below_div = '<div class="further-results">'.$lang->sprintf($lang->dlw_further_results_below, count($matching_posts), $url_esc).'</div>';
 		$further_results_above_div = '<div class="further-results">'.$lang->sprintf($lang->dlw_further_results_above, count($matching_posts), $url_esc).'</div>';
 	} else {
@@ -2197,4 +2200,301 @@ function dlw_strip_nestable_mybb_tag($message, $tagname) {
 	}
 
 	return $message;
+}
+
+function dlw_hookin__search_do_search_start() {
+	global $mybb;
+
+	$do_dlw_search = false;
+
+	if ($mybb->input['urls']) {
+		$urls = $mybb->input['urls'];
+		$do_dlw_search = true;
+	} else if ($mybb->input['keywords']) {
+		$urls = explode(' ', trim($mybb->input['keywords']));
+		$do_dlw_search = true;
+		foreach ($urls as $url) {
+			if (!dlw_is_url($url)) {
+				$do_dlw_search = false;
+				break;
+			}
+		}
+	}
+
+	if ($do_dlw_search) {
+		dlw_search($urls);
+		// Shouldn't be necessary but just in case - we don't want to
+		// return control back to the hook's calling context.
+		exit;
+	}
+}
+
+/**
+ * Determines whether or not $url is a valid URL.
+ * Tolerates missing protocol/scheme, so that, e.g.,
+ * somedomain.com and //anotherdomain.com are
+ * determined to be valid URLs, but a bare hostname
+ * such as somedomain is not.
+ *
+ * Warning: does not detect international domains
+ * (this is a limitation of the PHP core function
+ * filter_var()).
+ *
+ * @param $url string The potential URL.
+ * @return boolean True if a valid URL; false otherwise.
+ */
+function dlw_is_url($url) {
+	// Tolerate missing protocol ("scheme") so long as
+	// the host (domain) has more than one component.
+	$scheme = dlw_get_scheme($url);
+	if ($scheme == '') {
+		if (substr($url, 0, 2) == '//') {
+			$url = 'http:'.$url;
+		} else	$url = 'http://'.$url;
+	}
+
+	if (filter_var($url, FILTER_VALIDATE_URL)) {
+		$parsed = parse_url($url);
+		if (strpos($parsed['host'], '.') === false) {
+			return false;
+		} else	return true;
+	} else	return false;
+}
+
+function dlw_search($urls) {
+	global $mybb, $db, $session, $lang;
+
+	$lang->load('search');
+
+	// Begin code copied, with only minor changes - such as to coding style,
+	// a typo correction- from search.php under the hook 'search_do_search_start'.
+	// This is an unfortunate duplication, however that core code does not appear
+	// to let us hook in better so as to reuse that code.
+
+	// Check if search flood checking is enabled and user is not admin
+	if ($mybb->settings['searchfloodtime'] > 0 && $mybb->usergroup['cancp'] != 1) {
+		// Fetch the time this user last searched
+		if ($mybb->user['uid']) {
+			$conditions = "uid='{$mybb->user['uid']}'";
+		} else {
+			$conditions = "uid='0' AND ipaddress=".$db->escape_binary($session->packedip);
+		}
+		$timecut = TIME_NOW - $mybb->settings['searchfloodtime'];
+		$query = $db->simple_select('searchlog', '*', "$conditions AND dateline > '$timecut'", array('order_by' => "dateline", 'order_dir' => "DESC"));
+		$last_search = $db->fetch_array($query);
+		// User's last search was within the flood time, show the error
+		if ($last_search['sid']) {
+			$remaining_time = $mybb->settings['searchfloodtime'] - (TIME_NOW - $last_search['dateline']);
+			if ($remaining_time == 1) {
+				$lang->error_searchflooding = $lang->sprintf($lang->error_searchflooding_1, $mybb->settings['searchfloodtime']);
+			} else {
+				$lang->error_searchflooding = $lang->sprintf($lang->error_searchflooding, $mybb->settings['searchfloodtime'], $remaining_time);
+			}
+			error($lang->error_searchflooding);
+		}
+	}
+
+	if (is_moderator() && !empty($mybb->input['visible'])) {
+		$visible = $mybb->get_input('visible', MyBB::INPUT_INT);
+	}
+
+	if ($db->can_search != true) {
+		error($lang->error_no_search_support);
+	}
+
+	// End copied code
+
+	$showresults = $mybb->get_input('showresults');
+	$as_posts = ($showresults != 'threads');
+
+	// Begin code copied with minor modifications from perform_search_mysql() in inc/functions_search.php.
+	// As above, this is unfortunate, but unavoidable other than by making
+	// changes to core code, which we prefer not to do.
+
+	$post_usersql = '';
+	$thread_usersql = '';
+	$author = $mybb->get_input('author');
+	if ($author) {
+		$userids = array();
+		$author = my_strtolower($author);
+		$matchusername = $mybb->get_input('matchusername', MyBB::INPUT_INT);
+		if ($matchusername) {
+			$user = get_user_by_username($author);
+			if ($user) {
+				$userids[] = $user['uid'];
+			}
+		} else {
+			switch ($db->type) {
+				case 'mysql':
+				case 'mysqli':
+					$field = 'username';
+					break;
+				default:
+					$field = 'LOWER(username)';
+					break;
+			}
+			$query = $db->simple_select('users', 'uid', "{$field} LIKE '%".$db->escape_string_like($author)."%'");
+			while ($user = $db->fetch_array($query)) {
+				$userids[] = $user['uid'];
+			}
+		}
+
+		if (count($userids) < 1) {
+			error($lang->error_nosearchresults);
+		} else {
+			$userids = implode(',', $userids);
+			$post_usersql = " AND p.uid IN (".$userids.")";
+			$thread_usersql = " AND t.uid IN (".$userids.")";
+		}
+	}
+	$datecut = $post_datecut = $thread_datecut = '';
+	$postdate = $mybb->get_input('postdate', MyBB::INPUT_INT);
+	if ($postdate) {
+		$pddir = $mybb->get_input('pddir', MyBB::INPUT_INT);
+		if ($pddir == 0) {
+			$datecut = '<=';
+		} else {
+			$datecut = '>=';
+		}
+		$now = TIME_NOW;
+		$datelimit = $now - (86400 * $postdate);
+		$datecut .= "'$datelimit'";
+		$post_datecut = " AND p.dateline $datecut";
+		$thread_datecut = " AND t.dateline $datecut";
+	}
+
+	$thread_replycut = '';
+	$numreplies = $mybb->get_input('numreplies', MyBB::INPUT_INT);
+	$findthreadst = $mybb->get_input('findthreadst', MyBB::INPUT_INT);
+	if ($numreplies != '' && $findthreadst) {
+		if ((int)$findthreadst == 1) {
+			$thread_replycut = " AND t.replies >= '".(int)$numreplies."'";
+		} else {
+			$thread_replycut = " AND t.replies <= '".(int)$numreplies."'";
+		}
+	}
+
+	$thread_prefixcut = '';
+	$prefixlist = array();
+	$threadprefix = $mybb->get_input('threadprefix', MyBB::INPUT_ARRAY);
+	if ($threadprefix && $threadprefix[0] != 'any') {
+		foreach ($search['threadprefix'] as $threadprefix) {
+			$threadprefix = (int)$threadprefix;
+			$prefixlist[] = $threadprefix;
+		}
+	}
+	if (count($prefixlist) == 1) {
+		$thread_prefixcut .= " AND t.prefix='$threadprefix' ";
+	} else {
+		if (count($prefixlist) > 1) {
+			$thread_prefixcut = ' AND t.prefix IN ('.implode(',', $prefixlist).')';
+		}
+	}
+
+	$forumin = '';
+	$fidlist = array();
+	$forums = $mybb->input['forums'];
+	if (!empty($forums) && (!is_array($forums) || $forums[0] != 'all')) {
+		if (!is_array($forums)) {
+			$forums = array((int)$forums);
+		}
+		foreach ($forums as $forum) {
+			$forum = (int)$forum;
+			if ($forum > 0) {
+				$fidlist[] = $forum;
+				$child_list = get_child_list($forum);
+				if (is_array($child_list)) {
+					$fidlist = array_merge($fidlist, $child_list);
+				}
+			}
+		}
+		$fidlist = array_unique($fidlist);
+		if (count($fidlist) >= 1) {
+			$forumin = ' AND t.fid IN ('.implode(',', $fidlist).')';
+		}
+	}
+
+	$permsql = '';
+	$onlyusfids = array();
+
+	// Check group permissions if we can't view threads not started by us
+	if ($group_permissions = forum_permissions()) {
+		foreach ($group_permissions as $fid => $forum_permissions) {
+			if (isset($forum_permissions['canonlyviewownthreads']) && $forum_permissions['canonlyviewownthreads'] == 1) {
+				$onlyusfids[] = $fid;
+			}
+		}
+	}
+	if (!empty($onlyusfids)) {
+		$permsql .= 'AND ((t.fid IN('.implode(',', $onlyusfids).") AND t.uid='{$mybb->user['uid']}') OR t.fid NOT IN(".implode(',', $onlyusfids)."))";
+	}
+
+	require_once MYBB_ROOT.'/inc/functions_search.php';
+	$unsearchforums = get_unsearchable_forums();
+	if ($unsearchforums) 	{
+		$permsql .= " AND t.fid NOT IN ($unsearchforums)";
+	}
+	$inactiveforums = get_inactive_forums();
+	if ($inactiveforums) {
+		$permsql .= " AND t.fid NOT IN ($inactiveforums)";
+	}
+
+	$postthread = $mybb->get_input('postthread', MyBB::INPUT_INT);
+	$visiblesql = $post_visiblesql = $plain_post_visiblesql = '';
+	if (isset($visible)) {
+		if ($visible == 1) {
+			$visiblesql = " AND t.visible = '1'";
+
+			if ($postthread == 1) {
+				$post_visiblesql = " AND p.visible = '1'";
+				$plain_post_visiblesql = " AND visible = '1'";
+			}
+		} elseif ($visible == -1) {
+			$visiblesql = " AND t.visible = '-1'";
+
+			if ($postthread == 1) {
+				$post_visiblesql = " AND p.visible = '-1'";
+				$plain_post_visiblesql = " AND visible = '-1'";
+			}
+		} else {
+			$visiblesql = " AND t.visible == '0'";
+
+			if ($postthread == 1) {
+				$post_visiblesql = " AND p.visible == '0'";
+				$plain_post_visiblesql = " AND visible == '0'";
+			}
+		}
+	}
+
+	// End copied code.
+
+	$extra_conditions = "{$post_datecut} {$thread_replycut} {$thread_prefixcut} {$forumin} {$post_usersql} {$permsql} {$tidsql} {$visiblesql} {$post_visiblesql} AND t.closed NOT LIKE 'moved|%'";
+	$sql = dlw_get_url_search_sql((array)$urls, false, $extra_conditions);
+	$res = $db->query($sql);
+
+	$pids = array();
+	$tids = array();
+	while (($row = $db->fetch_array($res))) {
+		$pids[] = $row['pid'];
+		$tids[$row['tid']] = true;
+	}
+
+	if (!$pids) {
+		error($lang->error_nosearchresults);
+	}
+
+	$sid = md5(uniqid(microtime(), 1));
+	$searcharray = array(
+		'sid' => $db->escape_string($sid),
+		'uid' => $mybb->user['uid'],
+		'dateline' => TIME_NOW,
+		'ipaddress' => $db->escape_binary($session->packedip),
+		'threads' => $as_posts ? '' : implode(',', array_keys($tids)),
+		'posts' => $as_posts ? implode(',', $pids) : '',
+		'resulttype' => $as_posts ? 'posts' : 'threads',
+		'querycache' => '',
+		'keywords' => ''
+	);
+	$db->insert_query('searchlog', $searcharray);
+	redirect('search.php?action=results&sid='.$sid, $lang->redirect_searchresults);
 }
