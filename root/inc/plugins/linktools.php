@@ -5,8 +5,8 @@ if (!defined('IN_MYBB')) {
 	die('Direct access to this file is not allowed.');
 }
 
-# Should semantically match the equivalent variable in ../../jscripts/duplicate_link_warner.js
-const dlw_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
+# Should semantically match the equivalent variable in ../../jscripts/linktools.js
+const lkt_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
 
 /**
  * Supported array entry formats:
@@ -20,7 +20,7 @@ const dlw_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
  *
  * 'domain' can be '*' in which case it matches all domains. This is implicit for formats #1 and #2.
  */
-const dlw_ignored_query_params = array(
+const lkt_ignored_query_params = array(
 	'fbclid',
 	'feature=youtu.be',
 	't' => 'youtube.com',
@@ -36,11 +36,11 @@ const dlw_ignored_query_params = array(
 	'showFullText',
 );
 
-const dlw_default_rebuild_links_items_per_page = 500;
-const dlw_default_rebuild_term_items_per_page = 150;
-const dlw_default_rebuild_renorm_items_per_page = 500;
+const lkt_default_rebuild_links_items_per_page = 500;
+const lkt_default_rebuild_term_items_per_page = 150;
+const lkt_default_rebuild_renorm_items_per_page = 500;
 
-const dlw_max_matching_posts = 10;
+const lkt_max_matching_posts = 10;
 
 const urls_limit_for_get_and_store_terms = 2000;
 
@@ -48,17 +48,17 @@ const urls_limit_for_get_and_store_terms = 2000;
 // (other major browsers have higher limits).
 const c_max_url_len = 2083;
 
-const dlw_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
-const dlw_check_for_html_redirects = true;
-const dlw_check_for_canonical_tags = true;
+const lkt_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
+const lkt_check_for_html_redirects = true;
+const lkt_check_for_canonical_tags = true;
 
-const dlw_rehit_delay_in_secs = 3;
-const dlw_max_allowable_redirects_for_a_url = 25;
-const dlw_max_allowable_redirect_resolution_runtime_secs = 60;
-const dlw_curl_timeout = 10;
+const lkt_rehit_delay_in_secs = 3;
+const lkt_max_allowable_redirects_for_a_url = 25;
+const lkt_max_allowable_redirect_resolution_runtime_secs = 60;
+const lkt_curl_timeout = 10;
 const c_max_url_lock_time = 120;
 
-const dlw_term_tries_secs = array(
+const lkt_term_tries_secs = array(
 	0,             // First attempt has no limits.
 	15*60,         // 15 minutes
 	60*60,         // 1 hour
@@ -72,43 +72,43 @@ const dlw_term_tries_secs = array(
  * @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts.
  */
 
-$plugins->add_hook('datahandler_post_insert_thread'         , 'dlw_hookin__datahandler_post_insert_thread'         );
-$plugins->add_hook('newthread_start'                        , 'dlw_hookin__newthread_start'                        );
-$plugins->add_hook('datahandler_post_insert_post_end'       , 'dlw_hookin__datahandler_post_insert_post_end'       );
-$plugins->add_hook('datahandler_post_insert_thread_end'     , 'dlw_hookin__datahandler_post_insert_thread_end'     );
-$plugins->add_hook('datahandler_post_update'                , 'dlw_hookin__datahandler_post_update'                );
-$plugins->add_hook('datahandler_post_update_end'            , 'dlw_hookin__datahandler_post_update_end'            );
-$plugins->add_hook('class_moderation_delete_post'           , 'dlw_hookin__class_moderation_delete_post'           );
-$plugins->add_hook('class_moderation_delete_thread_start'   , 'dlw_hookin__common__class_moderation_delete_thread' );
-$plugins->add_hook('class_moderation_delete_thread'         , 'dlw_hookin__common__class_moderation_delete_thread' );
-$plugins->add_hook('admin_tools_recount_rebuild_output_list', 'dlw_hookin__admin_tools_recount_rebuild_output_list');
-$plugins->add_hook('admin_tools_recount_rebuild'            , 'dlw_hookin__admin_tools_recount_rebuild'            );
-$plugins->add_hook('global_start'                           , 'dlw_hookin__global_start'                           );
-$plugins->add_hook('search_do_search_start'                 , 'dlw_hookin__search_do_search_start'                 );
+$plugins->add_hook('datahandler_post_insert_thread'         , 'lkt_hookin__datahandler_post_insert_thread'         );
+$plugins->add_hook('newthread_start'                        , 'lkt_hookin__newthread_start'                        );
+$plugins->add_hook('datahandler_post_insert_post_end'       , 'lkt_hookin__datahandler_post_insert_post_end'       );
+$plugins->add_hook('datahandler_post_insert_thread_end'     , 'lkt_hookin__datahandler_post_insert_thread_end'     );
+$plugins->add_hook('datahandler_post_update'                , 'lkt_hookin__datahandler_post_update'                );
+$plugins->add_hook('datahandler_post_update_end'            , 'lkt_hookin__datahandler_post_update_end'            );
+$plugins->add_hook('class_moderation_delete_post'           , 'lkt_hookin__class_moderation_delete_post'           );
+$plugins->add_hook('class_moderation_delete_thread_start'   , 'lkt_hookin__common__class_moderation_delete_thread' );
+$plugins->add_hook('class_moderation_delete_thread'         , 'lkt_hookin__common__class_moderation_delete_thread' );
+$plugins->add_hook('admin_tools_recount_rebuild_output_list', 'lkt_hookin__admin_tools_recount_rebuild_output_list');
+$plugins->add_hook('admin_tools_recount_rebuild'            , 'lkt_hookin__admin_tools_recount_rebuild'            );
+$plugins->add_hook('global_start'                           , 'lkt_hookin__global_start'                           );
+$plugins->add_hook('search_do_search_start'                 , 'lkt_hookin__search_do_search_start'                 );
 
-function dlw_hookin__global_start() {
+function lkt_hookin__global_start() {
 	if (defined('THIS_SCRIPT')) {
 		global $templatelist;
 
 		if (THIS_SCRIPT== 'newthread.php') {
 			if (isset($templatelist)) $templatelist .= ',';
-			$templatelist .= 'duplicatelinkwarner_div,duplicatelinkwarner_op_post_div,duplicatelinkwarner_non_op_post_div,duplicatelinkwarner_matching_url_item,duplicatelinkwarner_matching_post,duplicatelinkwarner_review_buttons,duplicatelinkwarner_toggle_button,duplicatelinkwarner_review_page,duplicate_link_warner_matching_posts_warning_div';
+			$templatelist .= 'linktools_div,linktools_op_post_div,linktools_non_op_post_div,linktools_matching_url_item,linktools_matching_post,linktools_review_buttons,linktools_toggle_button,linktools_review_page,linktools_matching_posts_warning_div';
 		}
 	}
 }
 
-define('C_DLW', str_replace('.php', '', basename(__FILE__)));
+define('C_LKT', str_replace('.php', '', basename(__FILE__)));
 
-function duplicate_link_warner_info() {
+function linktools_info() {
 	global $lang, $db, $mybb;
 
-	if (!isset($lang->duplicate_link_warner)) {
-		$lang->load('duplicate_link_warner');
+	if (!isset($lang->linktools)) {
+		$lang->load('linktools');
 	}
 
 	$ret = array(
-		'name'          => $lang->dlw_name,
-		'description'   => $lang->dlw_desc,
+		'name'          => $lang->lkt_name,
+		'description'   => $lang->lkt_desc,
 		'website'       => '',
 		'author'        => 'Laird Shaw',
 		'authorsite'    => '',
@@ -117,15 +117,15 @@ function duplicate_link_warner_info() {
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
 		'version_code'  => '5',
 		'guid'          => '',
-		'codename'      => C_DLW,
+		'codename'      => C_LKT,
 		'compatibility' => '18*'
 	);
 
-	if (duplicate_link_warner_is_installed()) {
+	if (linktools_is_installed()) {
 		$desc = '';
 		$desc .= '<ul>'.PHP_EOL;
 
-		$res = $db->simple_select('posts', 'count(*) AS cnt', 'dlw_got_urls = 0');
+		$res = $db->simple_select('posts', 'count(*) AS cnt', 'lkt_got_urls = 0');
 		$cnt_posts_unextracted = $db->fetch_array($res)['cnt'];
 		$res = $db->simple_select('posts', 'count(*) AS cnt');
 		$cnt_posts_tot = $db->fetch_array($res)['cnt'];
@@ -137,40 +137,40 @@ function duplicate_link_warner_info() {
 		if ($cnt_links_unresolved > 0) {
 			$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE AND term_tries > 0');
 			$cnt_links_unresolved_tried = $db->fetch_array($res)['cnt'];
-			$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE AND term_tries >= '.count(dlw_term_tries_secs));
+			$res = $db->simple_select('urls', 'count(*) AS cnt', 'got_term = FALSE AND term_tries >= '.count(lkt_term_tries_secs));
 			$cnt_given_up = $db->fetch_array($res)['cnt'];
-			$res = $db->simple_select('urls', 'count(*) as cnt', dlw_get_sql_conds_for_ltt());
+			$res = $db->simple_select('urls', 'count(*) as cnt', lkt_get_sql_conds_for_ltt());
 			$cnt_eligible = $db->fetch_array($res)['cnt'];
 		}
 
 		$desc .= '	<li style="list-style-image: url(styles/default/images/icons/';
 		if ($cnt_posts_unextracted == 0) {
-			$desc .= 'success.png)">'.$lang->sprintf($lang->dlw_all_links_extracted, number_format($cnt_links_tot), number_format($cnt_posts_tot));
+			$desc .= 'success.png)">'.$lang->sprintf($lang->lkt_all_links_extracted, number_format($cnt_links_tot), number_format($cnt_posts_tot));
 		} else {
-			$desc .= 'warning.png)">'.$lang->sprintf($lang->dlw_x_of_y_posts_unextracted, number_format($cnt_posts_unextracted), number_format($cnt_posts_tot));
+			$desc .= 'warning.png)">'.$lang->sprintf($lang->lkt_x_of_y_posts_unextracted, number_format($cnt_posts_unextracted), number_format($cnt_posts_tot));
 			if ($cnt_posts_unextracted > 0) {
-				$desc .= $lang->sprintf($lang->dlw_to_extract_links_click_here, $cnt_posts_unextracted, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
+				$desc .= $lang->sprintf($lang->lkt_to_extract_links_click_here, $cnt_posts_unextracted, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
 			}
 		}
 		$desc .= '</li>'.PHP_EOL;
 
 		$desc .= '	<li style="list-style-image: url(styles/default/images/icons/'.($cnt_links_unresolved == 0 ? 'success' : ($cnt_eligible == 0 ? 'no_change' : 'warning')).'.png)">';
 		if ($cnt_links_unresolved == 0) {
-			$desc .= $lang->dlw_all_term_links_resolved;
+			$desc .= $lang->lkt_all_term_links_resolved;
 		} else {
-			$desc .= $lang->sprintf($lang->dlw_x_of_y_links_unresolved, number_format($cnt_links_unresolved), number_format($cnt_links_tot));
+			$desc .= $lang->sprintf($lang->lkt_x_of_y_links_unresolved, number_format($cnt_links_unresolved), number_format($cnt_links_tot));
 			if ($cnt_links_unresolved_tried > 0    ) {
 				if ($cnt_links_unresolved == $cnt_links_unresolved_tried) {
-					$desc .= $lang->sprintf($lang->dlw_attempts_unsuccess_made_all_links, number_format($cnt_links_unresolved_tried));
+					$desc .= $lang->sprintf($lang->lkt_attempts_unsuccess_made_all_links, number_format($cnt_links_unresolved_tried));
 				} else {
-					$desc .= $lang->sprintf($lang->dlw_attempts_unsuccess_made_x_links, number_format($cnt_links_unresolved_tried));
+					$desc .= $lang->sprintf($lang->lkt_attempts_unsuccess_made_x_links, number_format($cnt_links_unresolved_tried));
 				}
-				if ($cnt_given_up) $desc .= $lang->sprintf($lang->dlw_given_up_on_x_links, number_format($cnt_given_up));
+				if ($cnt_given_up) $desc .= $lang->sprintf($lang->lkt_given_up_on_x_links, number_format($cnt_given_up));
 			}
 			if ($cnt_eligible > 0) {
-				$desc .= $lang->sprintf($lang->dlw_to_resolve_links_click_here, number_format($cnt_eligible), '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
+				$desc .= $lang->sprintf($lang->lkt_to_resolve_links_click_here, number_format($cnt_eligible), '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
 			} else {
-				$desc .= $lang->dlw_no_links_eligible_for_resolution;
+				$desc .= $lang->lkt_no_links_eligible_for_resolution;
 			}
 		}
 		$desc .= '</li>'.PHP_EOL;
@@ -183,7 +183,7 @@ function duplicate_link_warner_info() {
 	return $ret;
 }
 
-function duplicate_link_warner_install() {
+function linktools_install() {
 	global $db;
 
 	if (!$db->table_exists('urls')) {
@@ -217,16 +217,16 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 )'.$db->build_create_table_collation().';');
 	}
 
-	if (!$db->field_exists('dlw_got_urls', 'posts')) {
-		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD dlw_got_urls boolean NOT NULL default FALSE");
+	if (!$db->field_exists('lkt_got_urls', 'posts')) {
+		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD lkt_got_urls boolean NOT NULL default FALSE");
 	}
 
-	dlw_create_templategroup();
-	dlw_insert_templates();
-	dlw_create_stylesheet();
+	lkt_create_templategroup();
+	lkt_insert_templates();
+	lkt_create_stylesheet();
 }
 
-function duplicate_link_warner_uninstall() {
+function linktools_uninstall() {
 	global $db;
 
 	if ($db->table_exists('urls')) {
@@ -237,38 +237,38 @@ function duplicate_link_warner_uninstall() {
 		$db->drop_table('post_urls');
 	}
 
-	if ($db->field_exists('dlw_got_urls', 'posts')) {
-		$db->query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN dlw_got_urls');
+	if ($db->field_exists('lkt_got_urls', 'posts')) {
+		$db->query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN lkt_got_urls');
 	}
 
-	$db->delete_query('tasks', "file='duplicate_link_warner'");
+	$db->delete_query('tasks', "file='linktools'");
 
-	$db->delete_query('templates', "title LIKE 'duplicatelinkwarner_%'");
-	$db->delete_query('templategroups', "prefix in ('duplicatelinkwarner')");
+	$db->delete_query('templates', "title LIKE 'linktools_%'");
+	$db->delete_query('templategroups', "prefix in ('linktools')");
 
-	$db->delete_query('themestylesheets', "name = 'duplicate_link_warner.css' AND tid = 1");
+	$db->delete_query('themestylesheets', "name = 'linktools.css' AND tid = 1");
 }
 
-function duplicate_link_warner_is_installed() {
+function linktools_is_installed() {
 	global $db;
 
 	return $db->table_exists('urls') && $db->table_exists('post_urls');
 }
 
-function duplicate_link_warner_activate() {
+function linktools_activate() {
 	global $db, $plugins, $cache, $lang;
 
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
-	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$duplicate_link_warner_div}');
-	find_replace_templatesets('newthread', '({\\$codebuttons})'   , '{$codebuttons}{$duplicate_link_warner_js}'    );
+	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$linktools_div}');
+	find_replace_templatesets('newthread', '({\\$codebuttons})'   , '{$codebuttons}{$linktools_js}'    );
 
-	$task_exists = $db->simple_select('tasks', 'tid', "file='duplicate_link_warner'", array('limit' => '1'));
+	$task_exists = $db->simple_select('tasks', 'tid', "file='linktools'", array('limit' => '1'));
 	if ($db->num_rows($task_exists) == 0) {
 		require_once MYBB_ROOT . '/inc/functions_task.php';
 		$new_task = array(
-			'title' => $db->escape_string($lang->dlw_task_title),
-			'description' => $db->escape_string($lang->dlw_task_description),
-			'file' => 'duplicate_link_warner',
+			'title' => $db->escape_string($lang->lkt_task_title),
+			'description' => $db->escape_string($lang->lkt_task_description),
+			'file' => 'linktools',
 			'minute'      => '0',
 			'hour'        => '0',
 			'day'         => '*',
@@ -284,41 +284,41 @@ function duplicate_link_warner_activate() {
 	}
 }
 
-function duplicate_link_warner_deactivate() {
+function linktools_deactivate() {
 	global $db;
 
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
-	find_replace_templatesets('newthread', '({\\$duplicate_link_warner_div})', '', 0);
-	find_replace_templatesets('newthread', '({\\$duplicate_link_warner_js})' , '', 0);
-	$db->update_query('tasks', array('enabled' => 0), 'file=\'duplicate_link_warner\'');
+	find_replace_templatesets('newthread', '({\\$linktools_div})', '', 0);
+	find_replace_templatesets('newthread', '({\\$linktools_js})' , '', 0);
+	$db->update_query('tasks', array('enabled' => 0), 'file=\'linktools\'');
 }
 
-function dlw_create_templategroup() {
+function lkt_create_templategroup() {
 	global $db;
 
 	$templateset = array(
-		'prefix' => 'duplicatelinkwarner',
-		'title' => 'Duplicate Link Warner',
+		'prefix' => 'linktools',
+		'title' => 'Link Tools',
 	);
 	$db->insert_query('templategroups', $templateset);
 }
 
-function dlw_insert_templates() {
+function lkt_insert_templates() {
 	global $mybb, $db;
 
 	$templates = array(
-		'duplicatelinkwarner_div'
+		'linktools_div'
 			=> '<div id="dlw-msg-sidebar-div" style="margin: auto; width: 170px; margin-top: 20px;"></div>',
-		'duplicatelinkwarner_op_post_div'
-			=>'<div><span class="first-post">{$lang->dlw_opening_post}</span></div>',
-		'duplicatelinkwarner_non_op_post_div'
-			=> '<div>{$lang->dlw_non_opening_post} {$post[\'plink\']} {$lang->dlw_posted_by} {$post[\'ulink_p\']}, {$post[\'dtlink_p\']}</div>',
-		'duplicatelinkwarner_matching_url_item'
+		'linktools_op_post_div'
+			=>'<div><span class="first-post">{$lang->lkt_opening_post}</span></div>',
+		'linktools_non_op_post_div'
+			=> '<div>{$lang->lkt_non_opening_post} {$post[\'plink\']} {$lang->lkt_posted_by} {$post[\'ulink_p\']}, {$post[\'dtlink_p\']}</div>',
+		'linktools_matching_url_item'
 			=> '<li style="padding: 0; margin: 0;">$matching_url_msg</li>',
-		'duplicatelinkwarner_matching_post' =>
+		'linktools_matching_post' =>
 			'<div$div_main_class>
 	<div>{$post[\'flinks\']}<br />{$post[\'nav_bit_img\']}{$post[\'tlink\']}</div>
-	<div>{$lang->dlw_started_by} {$post[\'ulink_t\']}, {$post[\'dtlink_t\']}</div>
+	<div>{$lang->lkt_started_by} {$post[\'ulink_t\']}, {$post[\'dtlink_t\']}</div>
 	$div_posted_by
 	<div>
 		$lang_matching_url_or_urls
@@ -328,15 +328,15 @@ function dlw_insert_templates() {
 	</div>
 	<div class="dlw-post-message">{$post[\'message\']}</div>
 </div>',
-		'duplicatelinkwarner_review_buttons'
+		'linktools_review_buttons'
 			=> '<div style="text-align:center">
-	<input type="submit" class="button" name="ignore_dup_link_warn" value="{$lang->dlw_post_anyway}" accesskey="s" />
+	<input type="submit" class="button" name="ignore_dup_link_warn" value="{$lang->lkt_post_anyway}" accesskey="s" />
 	<input type="submit" class="button" name="previewpost" value="{$lang->preview_post}" />
 	{$savedraftbutton}
 </div>',
-		'duplicatelinkwarner_toggle_button'
-	              => '<div style="text-align:center"><button id="id_btn_toggle_quote_posts" onclick="dlw_toggle_hidden_posts();" type="button">{$lang->dlw_btn_toggle_msg_hide}</button></div>',
-		'duplicatelinkwarner_review_page'
+		'linktools_toggle_button'
+	              => '<div style="text-align:center"><button id="id_btn_toggle_quote_posts" onclick="lkt_toggle_hidden_posts();" type="button">{$lang->lkt_btn_toggle_msg_hide}</button></div>',
+		'linktools_review_page'
 			=> '<html>
 <head>
 <title>{$mybb->settings[\'bbname\']}</title>
@@ -350,7 +350,7 @@ function dlw_insert_templates() {
 {$btns}
 {$further_results_below_div}
 {$toggle_btn}
-{$dlw_found_posts}
+{$lkt_found_posts}
 {$further_results_above_div}
 {$btns}
 </form>
@@ -358,27 +358,27 @@ function dlw_insert_templates() {
 {$footer}
 <script type="text/javascript">
 //<![CDATA[
-function dlw_toggle_hidden_posts() {
+function lkt_toggle_hidden_posts() {
 	var nodes = document.querySelectorAll(\'.all_matching_urls_in_quotes\');
 	if (nodes.length > 0) {
 		var val = (nodes[0].style.display == \'none\' ? \'\' : \'none\');
 		for (var i = 0; i < nodes.length; i++) {
 			nodes[i].style.display = val;
 		}
-		document.getElementById(\'id_btn_toggle_quote_posts\').innerHTML = (val == \'none\' ? \'{$lang->dlw_btn_toggle_msg_show}\' : \'{$lang->dlw_btn_toggle_msg_hide}\');
+		document.getElementById(\'id_btn_toggle_quote_posts\').innerHTML = (val == \'none\' ? \'{$lang->lkt_btn_toggle_msg_show}\' : \'{$lang->lkt_btn_toggle_msg_hide}\');
 	}
 }
 //]]>
 </script>
 </body>
 </html>',
-		'duplicate_link_warner_matching_posts_warning_div'
+		'linktools_matching_posts_warning_div'
 			=> '<div class="red_alert">$matching_posts_warning_msg</div>',
 	);
 
-	$info = duplicate_link_warner_info();
+	$info = linktools_info();
 	$plugin_version_code = $info['version_code'];
-	// Left-pad the version code with any zero that we forbade in duplicate_link_warner_info(),
+	// Left-pad the version code with any zero that we forbade in linktools_info(),
 	// where it would have been interpreted as octal.
 	while (strlen($plugin_version_code) < 6) {
 		$plugin_version_code = '0'.$plugin_version_code;
@@ -402,7 +402,7 @@ function dlw_toggle_hidden_posts() {
 	}
 }
 
-function dlw_get_css() {
+function lkt_get_css() {
 	return <<<EOF
 #dlw-extra-info, .dlw-post-inner {
 	position             : static;
@@ -490,15 +490,15 @@ ul.matching-urls {
 EOF;
 }
 
-function dlw_create_stylesheet() {
+function lkt_create_stylesheet() {
 	global $db;
 
 	$row = array(
-		'name' => 'duplicate_link_warner.css',
+		'name' => 'linktools.css',
 		'tid' => 1,
 		'attachedto' => 'newthread.php',
-		'stylesheet' => $db->escape_string(dlw_get_css()),
-		'cachefile' => 'duplicate_link_warner.css',
+		'stylesheet' => $db->escape_string(lkt_get_css()),
+		'cachefile' => 'linktools.css',
 		'lastmodified' => TIME_NOW
 	);
 
@@ -513,7 +513,7 @@ function dlw_create_stylesheet() {
 	}
 }
 
-function dlw_get_scheme($url) {
+function lkt_get_scheme($url) {
 	$scheme = '';
 	$url = trim($url);
 	if (preg_match('(^[a-z]+(?=:))', $url, $match)) {
@@ -523,19 +523,19 @@ function dlw_get_scheme($url) {
 	return $scheme;
 }
 
-function dlw_has_valid_scheme($url) {
-	return (in_array(dlw_get_scheme(trim($url)), dlw_valid_schemes));
+function lkt_has_valid_scheme($url) {
+	return (in_array(lkt_get_scheme(trim($url)), lkt_valid_schemes));
 }
 
-# Should be kept in sync with the extract_url_from_mycode_tag() method of the DLW object in ../jscripts/duplicate_link_warner.js
-function dlw_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = array(1)) {
+# Should be kept in sync with the extract_url_from_mycode_tag() method of the DLW object in ../jscripts/linktools.js
+function lkt_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = array(1)) {
 	if (preg_match_all($re, $text, $matches, PREG_SET_ORDER)) {
 		foreach ($matches as $match) {
 			$url = '';
 			foreach ($indexes_to_use as $i) {
 				$url .= $match[$i];
 			}
-			dlw_test_add_url($url, $urls);
+			lkt_test_add_url($url, $urls);
 		}
 		$text = preg_replace($re, ' ', $text);
 	}
@@ -545,8 +545,8 @@ function dlw_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = 
 
 # Based heavily on the corresponding code in postParser::mycode_auto_url_callback() in ../class_parser.php
 #
-# Should be kept in sync with the strip_unmatched_closing_parens() method of the DLW object in ../jscripts/duplicate_link_warner.js
-function dlw_strip_unmatched_closing_parens($url) {
+# Should be kept in sync with the strip_unmatched_closing_parens() method of the DLW object in ../jscripts/linktools.js
+function lkt_strip_unmatched_closing_parens($url) {
 	// Allow links like http://en.wikipedia.org/wiki/PHP_(disambiguation) but detect mismatching braces
 	while (my_substr($url, -1) == ')') {
 		if(substr_count($url, ')') > substr_count($url, '(')) {
@@ -578,8 +578,8 @@ function dlw_strip_unmatched_closing_parens($url) {
 # into HTML tags, so the core code can rely on there being no meaningful square
 # brackets left. We can't.
 #
-# Should be kept in sync with the extract_bare_urls() method of the DLW object in ../jscripts/duplicate_link_warner.js
-function dlw_extract_bare_urls(&$text, &$urls) {
+# Should be kept in sync with the extract_bare_urls() method of the DLW object in ../jscripts/linktools.js
+function lkt_extract_bare_urls(&$text, &$urls) {
 	$urls_matched = [];
 	$text = ' '.$text;
 	$text_new = $text;
@@ -592,9 +592,9 @@ function dlw_extract_bare_urls(&$text, &$urls) {
 	) as $re) {
 		if (preg_match_all($re, $text, $matches, PREG_SET_ORDER|PREG_OFFSET_CAPTURE)) {
 			foreach ($matches as $match) {
-				$url = $match[2][0].$match[3][0].dlw_strip_unmatched_closing_parens($match[4][0]);
+				$url = $match[2][0].$match[3][0].lkt_strip_unmatched_closing_parens($match[4][0]);
 				$urls_matched[] = $url;
-				dlw_test_add_url($url, $urls);
+				lkt_test_add_url($url, $urls);
 				// Blank out the matched URLs.
 				$text_new = substr($text_new, 0, $match[2][1]).str_repeat(' ', strlen($url)).substr($text_new, $match[2][1] + strlen($url));
 			}
@@ -607,15 +607,15 @@ function dlw_extract_bare_urls(&$text, &$urls) {
 	$urls = array_map('trim', $urls);
 }
 
-# Should be kept in sync with the test_add_url() method of the DLW object in ../jscripts/duplicate_link_warner.js
-function dlw_test_add_url($url, &$urls) {
-	if (dlw_has_valid_scheme($url) && !in_array($url, $urls)) {
+# Should be kept in sync with the test_add_url() method of the DLW object in ../jscripts/linktools.js
+function lkt_test_add_url($url, &$urls) {
+	if (lkt_has_valid_scheme($url) && !in_array($url, $urls)) {
 		$urls[] = $url;
 	}
 }
 
-# Should be kept in sync with the extract_urls() method of the DLW object in ../jscripts/duplicate_link_warner.js
-function dlw_extract_urls($text) {
+# Should be kept in sync with the extract_urls() method of the DLW object in ../jscripts/linktools.js
+function lkt_extract_urls($text) {
 	$urls = array();
 
 	# First, strip out all [img] tags.
@@ -626,29 +626,29 @@ function dlw_extract_urls($text) {
 	$text = preg_replace("#\[img=([1-9][0-9]*)x([1-9][0-9]*) align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", ' ', $text);
 
 	# [url] tag regexes from postParser::cache_mycode() in ../class_parser.php.
-	dlw_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\[/url\]#si", array(1, 2));
-	dlw_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript:)[^\r\n\"<]+?)\[/url\]#i", array(1));
-	dlw_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1, 2));
-	dlw_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript:)[^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1));
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\[/url\]#si", array(1, 2));
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript:)[^\r\n\"<]+?)\[/url\]#i", array(1));
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1, 2));
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript:)[^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1));
 
 	# [video] tag regex from postParser::parse_mycode() in ../class_parser.php.
-	dlw_extract_url_from_mycode_tag($text, $urls, "#\[video=(.*?)\](.*?)\[/video\]#i", array(2));
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[video=(.*?)\](.*?)\[/video\]#i", array(2));
 
-	dlw_extract_bare_urls($text, $urls);
+	lkt_extract_bare_urls($text, $urls);
 
 	$urls = array_map('trim', $urls);
 
 	return array_values(array_unique($urls));
 }
 
-function dlw_get_url_search_sql($urls, $already_normalised = false, $extra_conditions = '') {
+function lkt_get_url_search_sql($urls, $already_normalised = false, $extra_conditions = '') {
 	global $db;
 
 	if ($already_normalised) {
 		$urls_norm = $urls;
 	} else {
 		sort($urls);
-		$urls_norm = dlw_normalise_urls($urls);
+		$urls_norm = lkt_normalise_urls($urls);
 	}
 
 	$url_paren_list = "('".implode("', '", array_map(array($db, 'escape_string'), $urls_norm))."')";
@@ -699,12 +699,12 @@ WHERE           '.$conds.'
 ORDER BY        isfirstpost DESC, p.dateline DESC';
 }
 
-// Returns at most dlw_max_matching_posts results. Indicates whether there are further results via the third entry of the returned array.
-function dlw_get_posts_for_urls($urls, $post_edit_times = array()) {
+// Returns at most lkt_max_matching_posts results. Indicates whether there are further results via the third entry of the returned array.
+function lkt_get_posts_for_urls($urls, $post_edit_times = array()) {
 	global $db, $parser;
 
 	sort($urls);
-	$urls_norm = dlw_normalise_urls($urls);
+	$urls_norm = lkt_normalise_urls($urls);
 
 	if (!$parser) {
 		require_once MYBB_ROOT.'inc/class_parser.php';
@@ -720,7 +720,7 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array()) {
 		'filter_badwords' => 1
 	);
 
-	$sql = dlw_get_url_search_sql($urls_norm, /*$already_normalised= */true);
+	$sql = lkt_get_url_search_sql($urls_norm, /*$already_normalised= */true);
 	$res = $db->query($sql);
 
 	$all_matching_urls_in_quotes_flag = false;
@@ -728,7 +728,7 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array()) {
 	$matching_posts = array();
 	$further_results = false;
 	while (($row = $db->fetch_array($res))) {
-		if (count($matching_posts) == dlw_max_matching_posts) {
+		if (count($matching_posts) == lkt_max_matching_posts) {
 			$further_results = true;
 			break;
 		}
@@ -738,7 +738,7 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array()) {
 			unset($matching_posts[$row['pid']]['matching_url']);
 			unset($matching_posts[$row['pid']]['queried_norm_url']);
 			$matching_posts[$row['pid']]['message'] = $parser->parse_message($row['message'], $parse_opts);
-			$matching_posts[$row['pid']]['all_urls'] = dlw_extract_urls($row['message']);
+			$matching_posts[$row['pid']]['all_urls'] = lkt_extract_urls($row['message']);
 			// The raw URLs (i.e., not normalised) present in this post that were a match for
 			// the raw URLs (again, not normalised) for which we are querying, in that
 			// both terminate (i.e., after following all redirects) in the same normalised URL.
@@ -747,8 +747,8 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array()) {
 			// same order as the above array (i.e., entries at the same index in both arrays
 			// both terminate in the same normalised URL).
 			$matching_posts[$row['pid']]['matching_urls'] = [];
-			$stripped = dlw_strip_nestable_mybb_tag($row['message'], 'quote');
-			$urls_quotes_stripped = dlw_extract_urls($stripped);
+			$stripped = lkt_strip_nestable_mybb_tag($row['message'], 'quote');
+			$urls_quotes_stripped = lkt_extract_urls($stripped);
 			$matching_posts[$row['pid']]['are_all_matching_urls_in_quotes'] = (array_intersect($urls, $urls_quotes_stripped) == array());
 			if ($matching_posts[$row['pid']]['are_all_matching_urls_in_quotes']) {
 				$all_matching_urls_in_quotes_flag = true;
@@ -821,14 +821,14 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array()) {
 			// has not been edited since last returned.
 			$post = array_intersect_key($post, array('pid' => true, 'edittime' => true, 'matching_urls' => true, 'matching_urls_in_post' => true));
 		} else {
-			$post['flinks'     ] = dlw_get_flinks($post['parentlist'], $forum_names);
-			$post['tlink'      ] = dlw_get_threadlink($post['tid'], $post['subject_thread']);
+			$post['flinks'     ] = lkt_get_flinks($post['parentlist'], $forum_names);
+			$post['tlink'      ] = lkt_get_threadlink($post['tid'], $post['subject_thread']);
 			$post['nav_bit_img'] = '<img src="images/nav_bit.png" alt="" />';
-			$post['ulink_p'    ] = dlw_get_usernamelink($post['uid_post'], $post['username_post']);
-			$post['ulink_t'    ] = dlw_get_usernamelink($post['uid_thread'], $post['username_thread']);
+			$post['ulink_p'    ] = lkt_get_usernamelink($post['uid_post'], $post['username_post']);
+			$post['ulink_t'    ] = lkt_get_usernamelink($post['uid_thread'], $post['username_thread']);
 			$post['dtlink_t'   ] = my_date('relative', $post['dateline_thread']);
 			$post['dtlink_p'   ] = my_date('relative', $post['dateline_post']);
-			$post['plink'      ] = dlw_get_postlink($post['pid'], $post['subject_post']);
+			$post['plink'      ] = lkt_get_postlink($post['pid'], $post['subject_post']);
 		}
 	}
 
@@ -836,15 +836,15 @@ function dlw_get_posts_for_urls($urls, $post_edit_times = array()) {
 	return array($matching_posts, $forum_names, $further_results);
 }
 
-function dlw_hookin__datahandler_post_insert_post_end($posthandler) {
-	dlw_handle_new_post($posthandler);
+function lkt_hookin__datahandler_post_insert_post_end($posthandler) {
+	lkt_handle_new_post($posthandler);
 }
 
-function dlw_hookin__datahandler_post_insert_thread_end($posthandler) {
-	dlw_handle_new_post($posthandler);
+function lkt_hookin__datahandler_post_insert_thread_end($posthandler) {
+	lkt_handle_new_post($posthandler);
 }
 
-function dlw_handle_new_post($posthandler) {
+function lkt_handle_new_post($posthandler) {
 	if ($posthandler->data['savedraft']) {
 		return;
 	}
@@ -853,17 +853,17 @@ function dlw_handle_new_post($posthandler) {
 	// out of, and especially the resolution of redirects of, and then the
 	// storage into the database of, URLs continues to run - the redirect
 	// resolution in particular might take some time.
-	add_shutdown('dlw_get_and_add_urls_of_post', array(
+	add_shutdown('lkt_get_and_add_urls_of_post', array(
 		$posthandler->data['message'],
 		$posthandler->pid
 	));
 }
 
-function dlw_get_and_add_urls_of_post($message, $pid = null) {
-	dlw_get_and_add_urls(dlw_extract_urls($message), $pid);
+function lkt_get_and_add_urls_of_post($message, $pid = null) {
+	lkt_get_and_add_urls(lkt_extract_urls($message), $pid);
 }
 
-function dlw_get_and_add_urls($urls, $pid = null) {
+function lkt_get_and_add_urls($urls, $pid = null) {
 	global $db;
 
 	// Don't waste time and bandwidth resolving redirects for URLs already in the DB.
@@ -872,9 +872,9 @@ function dlw_get_and_add_urls($urls, $pid = null) {
 	while (($row = $db->fetch_array($res))) {
 		$existing_urls[] = $row['url'];
 	}
-	$redirs = dlw_get_url_term_redirs(array_diff($urls, $existing_urls), $got_terms);
+	$redirs = lkt_get_url_term_redirs(array_diff($urls, $existing_urls), $got_terms);
 
-	dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid);
+	lkt_add_urls_for_pid($urls, $redirs, $got_terms, $pid);
 
 	return $urls;
 }
@@ -883,7 +883,7 @@ function dlw_get_and_add_urls($urls, $pid = null) {
  * If $got_terms is false, then it indicates that no attempt was even made at resolving terminating redirects.
  * Otherwise, it is an array indexed by URLs indicating (true/false) whether or not a terminating redirect was found for the given URL.
  */
-function dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
+function lkt_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 	global $db;
 
 	$now = time();
@@ -895,9 +895,9 @@ function dlw_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 				$urlid = $row['urlid'];
 			} else {
 				$url_fit         = substr($url   , 0, c_max_url_len);
-				$url_norm_fit    = substr(dlw_normalise_url($url), 0, c_max_url_len);
+				$url_norm_fit    = substr(lkt_normalise_url($url), 0, c_max_url_len);
 				$target_fit      = substr($target, 0, c_max_url_len);
-				$target_norm_fit = substr(dlw_normalise_url($target == false ? $url : $target), 0, c_max_url_len);
+				$target_norm_fit = substr(lkt_normalise_url($target == false ? $url : $target), 0, c_max_url_len);
 				// Simulate the enforcement of a UNIQUE constraint on the `url` column
 				// using a SELECT with a HAVING condition. This prevents the possibility of
 				// rows with duplicate values for `url`.
@@ -930,27 +930,27 @@ INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_te
 		}
 	}
 
-	if ($pid !== null) $db->update_query('posts', array('dlw_got_urls' => 1), "pid=$pid");
+	if ($pid !== null) $db->update_query('posts', array('lkt_got_urls' => 1), "pid=$pid");
 }
 
-function dlw_normalise_urls($urls) {
+function lkt_normalise_urls($urls) {
 	$ret = array();
 
 	foreach ($urls as $url) {
 		$url = trim($url);
-		$ret[] = dlw_normalise_url($url);
+		$ret[] = lkt_normalise_url($url);
 	}
 
 	return $ret;
 }
 
-function dlw_get_norm_server_from_url($url) {
+function lkt_get_norm_server_from_url($url) {
 	$server = false;
 	$url = trim($url);
-	$parsed_url = dlw_parse_url($url);
+	$parsed_url = lkt_parse_url($url);
 	if (isset($parsed_url['host'])) {
 		// Normalise domain to non-www-prefixed lowercase.
-		$server = dlw_normalise_domain($parsed_url['host']);
+		$server = lkt_normalise_domain($parsed_url['host']);
 	}
 
 	return $server;
@@ -960,7 +960,7 @@ function dlw_get_norm_server_from_url($url) {
  * Resolves and returns the immediate redirects for each URL in $urls.
  *
  * Uses the non-blocking functionality of cURL so that multiple URLs can be checked simultaneously,
- * but avoids hitting the same web server more than once every dlw_rehit_delay_in_secs seconds.
+ * but avoids hitting the same web server more than once every lkt_rehit_delay_in_secs seconds.
  *
  * This function only makes sense for $urls with a protocol of http:// or https://. $urls missing a
  * scheme are assumed to use the http:// protocol. For all other protocols, the $url is deemed to
@@ -980,9 +980,9 @@ function dlw_get_norm_server_from_url($url) {
  *                 If a non-link-specific error occurs, such as failure to initialise a generic cURL handle,
  *                   then that URL's entry is set to null.
  *         $deferred_urls lists any URLs that were deferred because requesting it would have polled its
- *                        server within dlw_rehit_delay_in_secs seconds of the last time it was polled.
+ *                        server within lkt_rehit_delay_in_secs seconds of the last time it was polled.
  */
-function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_urls = [], $use_head_method = true, $check_html_redirects = false, $check_html_canonical_tag = false) {
+function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_urls = [], $use_head_method = true, $check_html_redirects = false, $check_html_canonical_tag = false) {
 	$redirs = $deferred_urls = $curl_handles = [];
 
 	if (!$urls) return [$redirs, $deferred_urls];
@@ -996,14 +996,14 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 	$i = 0;
 	while ($i < count($urls)) {
 		$url = trim($urls[$i]);
-		$server = dlw_get_norm_server_from_url($url);
+		$server = lkt_get_norm_server_from_url($url);
 		if ($server) {
 			$seen_already = isset($seen_servers[$server]);
 			$seen_servers[$server] = true;
 			$server_wait = -1;
 			if (isset($server_last_hit_times[$server])) {
 				$time_since = $ts_now - $server_last_hit_times[$server];
-				$server_wait = dlw_rehit_delay_in_secs - $time_since;
+				$server_wait = lkt_rehit_delay_in_secs - $time_since;
 			}
 			if ($seen_already || $server_wait > 0) {
 				$deferred_urls[] = $url;
@@ -1021,7 +1021,7 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 	}
 
 	foreach ($urls as $url) {
-		if (!in_array(dlw_get_scheme($url), array('http', 'https', ''))) {
+		if (!in_array(lkt_get_scheme($url), array('http', 'https', ''))) {
 			$redirs[$url] = $url;
 			continue;
 		}
@@ -1041,8 +1041,8 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_HEADER         => true,
 			CURLOPT_NOBODY         => $use_head_method,
-			CURLOPT_TIMEOUT        => dlw_curl_timeout,
-			CURLOPT_USERAGENT      => 'The MyBB Duplicate Link Warner plugin',
+			CURLOPT_TIMEOUT        => lkt_curl_timeout,
+			CURLOPT_USERAGENT      => 'The MyBB Link Tools plugin',
 		))) {
 			curl_close($ch);
 			$redirs[$url] = null;
@@ -1072,7 +1072,7 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 	foreach ($curl_handles as $url => $ch) {
 		if ($ch) {
 			$content = curl_multi_getcontent($ch);
-			$server_last_hit_times[dlw_get_norm_server_from_url($url)] = $ts_now2;
+			$server_last_hit_times[lkt_get_norm_server_from_url($url)] = $ts_now2;
 			if ($content
 			    &&
 			    ($header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE)) !== false
@@ -1112,7 +1112,7 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 					if ($decode) {
 						$target = html_entity_decode($target);
 					}
-					$target = dlw_check_absolutise_relative_uri($target, $url);
+					$target = lkt_check_absolutise_relative_uri($target, $url);
 				}
 				$redirs[$url] = $target;
 				$origin_urls[$target] = $origin_urls[$url];
@@ -1129,7 +1129,7 @@ function dlw_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 	return array($redirs, $deferred_urls);
 }
 
-function dlw_check_canonicalise_path($path) {
+function lkt_check_canonicalise_path($path) {
 	do {
 		$new_path = str_replace('//', '/', $path);
 		$old_path = $path;
@@ -1158,11 +1158,11 @@ function dlw_check_canonicalise_path($path) {
 	return implode('/', $arr);
 }
 
-function dlw_check_absolutise_relative_uri($target, $source) {
-	if (dlw_get_scheme($target) == '' && substr($target, 0, 2) != '//') {
+function lkt_check_absolutise_relative_uri($target, $source) {
+	if (lkt_get_scheme($target) == '' && substr($target, 0, 2) != '//') {
 		// The target is a relative URI without a protocol and domain.
 		// Add in the protocol and domain.
-		$parsed_src = dlw_parse_url($source);
+		$parsed_src = lkt_parse_url($source);
 		$prepend = '';
 		if (!empty($parsed_src['scheme'])) {
 			$prepend .=  $parsed_src['scheme'].'://';
@@ -1185,7 +1185,7 @@ function dlw_check_absolutise_relative_uri($target, $source) {
 	return $target;
 }
 
-function dlw_get_url_term_redirs_auto($urls) {
+function lkt_get_url_term_redirs_auto($urls) {
 	static $repl_regexes = array(
 		'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?v=([^&]+)(?:&feature=youtu\\.be)?$)'
 						=> 'https://www.youtube.com/watch?v=\\1',
@@ -1231,10 +1231,10 @@ function dlw_get_url_term_redirs_auto($urls) {
  *         3. Null in the case that a non-link-specific error occurred, such as failure to
  *            initialise a generic cURL handle.
  */
-function dlw_get_url_term_redirs($urls, &$got_terms = array()) {
+function lkt_get_url_term_redirs($urls, &$got_terms = array()) {
 	$terms = $redirs = $server_urls = $server_last_hit_times = $to_retry = array();
 	static $min_wait_flag_value = 99999;
-	static $want_use_head_method = dlw_use_head_method && !(dlw_check_for_canonical_tags || dlw_check_for_html_redirects);
+	static $want_use_head_method = lkt_use_head_method && !(lkt_check_for_canonical_tags || lkt_check_for_html_redirects);
 
 	if (!$urls) return $terms;
 
@@ -1243,7 +1243,7 @@ function dlw_get_url_term_redirs($urls, &$got_terms = array()) {
 	$origin_urls = array_combine($urls, $urls);
 
 	foreach ($urls as $url) {
-		$norm_server = dlw_get_norm_server_from_url($url);
+		$norm_server = lkt_get_norm_server_from_url($url);
 		if (!isset($server_urls[$norm_server])) {
 			$server_urls[$norm_server] = 0;
 		}
@@ -1255,10 +1255,10 @@ function dlw_get_url_term_redirs($urls, &$got_terms = array()) {
 	}
 	$num_servers = count($server_urls);
 
-	$redirs = dlw_get_url_term_redirs_auto($urls);
+	$redirs = lkt_get_url_term_redirs_auto($urls);
 
 	$use_head_method = $want_use_head_method;
-	list($redirs2, $deferred_urls) = dlw_get_url_redirs(array_diff($urls, array_keys($redirs)), $server_last_hit_times, $origin_urls, $use_head_method, dlw_check_for_html_redirects, dlw_check_for_canonical_tags);
+	list($redirs2, $deferred_urls) = lkt_get_url_redirs(array_diff($urls, array_keys($redirs)), $server_last_hit_times, $origin_urls, $use_head_method, lkt_check_for_html_redirects, lkt_check_for_canonical_tags);
 	if ($redirs2 === false && !$redirs) {
 		return false;
 	}
@@ -1268,12 +1268,12 @@ function dlw_get_url_term_redirs($urls, &$got_terms = array()) {
 	// Defensive programming: in case this loop somehow becomes infinite,
 	// terminate it based on:
 	//  1. A roughly-determined (and very generous) maximum iteration count.
-	//  2. A maximum run time of dlw_max_allowable_redirect_resolution_runtime_secs seconds.
-	//  3. A maximum per-url redirect count of dlw_max_allowable_redirects_for_a_url.
-	$max_iterations = $max_urls_for_a_server * ($num_servers < 5 ? 5 : $num_servers) * floor(dlw_max_allowable_redirects_for_a_url/3);
+	//  2. A maximum run time of lkt_max_allowable_redirect_resolution_runtime_secs seconds.
+	//  3. A maximum per-url redirect count of lkt_max_allowable_redirects_for_a_url.
+	$max_iterations = $max_urls_for_a_server * ($num_servers < 5 ? 5 : $num_servers) * floor(lkt_max_allowable_redirects_for_a_url/3);
 	$num_iterations = 0;
-	$max_runtime = max(dlw_rehit_delay_in_secs, dlw_curl_timeout) * $max_iterations;
-	$ts_max = $ts_start + dlw_max_allowable_redirect_resolution_runtime_secs;
+	$max_runtime = max(lkt_rehit_delay_in_secs, lkt_curl_timeout) * $max_iterations;
+	$ts_max = $ts_start + lkt_max_allowable_redirect_resolution_runtime_secs;
 	do {
 		$max_num_redirected_for_a_url = 0;
 		$max_url = null;
@@ -1283,7 +1283,7 @@ function dlw_get_url_term_redirs($urls, &$got_terms = array()) {
 				$max_num_redirected_for_a_url = $cnt - 1; // We subtract one because the original URL itself is included in the count of "redirects".
 			}
 		}
-		if ($max_num_redirected_for_a_url > dlw_max_allowable_redirects_for_a_url) {
+		if ($max_num_redirected_for_a_url > lkt_max_allowable_redirects_for_a_url) {
 			break;
 		}
 
@@ -1304,13 +1304,13 @@ function dlw_get_url_term_redirs($urls, &$got_terms = array()) {
 		$min_wait = $min_wait_flag_value;
 		$ts_now = microtime(true);
  		foreach ($urls2 as $url) {
-			$server = dlw_get_norm_server_from_url($url);
+			$server = lkt_get_norm_server_from_url($url);
 			if (!$server || !isset($server_last_hit_times[$server])) {
 				$min_wait = 0;
 				break;
 			} else {
 				$time_since = $ts_now - $server_last_hit_times[$server];
-				$server_wait = dlw_rehit_delay_in_secs - $time_since;
+				$server_wait = lkt_rehit_delay_in_secs - $time_since;
 				if ($server_wait < 0) {
 					$min_wait = 0;
 					break;
@@ -1323,7 +1323,7 @@ function dlw_get_url_term_redirs($urls, &$got_terms = array()) {
 
 		usleep($min_wait * 1000000);
 
-		list($redirs2, $deferred_urls) = dlw_get_url_redirs($urls2, $server_last_hit_times, $origin_urls, $use_head_method, dlw_check_for_html_redirects, dlw_check_for_canonical_tags);
+		list($redirs2, $deferred_urls) = lkt_get_url_redirs($urls2, $server_last_hit_times, $origin_urls, $use_head_method, lkt_check_for_html_redirects, lkt_check_for_canonical_tags);
 		if ($redirs2 === false) {
 			return false;
 		}
@@ -1387,9 +1387,9 @@ function dlw_get_url_term_redirs($urls, &$got_terms = array()) {
  * To avoid this, we prefix the "URL" with an http scheme in that scenario, and then
  * strip it back out of the parsed result.
  */
-function dlw_parse_url($url) {
+function lkt_parse_url($url) {
 	$tmp_url = trim($url);
-	$scheme = dlw_get_scheme($url);
+	$scheme = lkt_get_scheme($url);
 	$scheme_is_missing = ($scheme == '' && substr($url, 0, 2) != '//');
 	if ($scheme_is_missing) {
 		$tmp_url = 'http://'.$tmp_url;
@@ -1401,7 +1401,7 @@ function dlw_parse_url($url) {
 	return $parsed_url;
 }
 
-function dlw_normalise_domain($domain) {
+function lkt_normalise_domain($domain) {
 	static $prefix = 'www.';
 
 	$domain = strtolower(trim($domain));
@@ -1413,12 +1413,12 @@ function dlw_normalise_domain($domain) {
 }
 
 
-function dlw_normalise_url($url) {
+function lkt_normalise_url($url) {
 	$strip_www_prefix = false;
 
 	$url = trim($url);
 
-	$parsed_url = dlw_parse_url($url);
+	$parsed_url = lkt_parse_url($url);
 	$parsed_url['scheme'] = strtolower($parsed_url['scheme']);
 
 	switch ($parsed_url['scheme']) {
@@ -1435,11 +1435,11 @@ function dlw_normalise_url($url) {
 		$default_ports = array(21, 22);
 		break;
 	default:
-		// Assume that $urls_parsed was generated from dlw_has_valid_scheme() and
+		// Assume that $urls_parsed was generated from lkt_has_valid_scheme() and
 		// thus that the scheme has already been validated.
 		//
 		// We shouldn't reach here though - the case statements above should
-		// comprehensively cover all entries in dlw_valid_schemes.
+		// comprehensively cover all entries in lkt_valid_schemes.
 		$ret = $parsed_url['scheme'].'://';
 		$default_ports = array();
 		break;
@@ -1447,7 +1447,7 @@ function dlw_normalise_url($url) {
 
 	$domain = strtolower($parsed_url['host']);
 	if ($strip_www_prefix) {
-		$domain = dlw_normalise_domain($domain);
+		$domain = lkt_normalise_domain($domain);
 	}
 
 	$ret .= $domain;
@@ -1456,13 +1456,13 @@ function dlw_normalise_url($url) {
 		$ret .= ':'.$parsed_url['port'];
 	}
 
-	$ret .= ($parsed_url['path'] == '' ? '/' : dlw_check_canonicalise_path($parsed_url['path']));
+	$ret .= ($parsed_url['path'] == '' ? '/' : lkt_check_canonicalise_path($parsed_url['path']));
 
 	if (isset($parsed_url['query'])) {
 		$query = str_replace('&amp;', '&', $parsed_url['query']);
 		$arr = explode('&', $query);
 		sort($arr);
-		foreach (dlw_ignored_query_params as $param => $domains) {
+		foreach (lkt_ignored_query_params as $param => $domains) {
 			if (is_int($param)) {
 				$param = $domains;
 				$domains = '*';
@@ -1470,7 +1470,7 @@ function dlw_normalise_url($url) {
 			if (!(!is_array($domains) && trim($domains) === '*')) {
 				$domains = (array)$domains;
 				foreach ($domains as &$dom) {
-					$dom = dlw_normalise_domain($dom);
+					$dom = lkt_normalise_domain($dom);
 				}
 				if (!in_array($domain, $domains)) {
 					continue;
@@ -1510,7 +1510,7 @@ function dlw_normalise_url($url) {
  * and we can't get their pids any other way on the second call because all we
  * have is a tid whose posts entries have all been deleted.
  */
-function dlw_hookin__common__class_moderation_delete_thread($tid) {
+function lkt_hookin__common__class_moderation_delete_thread($tid) {
 	static $tid_stored = null;
 	static $pids_stored = null;
 	global $db;
@@ -1525,20 +1525,20 @@ function dlw_hookin__common__class_moderation_delete_thread($tid) {
 	} else if ($pids_stored) {
 		$pids = implode(',', $pids_stored);
 		$db->delete_query('post_urls', "pid IN ($pids)");
-//		dlw_clean_up_dangling_urls();
+//		lkt_clean_up_dangling_urls();
 
 		$tid_stored = $pids_stored = null;
 	}
 }
 
-function dlw_hookin__class_moderation_delete_post($pid) {
+function lkt_hookin__class_moderation_delete_post($pid) {
 	global $db;
 
 	$db->delete_query('post_urls', "pid=$pid");
-//	dlw_clean_up_dangling_urls();
+//	lkt_clean_up_dangling_urls();
 }
 
-function dlw_clean_up_dangling_urls() {
+function lkt_clean_up_dangling_urls() {
 	global $db;
 
 	// We nest the subquery in a redundant subquery because otherwise MySQL (but not MariaDB)
@@ -1557,13 +1557,13 @@ WHERE urlid in (
 )');
 }
 
-function dlw_hookin__datahandler_post_update($posthandler) {
+function lkt_hookin__datahandler_post_update($posthandler) {
 	global $db;
 
-	$db->update_query('posts', array('dlw_got_urls' => 0), "pid={$posthandler->pid}");
+	$db->update_query('posts', array('lkt_got_urls' => 0), "pid={$posthandler->pid}");
 }
 
-function dlw_hookin__datahandler_post_update_end($posthandler) {
+function lkt_hookin__datahandler_post_update_end($posthandler) {
 	global $db;
 
 	$db->delete_query('post_urls', "pid={$posthandler->pid}");
@@ -1572,17 +1572,17 @@ function dlw_hookin__datahandler_post_update_end($posthandler) {
 		// out of, and especially the resolution of redirects of, and then the
 		// storage into the database of, URLs continues to run - the redirect
 		// resolution in particular might take some time.
-		add_shutdown('dlw_get_and_add_urls_of_post', array(
+		add_shutdown('lkt_get_and_add_urls_of_post', array(
 			$posthandler->data['message'],
 			$posthandler->pid
 		));
 	}
 }
 
-function dlw_extract_and_store_urls_for_posts($num_posts) {
+function lkt_extract_and_store_urls_for_posts($num_posts) {
 	global $db;
 
-	$res = $db->simple_select('posts', 'pid, message', 'dlw_got_urls = FALSE', array(
+	$res = $db->simple_select('posts', 'pid, message', 'lkt_got_urls = FALSE', array(
 		'order_by'    => 'pid',
 		'order_dir'   => 'ASC',
 		'limit'       => $num_posts,
@@ -1591,7 +1591,7 @@ function dlw_extract_and_store_urls_for_posts($num_posts) {
 
 	$post_urls = $urls_all = [];
 	while (($post = $db->fetch_array($res))) {
-		$urls = dlw_extract_urls($post['message']);
+		$urls = lkt_extract_urls($post['message']);
 		$post_urls[$post['pid']] = $urls;
 		$urls_all = array_merge($urls_all, $urls);
 	}
@@ -1600,28 +1600,28 @@ function dlw_extract_and_store_urls_for_posts($num_posts) {
 
 	$redirs = array_combine($urls_all, array_fill(0, count($urls_all), false));
 	foreach ($post_urls as $pid => $urls) {
-		dlw_add_urls_for_pid($urls, $redirs, false, $pid);
+		lkt_add_urls_for_pid($urls, $redirs, false, $pid);
 	}
 
 	return $inc;
 }
 
-function dlw_get_sql_conds_for_ltt() {
+function lkt_get_sql_conds_for_ltt() {
 	$conds = 'got_term = FALSE';
 	$conds_ltt = '';
-	foreach (dlw_term_tries_secs as $i => $secs) {
+	foreach (lkt_term_tries_secs as $i => $secs) {
 		if ($conds_ltt) $conds_ltt .= ' OR ';
-		$conds_ltt .= '(term_tries = '.$i.' AND last_term_try + '.dlw_term_tries_secs[$i].' < '.time().')';
+		$conds_ltt .= '(term_tries = '.$i.' AND last_term_try + '.lkt_term_tries_secs[$i].' < '.time().')';
 	}
 	if ($conds_ltt) $conds .= ' AND ('.$conds_ltt.')';
 
 	return $conds;
 }
 
-function dlw_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0) {
+function lkt_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0) {
 	global $db, $mybb;
 
-dlw_get_and_store_terms_start:
+lkt_get_and_store_terms_start:
 	$servers = $servers_sought = $servers_tot = $urls_final = $ids = [];
 
 	// The next one hundred or so lines of code ensure that the ratio of the numbers
@@ -1632,7 +1632,7 @@ dlw_get_and_store_terms_start:
 	// and pause between successive requests to that server, this optimises the total
 	// runtime of all operations - or, at least, that's my understanding unless/until
 	// somebody corrects me.
-	$conds = '('.dlw_get_sql_conds_for_ltt().') AND '.time().' > lock_time + '.c_max_url_lock_time;
+	$conds = '('.lkt_get_sql_conds_for_ltt().') AND '.time().' > lock_time + '.c_max_url_lock_time;
 	$start = 0;
 	$continue = true;
 	while ($continue) {
@@ -1652,7 +1652,7 @@ dlw_get_and_store_terms_start:
 
 		$continue = false;
 		while ($row = $db->fetch_array($res)) {
-			$norm_server = dlw_get_norm_server_from_url($row['url']);
+			$norm_server = lkt_get_norm_server_from_url($row['url']);
 			if (!$norm_server) {
 				$norm_server = '';
 			}
@@ -1717,7 +1717,7 @@ dlw_get_and_store_terms_start:
 		if (!$urls_new) break;
 
 		foreach ($urls_new as $url1) {
-			$norm_server = dlw_get_norm_server_from_url($url1);
+			$norm_server = lkt_get_norm_server_from_url($url1);
 			if (!$norm_server) {
 				$norm_server = '';
 			}
@@ -1755,10 +1755,10 @@ WHERE url = \''.$db->escape_string($url).'\' AND '.
 		}
 	}
 	if (count($urls_final) > 0 && $cnt <= 0) {
-		goto dlw_get_and_store_terms_start;
+		goto lkt_get_and_store_terms_start;
 	}
 
-	$terms = dlw_get_url_term_redirs($urls_final, $got_terms);
+	$terms = lkt_get_url_term_redirs($urls_final, $got_terms);
 	if ($terms) {
 		// Reopen the DB connection in case it has "gone away" given the potentially long delay while
 		// we resolved redirects. This was occurring at times on our (Psience Quest's) host, Hostgator.
@@ -1770,7 +1770,7 @@ WHERE url = \''.$db->escape_string($url).'\' AND '.
 					$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().', lock_time = 0 WHERE urlid='.$ids[$url]);
 				} else  {
 					$term_fit      = substr($term                   , 0, c_max_url_len);
-					$term_norm_fit = substr(dlw_normalise_url($term), 0, c_max_url_len);
+					$term_norm_fit = substr(lkt_normalise_url($term), 0, c_max_url_len);
 					$fields = array(
 						'url_term'      => $db->escape_string($term_fit     ),
 						'url_term_norm' => $db->escape_string($term_norm_fit),
@@ -1787,32 +1787,32 @@ WHERE url = \''.$db->escape_string($url).'\' AND '.
 	return count($urls_final);
 }
 
-function dlw_hookin__admin_tools_recount_rebuild_output_list() {
+function lkt_hookin__admin_tools_recount_rebuild_output_list() {
 	global $lang, $form_container, $form;
-	if (!isset($lang->duplicate_link_warner)) {
-		$lang->load('duplicate_link_warner');
+	if (!isset($lang->linktools)) {
+		$lang->load('linktools');
 	}
 
-	$form_container->output_cell("<label>{$lang->dlw_rebuild_links}</label><div class=\"description\">{$lang->dlw_rebuild_links_desc}</div>");
-	$form_container->output_cell($form->generate_numeric_field('dlw_posts_per_page', dlw_default_rebuild_links_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
+	$form_container->output_cell("<label>{$lang->lkt_rebuild_links}</label><div class=\"description\">{$lang->lkt_rebuild_links_desc}</div>");
+	$form_container->output_cell($form->generate_numeric_field('lkt_posts_per_page', lkt_default_rebuild_links_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
 	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuild_links')));
 	$form_container->construct_row();
 
-	$form_container->output_cell("<label>{$lang->dlw_rebuild_terms}</label><div class=\"description\">{$lang->dlw_rebuild_terms_desc}</div>");
-	$form_container->output_cell($form->generate_numeric_field('dlw_urls_per_page', dlw_default_rebuild_term_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
+	$form_container->output_cell("<label>{$lang->lkt_rebuild_terms}</label><div class=\"description\">{$lang->lkt_rebuild_terms_desc}</div>");
+	$form_container->output_cell($form->generate_numeric_field('lkt_urls_per_page', lkt_default_rebuild_term_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
 	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuild_terms')));
 	$form_container->construct_row();
 
-	$form_container->output_cell("<label>{$lang->dlw_rebuild_renorm}</label><div class=\"description\">{$lang->dlw_rebuild_renorm_desc}</div>");
-	$form_container->output_cell($form->generate_numeric_field('dlw_renorm_per_page', dlw_default_rebuild_renorm_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
+	$form_container->output_cell("<label>{$lang->lkt_rebuild_renorm}</label><div class=\"description\">{$lang->lkt_rebuild_renorm_desc}</div>");
+	$form_container->output_cell($form->generate_numeric_field('lkt_renorm_per_page', lkt_default_rebuild_renorm_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
 	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuild_renorm')));
 	$form_container->construct_row();
 }
 
-function dlw_hookin__admin_tools_recount_rebuild() {
+function lkt_hookin__admin_tools_recount_rebuild() {
 	global $db, $mybb, $lang;
-	if (!isset($lang->duplicate_link_warner)) {
-		$lang->load('duplicate_link_warner');
+	if (!isset($lang->linktools)) {
+		$lang->load('linktools');
 	}
 
 	if($mybb->request_method == "post") {
@@ -1823,75 +1823,75 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 		if (isset($mybb->input['do_rebuild_links'])) {
 			if($mybb->input['page'] == 1) {
 				// Log admin action
-				log_admin_action($lang->dwl_success_rebuild_links);
+				log_admin_action($lang->lkt_success_rebuild_links);
 			}
 
-			if (!$mybb->get_input('dlw_posts_per_page', MyBB::INPUT_INT)) {
-				$mybb->input['dlw_posts_per_page'] = dlw_default_rebuild_links_items_per_page;
+			if (!$mybb->get_input('lkt_posts_per_page', MyBB::INPUT_INT)) {
+				$mybb->input['lkt_posts_per_page'] = lkt_default_rebuild_links_items_per_page;
 			}
 
 			$page = $mybb->get_input('page', MyBB::INPUT_INT);
-			$per_page = $mybb->get_input('dlw_posts_per_page', MyBB::INPUT_INT);
+			$per_page = $mybb->get_input('lkt_posts_per_page', MyBB::INPUT_INT);
 			if ($per_page <= 0) {
-				$per_page = dlw_default_rebuild_links_items_per_page;
+				$per_page = lkt_default_rebuild_links_items_per_page;
 			}
 
 			if ($page == 1) {
-				$db->update_query('posts', array('dlw_got_urls' => 0));
+				$db->update_query('posts', array('lkt_got_urls' => 0));
 				$db->write_query('DELETE FROM '.TABLE_PREFIX.'post_urls');
 				$db->write_query('DELETE FROM '.TABLE_PREFIX.'urls');
 			}
 
-			$inc = dlw_extract_and_store_urls_for_posts($per_page);
+			$inc = lkt_extract_and_store_urls_for_posts($per_page);
 
-			$res = $db->simple_select('posts', 'count(*) AS num_posts', 'dlw_got_urls = FALSE');
+			$res = $db->simple_select('posts', 'count(*) AS num_posts', 'lkt_got_urls = FALSE');
 			$num_left = $db->fetch_array($res)['num_posts'];
 
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
-			check_proceed($num_left, 0, ++$page, $per_page, 'dlw_posts_per_page', 'do_rebuild_links', $lang->dwl_success_rebuild_links);
+			check_proceed($num_left, 0, ++$page, $per_page, 'lkt_posts_per_page', 'do_rebuild_links', $lang->lkt_success_rebuild_links);
 		}
 
 		if (isset($mybb->input['do_rebuild_terms'])) {
 			if($mybb->input['page'] == 1) {
 				// Log admin action
-				log_admin_action($lang->dlw_admin_log_rebuild_terms);
+				log_admin_action($lang->lkt_admin_log_rebuild_terms);
 			}
 
-			if (!$mybb->get_input('dlw_urls_per_page', MyBB::INPUT_INT)) {
-				$mybb->input['dlw_urls_per_page'] = dlw_default_rebuild_term_items_per_page;
+			if (!$mybb->get_input('lkt_urls_per_page', MyBB::INPUT_INT)) {
+				$mybb->input['lkt_urls_per_page'] = lkt_default_rebuild_term_items_per_page;
 			}
 
 			$page = $mybb->get_input('page', MyBB::INPUT_INT);
-			$per_page = $mybb->get_input('dlw_urls_per_page', MyBB::INPUT_INT);
+			$per_page = $mybb->get_input('lkt_urls_per_page', MyBB::INPUT_INT);
 			if ($per_page <= 0) {
-				$per_page = dlw_default_rebuild_term_items_per_page;
+				$per_page = lkt_default_rebuild_term_items_per_page;
 			}
 
 			if ($page == 1) {
 				$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET got_term = 0, term_tries = 0, last_term_try = 0, url_term = url, url_term_norm = url_norm');
 			}
 
-			$inc = dlw_get_and_store_terms($per_page, true, $finish);
+			$inc = lkt_get_and_store_terms($per_page, true, $finish);
 
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
-			check_proceed($finish, $inc, ++$page, $per_page, 'dlw_urls_per_page', 'do_rebuild_terms', $lang->dwl_success_rebuild_terms);
+			check_proceed($finish, $inc, ++$page, $per_page, 'lkt_urls_per_page', 'do_rebuild_terms', $lang->lkt_success_rebuild_terms);
 		}
 
 
 		if (isset($mybb->input['do_rebuild_renorm'])) {
 			if($mybb->input['page'] == 1) {
 				// Log admin action
-				log_admin_action($lang->dlw_admin_log_rebuild_renorm);
+				log_admin_action($lang->lkt_admin_log_rebuild_renorm);
 			}
 
-			if (!$mybb->get_input('dlw_renorm_per_page', MyBB::INPUT_INT)) {
-				$mybb->input['dlw_renorm_per_page'] = dlw_default_rebuild_renorm_items_per_page;
+			if (!$mybb->get_input('lkt_renorm_per_page', MyBB::INPUT_INT)) {
+				$mybb->input['lkt_renorm_per_page'] = lkt_default_rebuild_renorm_items_per_page;
 			}
 
 			$page = $mybb->get_input('page', MyBB::INPUT_INT);
-			$per_page = $mybb->get_input('dlw_renorm_per_page', MyBB::INPUT_INT);
+			$per_page = $mybb->get_input('lkt_renorm_per_page', MyBB::INPUT_INT);
 			if ($per_page <= 0) {
-				$per_page = dlw_default_rebuild_renorm_items_per_page;
+				$per_page = lkt_default_rebuild_renorm_items_per_page;
 			}
 
 			$offset = ($page - 1) * $per_page;
@@ -1904,8 +1904,8 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 			$updates = array();
 			while (($row = $db->fetch_array($res))) {
 				$updates[$row['urlid']] = array(
-					'url_norm'      => $db->escape_string(substr(dlw_normalise_url($row['url'     ]), 0, c_max_url_len)),
-					'url_term_norm' => $db->escape_string(substr(dlw_normalise_url($row['url_term']), 0, c_max_url_len)),
+					'url_norm'      => $db->escape_string(substr(lkt_normalise_url($row['url'     ]), 0, c_max_url_len)),
+					'url_term_norm' => $db->escape_string(substr(lkt_normalise_url($row['url_term']), 0, c_max_url_len)),
 				);
 			}
 			foreach ($updates as $urlid => $update_fields) {
@@ -1914,33 +1914,33 @@ function dlw_hookin__admin_tools_recount_rebuild() {
 			$finish = $db->fetch_array($db->simple_select('urls', 'count(*) AS count'))['count'];
 
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
-			check_proceed($finish, $offset + $per_page, ++$page, $per_page, 'dlw_renorm_per_page', 'do_rebuild_renorm', $lang->dwl_success_rebuild_renorm);
+			check_proceed($finish, $offset + $per_page, ++$page, $per_page, 'lkt_renorm_per_page', 'do_rebuild_renorm', $lang->lkt_success_rebuild_renorm);
 		}
 	}
 }
 
-function dlw_hookin__datahandler_post_insert_thread($posthandler) {
+function lkt_hookin__datahandler_post_insert_thread($posthandler) {
 	global $db, $mybb, $templates, $lang, $headerinclude, $header, $footer;
 
 	if ($mybb->get_input('ignore_dup_link_warn') || $posthandler->data['savedraft']) {
 		return;
 	}
 
-	if (!isset($lang->duplicate_link_warner)) {
-		$lang->load('duplicate_link_warner');
+	if (!isset($lang->linktools)) {
+		$lang->load('linktools');
 	}
 
-	$urls = dlw_extract_urls($posthandler->data['message']);
+	$urls = lkt_extract_urls($posthandler->data['message']);
 	if (!$urls) {
 		return;
 	}
 
 	// Add any missing URLs to the DB after resolving redirects
-	dlw_get_and_add_urls($urls);
+	lkt_get_and_add_urls($urls);
 
-	list($matching_posts, $forum_names, $further_results) = dlw_get_posts_for_urls($urls);
+	list($matching_posts, $forum_names, $further_results) = lkt_get_posts_for_urls($urls);
 
-	$dismissed_arr = $mybb->get_input('dlw_dismissed') ? json_decode($mybb->get_input('dlw_dismissed'), true) : array();
+	$dismissed_arr = $mybb->get_input('lkt_dismissed') ? json_decode($mybb->get_input('lkt_dismissed'), true) : array();
 	foreach ($dismissed_arr as $pid => $dismissed_urls) {
 		if (array_key_exists($pid, $matching_posts)) {
 			$matching_posts[$pid]['matching_urls'] = array_diff($matching_posts[$pid]['matching_urls'], $dismissed_urls);
@@ -1957,24 +1957,24 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 	$matching_posts_warning_msg = $lang->sprintf(
 	  $dismissed_arr
 	    ? ($further_results
-	       ? $lang->dlw_found_more_than_posts_count_undismissed
-	       : $lang->dlw_found_posts_count_undismissed
+	       ? $lang->lkt_found_more_than_posts_count_undismissed
+	       : $lang->lkt_found_posts_count_undismissed
 	      )
 	    : ($further_results
-	       ? $lang->dlw_found_more_than_posts_count
-	       : $lang->dlw_found_posts_count
+	       ? $lang->lkt_found_more_than_posts_count
+	       : $lang->lkt_found_posts_count
 	      ),
 	  count($matching_posts),
 	  count($matching_posts) == 1
-	    ? $lang->dlw_post_singular
-	    : $lang->dlw_posts_plural
+	    ? $lang->lkt_post_singular
+	    : $lang->lkt_posts_plural
 	);
-	eval("\$matching_posts_warning_div = \"".$templates->get('duplicate_link_warner_matching_posts_warning_div', 1, 0)."\";");
+	eval("\$matching_posts_warning_div = \"".$templates->get('linktools_matching_posts_warning_div', 1, 0)."\";");
 
-	$dlw_found_posts = '';
+	$lkt_found_posts = '';
 	foreach ($matching_posts as $post) {
-		if ($dlw_found_posts) $dlw_found_posts .= '<br />'."\n";
-		$dlw_found_posts .= dlw_get_post_output($post, $forum_names);
+		if ($lkt_found_posts) $lkt_found_posts .= '<br />'."\n";
+		$lkt_found_posts .= lkt_get_post_output($post, $forum_names);
 	}
 
 	$inputs = '';
@@ -1987,10 +1987,10 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 		eval("\$savedraftbutton = \"".$templates->get('post_savedraftbutton', 1, 0)."\";");
 	}
 
-	eval("\$btns = \"".$templates->get('duplicatelinkwarner_review_buttons', 1, 0)."\";");
+	eval("\$btns = \"".$templates->get('linktools_review_buttons', 1, 0)."\";");
 
 	if ($all_matching_urls_in_quotes_flag) {
-		eval("\$toggle_btn = \"".$templates->get('duplicatelinkwarner_toggle_button', 1, 0)."\";");
+		eval("\$toggle_btn = \"".$templates->get('linktools_toggle_button', 1, 0)."\";");
 	} else {
 		$toggle_btn = '';
 	}
@@ -2003,125 +2003,125 @@ function dlw_hookin__datahandler_post_insert_thread($posthandler) {
 			$urls_esc .= 'urls['.$i.']='.urlencode($url);
 			$i++;
 		}
-		$url_esc = htmlspecialchars('dlw_search.php?'.$urls_esc.'&showresults=posts');
-		$further_results_below_div = '<div class="further-results">'.$lang->sprintf($lang->dlw_further_results_below, count($matching_posts), $url_esc).'</div>';
-		$further_results_above_div = '<div class="further-results">'.$lang->sprintf($lang->dlw_further_results_above, count($matching_posts), $url_esc).'</div>';
+		$url_esc = htmlspecialchars('lkt_search.php?'.$urls_esc.'&showresults=posts');
+		$further_results_below_div = '<div class="further-results">'.$lang->sprintf($lang->lkt_further_results_below, count($matching_posts), $url_esc).'</div>';
+		$further_results_above_div = '<div class="further-results">'.$lang->sprintf($lang->lkt_further_results_above, count($matching_posts), $url_esc).'</div>';
 	} else {
 		$further_results_below_div = '';
 		$further_results_above_div = '';
 	}
 
-	eval("\$op = \"".$templates->get('duplicatelinkwarner_review_page', 1, 0)."\";");
+	eval("\$op = \"".$templates->get('linktools_review_page', 1, 0)."\";");
 
 	output_page($op);
 	exit;
 }
 
-function dlw_hookin__newthread_start() {
-	global $mybb, $lang, $templates, $duplicate_link_warner_div, $duplicate_link_warner_js;
+function lkt_hookin__newthread_start() {
+	global $mybb, $lang, $templates, $linktools_div, $linktools_js;
 
-	if (!isset($lang->duplicate_link_warner)) {
-		$lang->load('duplicate_link_warner');
+	if (!isset($lang->linktools)) {
+		$lang->load('linktools');
 	}
 
-	$duplicate_link_warner_div = "\n";
-	eval("\$duplicate_link_warner_div .= \"".$templates->get('duplicatelinkwarner_div', 1, 0)."\";");
-	$dlw_msg_started_by       = addslashes($lang->dlw_started_by);
-	$dlw_msg_opening_post     = addslashes($lang->dlw_opening_post);
-	$dlw_msg_non_opening_post = addslashes($lang->dlw_non_opening_post);
-	$dlw_msg_posted_by        = addslashes($lang->dlw_posted_by);
-	$dlw_msg_matching_url_singular = addslashes($lang->dlw_matching_url_singular);
-	$dlw_msg_matching_urls_plural  = addslashes($lang->dlw_matching_urls_plural );
-	$dlw_msg_url1_as_url2          = addslashes($lang->dlw_msg_url1_as_url2     );
-	$dlw_exist_open_post_contains  = addslashes($lang->dlw_exist_open_post_contains);
-	$dlw_exist_post_contains       = addslashes($lang->dlw_exist_post_contains  );
-	$dlw_more_than                 = addslashes($lang->dlw_more_than            );
-	$dlw_x_exist_open_posts_contain = addslashes($lang->dlw_x_exist_open_posts_contain);
-	$dlw_x_exist_posts_contain     = addslashes($lang->dlw_x_exist_posts_contain);
-	$dlw_x_of_urls_added           = addslashes($lang->dlw_x_of_urls_added      );
-	$dlw_a_url_added               = addslashes($lang->dlw_a_url_added          );
-	$dlw_one_is_an_opening_post    = addslashes($lang->dlw_one_is_an_opening_post);
-	$dlw_x_are_opening_posts       = addslashes($lang->dlw_x_are_opening_posts  );
-	$dlw_further_results_below     = addslashes($lang->dlw_further_results_below);
-	$dlw_further_results_above     = addslashes($lang->dlw_further_results_above);
-	$dlw_dismiss_warn_for_post     = addslashes($lang->dlw_dismiss_warn_for_post);
-	$dlw_show_more                 = addslashes($lang->dlw_show_more            );
-	$dlw_show_less                 = addslashes($lang->dlw_show_less            );
-	$dlw_undismiss_all_warns       = addslashes($lang->dlw_undismiss_all_warns  );
-	$dlw_title_warn_about_links    = addslashes($lang->dlw_title_warn_about_links);
-	$dlw_warn_about_links          = addslashes($lang->dlw_warn_about_links     );
-	$dlw_previously_dismissed = json_encode($mybb->get_input('dlw_dismissed') ? json_decode($mybb->get_input('dlw_dismissed'), true) : array(), JSON_PRETTY_PRINT);
+	$linktools_div = "\n";
+	eval("\$linktools_div .= \"".$templates->get('linktools_div', 1, 0)."\";");
+	$lkt_msg_started_by       = addslashes($lang->lkt_started_by);
+	$lkt_msg_opening_post     = addslashes($lang->lkt_opening_post);
+	$lkt_msg_non_opening_post = addslashes($lang->lkt_non_opening_post);
+	$lkt_msg_posted_by        = addslashes($lang->lkt_posted_by);
+	$lkt_msg_matching_url_singular = addslashes($lang->lkt_matching_url_singular);
+	$lkt_msg_matching_urls_plural  = addslashes($lang->lkt_matching_urls_plural );
+	$lkt_msg_url1_as_url2          = addslashes($lang->lkt_msg_url1_as_url2     );
+	$lkt_exist_open_post_contains  = addslashes($lang->lkt_exist_open_post_contains);
+	$lkt_exist_post_contains       = addslashes($lang->lkt_exist_post_contains  );
+	$lkt_more_than                 = addslashes($lang->lkt_more_than            );
+	$lkt_x_exist_open_posts_contain = addslashes($lang->lkt_x_exist_open_posts_contain);
+	$lkt_x_exist_posts_contain     = addslashes($lang->lkt_x_exist_posts_contain);
+	$lkt_x_of_urls_added           = addslashes($lang->lkt_x_of_urls_added      );
+	$lkt_a_url_added               = addslashes($lang->lkt_a_url_added          );
+	$lkt_one_is_an_opening_post    = addslashes($lang->lkt_one_is_an_opening_post);
+	$lkt_x_are_opening_posts       = addslashes($lang->lkt_x_are_opening_posts  );
+	$lkt_further_results_below     = addslashes($lang->lkt_further_results_below);
+	$lkt_further_results_above     = addslashes($lang->lkt_further_results_above);
+	$lkt_dismiss_warn_for_post     = addslashes($lang->lkt_dismiss_warn_for_post);
+	$lkt_show_more                 = addslashes($lang->lkt_show_more            );
+	$lkt_show_less                 = addslashes($lang->lkt_show_less            );
+	$lkt_undismiss_all_warns       = addslashes($lang->lkt_undismiss_all_warns  );
+	$lkt_title_warn_about_links    = addslashes($lang->lkt_title_warn_about_links);
+	$lkt_warn_about_links          = addslashes($lang->lkt_warn_about_links     );
+	$lkt_previously_dismissed = json_encode($mybb->get_input('lkt_dismissed') ? json_decode($mybb->get_input('lkt_dismissed'), true) : array(), JSON_PRETTY_PRINT);
 
-	$duplicate_link_warner_js = <<<EOF
-<script type="text/javascript" src="{$mybb->settings['bburl']}/jscripts/duplicate_link_warner.js"></script>
+	$linktools_js = <<<EOF
+<script type="text/javascript" src="{$mybb->settings['bburl']}/jscripts/linktools.js"></script>
 <script type="text/javascript">
-var dlw_msg_started_by            = '{$dlw_msg_started_by}';
-var dlw_msg_opening_post          = '{$dlw_msg_opening_post}';
-var dlw_msg_non_opening_post      = '{$dlw_msg_non_opening_post}';
-var dlw_msg_posted_by             = '{$dlw_msg_posted_by}';
-var dlw_msg_matching_url_singular = '{$dlw_msg_matching_url_singular}';
-var dlw_msg_matching_urls_plural  = '{$dlw_msg_matching_urls_plural}';
-var dlw_msg_url1_as_url2          = '{$dlw_msg_url1_as_url2}';
-var dlw_exist_open_post_contains  = '{$dlw_exist_open_post_contains}';
-var dlw_exist_post_contains       = '{$dlw_exist_post_contains}';
-var dlw_more_than                 = '{$dlw_more_than}';
-var dlw_x_exist_open_posts_contain = '{$dlw_x_exist_open_posts_contain}';
-var dlw_x_exist_posts_contain     = '{$dlw_x_exist_posts_contain}';
-var dlw_x_of_urls_added           = '{$dlw_x_of_urls_added}';
-var dlw_a_url_added               = '{$dlw_a_url_added}';
-var dlw_one_is_an_opening_post    = '{$dlw_one_is_an_opening_post}';
-var dlw_x_are_opening_posts       = '{$dlw_x_are_opening_posts}';
-var dlw_further_results_below     = '{$dlw_further_results_below}';
-var dlw_further_results_above     = '{$dlw_further_results_above}';
-var dlw_dismiss_warn_for_post     = '{$dlw_dismiss_warn_for_post}';
-var dlw_show_more                 = '{$dlw_show_more}';
-var dlw_show_less                 = '{$dlw_show_less}';
-var dlw_undismiss_all_warns       = '{$dlw_undismiss_all_warns}';
-var dlw_title_warn_about_links    = '{$dlw_title_warn_about_links}';
-var dlw_warn_about_links          = '{$dlw_warn_about_links}';
-var dlw_previously_dismissed      = {$dlw_previously_dismissed};
+var lkt_msg_started_by            = '{$lkt_msg_started_by}';
+var lkt_msg_opening_post          = '{$lkt_msg_opening_post}';
+var lkt_msg_non_opening_post      = '{$lkt_msg_non_opening_post}';
+var lkt_msg_posted_by             = '{$lkt_msg_posted_by}';
+var lkt_msg_matching_url_singular = '{$lkt_msg_matching_url_singular}';
+var lkt_msg_matching_urls_plural  = '{$lkt_msg_matching_urls_plural}';
+var lkt_msg_url1_as_url2          = '{$lkt_msg_url1_as_url2}';
+var lkt_exist_open_post_contains  = '{$lkt_exist_open_post_contains}';
+var lkt_exist_post_contains       = '{$lkt_exist_post_contains}';
+var lkt_more_than                 = '{$lkt_more_than}';
+var lkt_x_exist_open_posts_contain = '{$lkt_x_exist_open_posts_contain}';
+var lkt_x_exist_posts_contain     = '{$lkt_x_exist_posts_contain}';
+var lkt_x_of_urls_added           = '{$lkt_x_of_urls_added}';
+var lkt_a_url_added               = '{$lkt_a_url_added}';
+var lkt_one_is_an_opening_post    = '{$lkt_one_is_an_opening_post}';
+var lkt_x_are_opening_posts       = '{$lkt_x_are_opening_posts}';
+var lkt_further_results_below     = '{$lkt_further_results_below}';
+var lkt_further_results_above     = '{$lkt_further_results_above}';
+var lkt_dismiss_warn_for_post     = '{$lkt_dismiss_warn_for_post}';
+var lkt_show_more                 = '{$lkt_show_more}';
+var lkt_show_less                 = '{$lkt_show_less}';
+var lkt_undismiss_all_warns       = '{$lkt_undismiss_all_warns}';
+var lkt_title_warn_about_links    = '{$lkt_title_warn_about_links}';
+var lkt_warn_about_links          = '{$lkt_warn_about_links}';
+var lkt_previously_dismissed      = {$lkt_previously_dismissed};
 </script>';
 EOF;
 }
 
-function dlw_get_link($url, $text) {
+function lkt_get_link($url, $text) {
 	return '<a href="'.htmlspecialchars_uni($url).'">'.htmlspecialchars_uni($text).'</a>';
 }
 
-function dlw_get_forumlink($fid, $name) {
-	return dlw_get_link(get_forum_link($fid), $name);
+function lkt_get_forumlink($fid, $name) {
+	return lkt_get_link(get_forum_link($fid), $name);
 }
 
-function dlw_get_threadlink($tid, $name) {
-	return dlw_get_link(get_thread_link($tid), $name);
+function lkt_get_threadlink($tid, $name) {
+	return lkt_get_link(get_thread_link($tid), $name);
 }
 
-function dlw_get_usernamelink($uid, $name) {
-	return dlw_get_link(get_profile_link($uid), $name);
+function lkt_get_usernamelink($uid, $name) {
+	return lkt_get_link(get_profile_link($uid), $name);
 }
 
-function dlw_get_postlink($pid, $name) {
-	return dlw_get_link(get_post_link($pid).'#pid'.$pid, $name);
+function lkt_get_postlink($pid, $name) {
+	return lkt_get_link(get_post_link($pid).'#pid'.$pid, $name);
 }
 
-function dlw_get_flinks($parentlist, $forum_names) {
+function lkt_get_flinks($parentlist, $forum_names) {
 	$flinks = '';
 	foreach (explode(',', $parentlist) as $fid) {
 		if ($flinks ) $flinks .= ' &raquo; ';
-		$flinks .= dlw_get_forumlink($fid, $forum_names[$fid]);
+		$flinks .= lkt_get_forumlink($fid, $forum_names[$fid]);
 	}
 
 	return $flinks;
 }
 
-function dlw_get_post_output($post, $forum_names) {
+function lkt_get_post_output($post, $forum_names) {
 	global $lang, $templates;
 
 	$is_first_post = ($post['firstpost'] == $post['pid']);
-	eval("\$div_posted_by = \"".$templates->get($is_first_post ? 'duplicatelinkwarner_op_post_div' : 'duplicatelinkwarner_non_op_post_div', 1, 0)."\";");
+	eval("\$div_posted_by = \"".$templates->get($is_first_post ? 'linktools_op_post_div' : 'linktools_non_op_post_div', 1, 0)."\";");
 
 	$div_main_class = ($post['are_all_matching_urls_in_quotes'] ? ' class="all_matching_urls_in_quotes"': '');
-	$lang_matching_url_or_urls = count($post['matching_urls']) == 1 ? $lang->dlw_matching_url_singular : $lang->dlw_matching_urls_plural;
+	$lang_matching_url_or_urls = count($post['matching_urls']) == 1 ? $lang->lkt_matching_url_singular : $lang->lkt_matching_urls_plural;
 
 	$matching_urls_list = '';
 	for ($i = 0; $i < count($post['matching_urls']); $i++) {
@@ -2132,19 +2132,19 @@ function dlw_get_post_output($post, $forum_names) {
 			$url2 = $post['matching_urls_in_post'][$i];
 			$url_esc2 = htmlspecialchars_uni($url2);
 			$link2 = '<a href="'.$url_esc2.'">'.$url_esc2.'</a>';
-			$matching_url_msg = $lang->sprintf($lang->dlw_msg_url1_as_url2, $link, $link2);
+			$matching_url_msg = $lang->sprintf($lang->lkt_msg_url1_as_url2, $link, $link2);
 		} else	$matching_url_msg = $link;
-		eval("\$matching_url_item = \"".$templates->get('duplicatelinkwarner_matching_url_item', 1, 0)."\";");
+		eval("\$matching_url_item = \"".$templates->get('linktools_matching_url_item', 1, 0)."\";");
 		$matching_urls_list .= $matching_url_item;
 	}
 
-	eval("\$ret = \"".$templates->get('duplicatelinkwarner_matching_post', 1, 0)."\";");
+	eval("\$ret = \"".$templates->get('linktools_matching_post', 1, 0)."\";");
 
 	return $ret;
 }
 
-function dlw_strip_nestable_mybb_tag($message, $tagname) {
-	$dlw_validate_start_tag_ending = function ($message, $pos) {
+function lkt_strip_nestable_mybb_tag($message, $tagname) {
+	$lkt_validate_start_tag_ending = function ($message, $pos) {
 		if ($pos >= strlen($message)) {
 			return false;
 		}
@@ -2164,7 +2164,7 @@ function dlw_strip_nestable_mybb_tag($message, $tagname) {
 
 	$pos = 0;
 	while (($pos = strpos($message, '['.$tagname, $pos)) !== false) {
-		if (!$dlw_validate_start_tag_ending($message, $pos+strlen('['.$tagname))) {
+		if (!$lkt_validate_start_tag_ending($message, $pos+strlen('['.$tagname))) {
 			$pos++;
 			continue;
 		}
@@ -2182,7 +2182,7 @@ function dlw_strip_nestable_mybb_tag($message, $tagname) {
 					break;
 				}
 				$pos2  = strpos($message, '['.$tagname , $pos2);
-			} while ($pos2 !== false && !$dlw_validate_start_tag_ending($message, $pos2+strlen('['.$tagname)));
+			} while ($pos2 !== false && !$lkt_validate_start_tag_ending($message, $pos2+strlen('['.$tagname)));
 			if ($pos_c === false) {
 				$pos_c = strlen($message) - strlen('[/'.$tagname.']') - 1;
 				break;
@@ -2202,27 +2202,27 @@ function dlw_strip_nestable_mybb_tag($message, $tagname) {
 	return $message;
 }
 
-function dlw_hookin__search_do_search_start() {
+function lkt_hookin__search_do_search_start() {
 	global $mybb;
 
-	$do_dlw_search = false;
+	$do_lkt_search = false;
 
 	if ($mybb->input['urls']) {
 		$urls = $mybb->input['urls'];
-		$do_dlw_search = true;
+		$do_lkt_search = true;
 	} else if ($mybb->input['keywords']) {
 		$urls = explode(' ', trim($mybb->input['keywords']));
-		$do_dlw_search = true;
+		$do_lkt_search = true;
 		foreach ($urls as $url) {
-			if (!dlw_is_url($url)) {
-				$do_dlw_search = false;
+			if (!lkt_is_url($url)) {
+				$do_lkt_search = false;
 				break;
 			}
 		}
 	}
 
-	if ($do_dlw_search) {
-		dlw_search($urls);
+	if ($do_lkt_search) {
+		lkt_search($urls);
 		// Shouldn't be necessary but just in case - we don't want to
 		// return control back to the hook's calling context.
 		exit;
@@ -2243,10 +2243,10 @@ function dlw_hookin__search_do_search_start() {
  * @param $url string The potential URL.
  * @return boolean True if a valid URL; false otherwise.
  */
-function dlw_is_url($url) {
+function lkt_is_url($url) {
 	// Tolerate missing protocol ("scheme") so long as
 	// the host (domain) has more than one component.
-	$scheme = dlw_get_scheme($url);
+	$scheme = lkt_get_scheme($url);
 	if ($scheme == '') {
 		if (substr($url, 0, 2) == '//') {
 			$url = 'http:'.$url;
@@ -2261,7 +2261,7 @@ function dlw_is_url($url) {
 	} else	return false;
 }
 
-function dlw_search($urls) {
+function lkt_search($urls) {
 	global $mybb, $db, $session, $lang;
 
 	$lang->load('search');
@@ -2469,7 +2469,7 @@ function dlw_search($urls) {
 	// End copied code.
 
 	$extra_conditions = "{$post_datecut} {$thread_replycut} {$thread_prefixcut} {$forumin} {$post_usersql} {$permsql} {$tidsql} {$visiblesql} {$post_visiblesql} AND t.closed NOT LIKE 'moved|%'";
-	$sql = dlw_get_url_search_sql((array)$urls, false, $extra_conditions);
+	$sql = lkt_get_url_search_sql((array)$urls, false, $extra_conditions);
 	$res = $db->query($sql);
 
 	$pids = array();

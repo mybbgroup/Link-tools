@@ -1,5 +1,6 @@
+// DLW stands for "duplicate link warner".
 var DLW = {
-	// Should semantically match the equivalent variable in ../inc/plugins/duplicate_link_warner.php
+	// Should semantically match the equivalent variable in ../inc/plugins/linktools.php
 	valid_schemes: ['http', 'https', 'ftp', 'sftp', ''],
 
 	matching_posts: {},
@@ -8,7 +9,7 @@ var DLW = {
 
 	link: document.createElement('a'),
 
-	// Based on the corresponding function in ../inc/plugins/duplicate_link_warner.php
+	// Based on the corresponding function in ../inc/plugins/linktools.php
 	extract_url_from_mycode_tag: function(text, urls, re, indexes_to_use = [1]) {
 		var match;
 		while ((match = re.exec(text)) !== null) {
@@ -24,7 +25,7 @@ var DLW = {
 		return [urls, text];
 	},
 
-	// Based on the corresponding function in ../inc/plugins/duplicate_link_warner.php
+	// Based on the corresponding function in ../inc/plugins/linktools.php
 	has_valid_scheme: function(url) {
 		var scheme = /^[a-z]+(?=:)/.exec(url);
 		scheme = (scheme === null ? '' : scheme[0]);
@@ -37,7 +38,7 @@ var DLW = {
 		return false;
 	},
 
-	// Based on the corresponding function in ../inc/plugins/duplicate_link_warner.php
+	// Based on the corresponding function in ../inc/plugins/linktools.php
 	test_add_url: function(url, urls) {
 		if (DLW.has_valid_scheme(url) && $.inArray(url, urls) <= -1) {
 			urls.push(url);
@@ -51,7 +52,7 @@ var DLW = {
 		return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
 	},
 
-	// Based on the corresponding function in ../inc/plugins/duplicate_link_warner.php
+	// Based on the corresponding function in ../inc/plugins/linktools.php
 	extract_bare_urls: function(text, urls) {
 		var re1, re2, match;
 		var supports_unicode = true;
@@ -100,7 +101,7 @@ var DLW = {
 		return res ? res.length : 0;
 	},
 
-	// Based on the corresponding function in ../inc/plugins/duplicate_link_warner.php
+	// Based on the corresponding function in ../inc/plugins/linktools.php
 	strip_unmatched_closing_parens: function(url) {
 		// Allow links like http://en.wikipedia.org/wiki/PHP_(disambiguation) but detect mismatching braces
 		while (url.substring(url.length - 1) == ')') {
@@ -121,7 +122,7 @@ var DLW = {
 		return url;
 	},
 
-	// Based on the corresponding function in ../inc/plugins/duplicate_link_warner.php
+	// Based on the corresponding function in ../inc/plugins/linktools.php
 	extract_urls: function(text) {
 		var urls = [];
 
@@ -257,7 +258,7 @@ var DLW = {
 			// any of those posts which match and which have not been edited since last check.
 			// Use the "post" method rather than the "get" method because it supports
 			// a greater maximum limit on the data payload.
-			$.post(rootpath + '/duplicate_link_warner.php', data_to_send, function(data) {
+			$.post(rootpath + '/linktools.php', data_to_send, function(data) {
 				if (data.error) {
 					console.debug('Server responded with this error message: "' + data.error + '"');
 					return;
@@ -380,30 +381,30 @@ var DLW = {
 			if (enc_summ) msg += '<div id="dlw-warn-summ-box-contents-summ">';
 			if (cnt == 1) {
 				if (op_post_ids.length == 1) {
-					msg += dlw_exist_open_post_contains;
+					msg += lkt_exist_open_post_contains;
 				} else {
-					msg += dlw_exist_post_contains;
+					msg += lkt_exist_post_contains;
 				}
 			} else {
 				if (DLW.further_results) {
-					msg += dlw_more_than;
+					msg += lkt_more_than;
 				}
 				if (op_post_ids.length == cnt) {
-					msg += dlw_x_exist_open_posts_contain.replace('{1}', cnt);
+					msg += lkt_x_exist_open_posts_contain.replace('{1}', cnt);
 				} else {
-					msg += dlw_x_exist_posts_contain     .replace('{1}', cnt);
+					msg += lkt_x_exist_posts_contain     .replace('{1}', cnt);
 				}
 			}
 			if (urls_uniq.length > 1) {
-				msg += dlw_x_of_urls_added.replace('{1}', urls_uniq.length);
+				msg += lkt_x_of_urls_added.replace('{1}', urls_uniq.length);
 			} else {
-				msg += dlw_a_url_added;
+				msg += lkt_a_url_added;
 			}
 			if (op_post_ids.length > 0 && op_post_ids.length != cnt) {
 				if (op_post_ids.length == 1) {
-					msg += dlw_one_is_an_opening_post;
+					msg += lkt_one_is_an_opening_post;
 				} else {
-					msg += dlw_x_are_opening_posts.replace('{1}', op_post_ids.length);
+					msg += lkt_x_are_opening_posts.replace('{1}', op_post_ids.length);
 				}
 			}
 			if (enc_summ) msg += '</div>';
@@ -422,11 +423,11 @@ var DLW = {
 					}
 					urls_enc = urls_enc;
 					var div_open = '<div class="further-results">';
-					var url_esc = DLW.htmlspecialchars('dlw_search.php?'+urls_enc+'&showresults=posts');
-					var further_results_below = dlw_further_results_below.replace('{1}', cnt);
+					var url_esc = DLW.htmlspecialchars('lkt_search.php?'+urls_enc+'&showresults=posts');
+					var further_results_below = lkt_further_results_below.replace('{1}', cnt);
 					further_results_below     = further_results_below    .replace('{2}', url_esc);
 					further_results_below     = div_open+further_results_below+'</div>';
-					var further_results_above = dlw_further_results_above.replace('{1}', cnt);
+					var further_results_above = lkt_further_results_above.replace('{1}', cnt);
 					further_results_above     = further_results_above    .replace('{2}', url_esc)+'</div>';
 					further_results_above     = div_open+further_results_above+'</div>';
 					msg += further_results_below;
@@ -439,10 +440,10 @@ var DLW = {
 						var is_first_post = (post['firstpost'] == post['pid']);
 						msg += '<div id="dlw-post-outer-'+pid+'">'+"\n";
 						msg += '<div>'+post['flinks']+'<br />'+post['nav_bit_img']+post['tlink']+'</div>'+"\n";
-						msg += '<div>'+dlw_msg_started_by+' '+post['ulink_t']+', '+post['dtlink_t']+'</div>'+"\n";
-						msg += '<div>'+(is_first_post ? '<span class="first-post">'+dlw_msg_opening_post+'</span>' : dlw_msg_non_opening_post+' '+post['plink']+' '+dlw_msg_posted_by+' '+post['ulink_p']+', '+post['dtlink_p'])+'</div>'+"\n";
-						msg += '<button id="dlw-btn-dismiss-'+pid+'" type="button" class="btn-dismiss">'+dlw_dismiss_warn_for_post+'</button>';
-						msg += '<div>'+(post.undismissed_urls.length == 1 ? dlw_msg_matching_url_singular : dlw_msg_matching_urls_plural)+"\n";
+						msg += '<div>'+lkt_msg_started_by+' '+post['ulink_t']+', '+post['dtlink_t']+'</div>'+"\n";
+						msg += '<div>'+(is_first_post ? '<span class="first-post">'+lkt_msg_opening_post+'</span>' : lkt_msg_non_opening_post+' '+post['plink']+' '+lkt_msg_posted_by+' '+post['ulink_p']+', '+post['dtlink_p'])+'</div>'+"\n";
+						msg += '<button id="dlw-btn-dismiss-'+pid+'" type="button" class="btn-dismiss">'+lkt_dismiss_warn_for_post+'</button>';
+						msg += '<div>'+(post.undismissed_urls.length == 1 ? lkt_msg_matching_url_singular : lkt_msg_matching_urls_plural)+"\n";
 						msg += '<ul class="url-list">'+"\n";
 						for (var j in post.undismissed_urls) {
 							var url = post.undismissed_urls[j];
@@ -454,7 +455,7 @@ var DLW = {
 								var url2 = post.matching_urls_in_post[idx];
 								var url2_esc = DLW.htmlspecialchars(url2);
 								var link2 = '<a href="'+url2_esc+'">'+url2_esc+'</a>';
-								var tmp = dlw_msg_url1_as_url2.replace('{1}', link);
+								var tmp = lkt_msg_url1_as_url2.replace('{1}', link);
 								var tmp = tmp.replace('{2}', link2);
 								msg += tmp;
 							} else	msg += link;
@@ -546,7 +547,7 @@ var DLW = {
 				'max-height'           : $(window).height() + 'px',
 			       
 			})
-			.append('<button id="dlw-btn-dismiss-summ" type="button">'+'Dismiss all warnings'+'</button><button id="dlw-btn-details-summ-on" type="button">'+dlw_show_more+'</button><button id="dlw-btn-details-summ-off" type="button">'+dlw_show_less+'</button>')
+			.append('<button id="dlw-btn-dismiss-summ" type="button">'+'Dismiss all warnings'+'</button><button id="dlw-btn-details-summ-on" type="button">'+lkt_show_more+'</button><button id="dlw-btn-details-summ-off" type="button">'+lkt_show_less+'</button>')
 			.append('<span id="dlw-warn-summ-box-contents"></span>');
 			$('#dlw-warn-summ-box-contents').html(msg);
 			if (flash) {
@@ -581,22 +582,22 @@ var DLW = {
 	},
 
 	update_hidden_input: function() {
-		var dlw_dismissed = {};
+		var lkt_dismissed = {};
 		for (var pid in DLW.matching_posts) {
 			var post = DLW.matching_posts[pid];
 			if (post.dismissed_urls.length > 0) {
-				dlw_dismissed[pid] = post.dismissed_urls;
+				lkt_dismissed[pid] = post.dismissed_urls;
 			}
 		}
-		$('#dlw_dismissed').val(JSON.stringify(dlw_dismissed));
-		console.debug('Set hidden dlw_dismissed form input value to: ' + $('#dlw_dismissed').val());
+		$('#lkt_dismissed').val(JSON.stringify(lkt_dismissed));
+		console.debug('Set hidden lkt_dismissed form input value to: ' + $('#lkt_dismissed').val());
 	},
 
 	show_undismiss_button: function() {
 		if ($('#dlw-btn-undismiss').length) {
 			$('#dlw-btn-undismiss').show();
 		} else if ($('#dlw-msg-sidebar-div').length) {
-			$('#dlw-msg-sidebar-div').append('<button id="dlw-btn-undismiss" type="button">'+dlw_undismiss_all_warns+'</button>');
+			$('#dlw-msg-sidebar-div').append('<button id="dlw-btn-undismiss" type="button">'+lkt_undismiss_all_warns+'</button>');
 			$('#dlw-btn-undismiss').bind('click', function(e) {
 				for (var pid in DLW.matching_posts) {
 					DLW.matching_posts[pid].undismissed_urls = DLW.matching_posts[pid].matching_urls.slice();
@@ -652,9 +653,9 @@ var DLW = {
 	init: function() {
 		console.debug('Entered DLW initialisation function ...');
 
-		var dlw_sidebar_div = $('#dlw-msg-sidebar-div');
-		if (dlw_sidebar_div.length) {
-			dlw_sidebar_div.append('<input type="checkbox" id="dlw-cbx-do-warn" name="dlw-cbx-do-warn" checked="checked" /> <span title="' + dlw_title_warn_about_links + '">' + dlw_warn_about_links + '</span>');
+		var lkt_sidebar_div = $('#dlw-msg-sidebar-div');
+		if (lkt_sidebar_div.length) {
+			lkt_sidebar_div.append('<input type="checkbox" id="dlw-cbx-do-warn" name="dlw-cbx-do-warn" checked="checked" /> <span title="' + lkt_title_warn_about_links + '">' + lkt_warn_about_links + '</span>');
 			$('#dlw-cbx-do-warn').bind('click', function(e) {
 				if (!$('#dlw-cbx-do-warn').prop('checked')) {
 					if ($('#dlw-warn-summ-box').length) {
@@ -672,13 +673,13 @@ var DLW = {
 
 		$('<input>').attr({
 			type: 'hidden',
-			id  : 'dlw_dismissed',
-			name: 'dlw_dismissed',
+			id  : 'lkt_dismissed',
+			name: 'lkt_dismissed',
 			value: ''
 		}).appendTo($('form[name="input"]'));
 
 		MyBBEditor.valueChanged(DLW.mybbeditor_valuechanged_hook);
-		DLW.mybbeditor_valuechanged_hook(null, dlw_previously_dismissed);
+		DLW.mybbeditor_valuechanged_hook(null, lkt_previously_dismissed);
 
 		console.debug('...leaving DLW initialisation function.');
 	}
