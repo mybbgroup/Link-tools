@@ -251,7 +251,6 @@ function linktools_activate() {
 		);
 		$new_task['nextrun'] = fetch_next_run($new_task);
 		$db->insert_query('tasks', $new_task);
-		$plugins->run_hooks('admin_tools_tasks_add_commit');
 		$cache->update_tasks();
 	}
 }
@@ -758,7 +757,7 @@ function lkt_get_posts_for_urls($urls, $post_edit_times = array()) {
 			             )
 			           : 1  
 			          )
-			        );
+			       );
 		};
 		$grade1 = $grade_post($post1);
 		$grade2 = $grade_post($post2);
@@ -769,7 +768,7 @@ function lkt_get_posts_for_urls($urls, $post_edit_times = array()) {
 		           ? -1
 		           : 0
 		          )
-		        );
+		       );
 	});
 
 	$missing_fids = array();
