@@ -8,34 +8,6 @@ if (!defined('IN_MYBB')) {
 # Should semantically match the equivalent variable in ../../jscripts/linktools.js
 const lkt_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
 
-/**
- * Supported array entry formats:
- *
- * 1. 'key'
- * 2. 'key=value'
- * 3. 'key' => 'domain'
- * 4. 'key' => array('domain1', 'domain2', ...)
- * 5. 'key=value' => 'domain'
- * 6. 'key=value' => array('domain1', 'domain2', ...)
- *
- * 'domain' can be '*' in which case it matches all domains. This is implicit for formats #1 and #2.
- */
-const lkt_ignored_query_params = array(
-	'fbclid',
-	'feature=youtu.be',
-	't' => 'youtube.com',
-	'time_continue' => 'youtube.com',
-	'CMP',
-	'utm_medium',
-	'utm_source',
-	'utm_campaign',
-	'utm_term',
-	'utm_content',
-	'akid',
-	'email_work_card',
-	'showFullText',
-);
-
 const lkt_default_rebuild_links_items_per_page = 500;
 const lkt_default_rebuild_term_items_per_page = 150;
 const lkt_default_rebuild_renorm_items_per_page = 500;
@@ -1186,17 +1158,15 @@ function lkt_check_absolutise_relative_uri($target, $source) {
 }
 
 function lkt_get_url_term_redirs_auto($urls) {
-	static $repl_regexes = array(
-		'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?v=([^&]+)(?:&feature=youtu\\.be)?$)'
-						=> 'https://www.youtube.com/watch?v=\\1',
-		'(^http(?:s)?://youtu\\.be/([^\\?/]+)$)'
-						=> 'https://www.youtube.com/watch?v=\\1',
+	static $repl_regexes = false;
 
-		'(^http(?:s)?://(?:(?:www|en)\\.)wikipedia.org/wiki/(.*)$)'
-						=> 'https://en.wikipedia.org/wiki/\\1',
-		'(^http(?:s)?://(?:(?:www|en)\\.)wikipedia.org/w/index.php\\?title=([^&]+)$)'
-						=> 'https://en.wikipedia.org/wiki/\\1',
-	);
+	if ($repl_regexes === false) {
+		$repl_regexes = include MYBB_ROOT.'/inc/plugins/'.C_LKT.'/auto-term-links.php';
+		$custfname = MYBB_ROOT.'/inc/plugins/'.C_LKT.'/auto-term-links-custom.php';
+		if (is_readable($custfname)) {
+			$repl_regexes = array_merge($repl_regexes, include $custfname);
+		}
+	}
 
 	$redirs = [];
 
@@ -1414,6 +1384,16 @@ function lkt_normalise_domain($domain) {
 
 
 function lkt_normalise_url($url) {
+	static $ignored_query_params = false;
+
+	if ($ignored_query_params === false) {
+		$ignored_query_params = include MYBB_ROOT.'/inc/plugins/'.C_LKT.'/ignored-query-params.php';
+		$custfname = MYBB_ROOT.'/inc/plugins/'.C_LKT.'/ignored-query-params-custom.php';
+		if (is_readable($custfname)) {
+			$ignored_query_params = array_merge($ignored_query_params, include $custfname);
+		}
+	}
+
 	$strip_www_prefix = false;
 
 	$url = trim($url);
@@ -1462,7 +1442,7 @@ function lkt_normalise_url($url) {
 		$query = str_replace('&amp;', '&', $parsed_url['query']);
 		$arr = explode('&', $query);
 		sort($arr);
-		foreach (lkt_ignored_query_params as $param => $domains) {
+		foreach ($ignored_query_params as $param => $domains) {
 			if (is_int($param)) {
 				$param = $domains;
 				$domains = '*';
