@@ -57,6 +57,7 @@ $plugins->add_hook('admin_tools_recount_rebuild_output_list', 'lkt_hookin__admin
 $plugins->add_hook('admin_tools_recount_rebuild'            , 'lkt_hookin__admin_tools_recount_rebuild'            );
 $plugins->add_hook('global_start'                           , 'lkt_hookin__global_start'                           );
 $plugins->add_hook('search_do_search_start'                 , 'lkt_hookin__search_do_search_start'                 );
+$plugins->add_hook('admin_config_plugins_activate_commit'   , 'lkt_hookin__admin_config_plugins_activate_commit'   );
 
 function lkt_hookin__global_start() {
 	if (defined('THIS_SCRIPT')) {
@@ -72,7 +73,7 @@ function lkt_hookin__global_start() {
 define('C_LKT', str_replace('.php', '', basename(__FILE__)));
 
 function linktools_info() {
-	global $lang, $db, $mybb;
+	global $lang, $db, $mybb, $plugins_cache, $admin_session;
 
 	if (!isset($lang->linktools)) {
 		$lang->load('linktools');
@@ -96,6 +97,14 @@ function linktools_info() {
 	if (linktools_is_installed()) {
 		$desc = '';
 		$desc .= '<ul>'.PHP_EOL;
+
+		if (is_array($plugins_cache) && is_array($plugins_cache['active']) && $plugins_cache['active'][C_LKT]) {
+			if (!empty($admin_session['data']['lkt_plugin_info_upgrade_message'])) {
+				$msg = $admin_session['data']['lkt_plugin_info_upgrade_message'].' '.$msg;
+				update_admin_session('lkt_plugin_info_upgrade_message', '');
+				$desc .= "	<li style=\"list-style-image: url(styles/default/images/icons/success.png)\"><div class=\"success\">{$msg}</div></li>".PHP_EOL;
+			}
+		}
 
 		$res = $db->simple_select('posts', 'count(*) AS cnt', 'lkt_got_urls = 0');
 		$cnt_posts_unextracted = $db->fetch_array($res)['cnt'];
@@ -156,6 +165,11 @@ function linktools_info() {
 }
 
 function linktools_install() {
+	$info = linktools_info();
+	lkt_install_or_upgrade(false, $info['version_code']);
+}
+
+function lkt_install_or_upgrade($from_version, $to_version) {
 	global $db;
 
 	if (!$db->table_exists('urls')) {
@@ -193,13 +207,17 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD lkt_got_urls boolean NOT NULL default FALSE");
 	}
 
+	// These three functions are compatible with upgrading -
+	// they either check for existing database entries before
+	// inserting new ones, or they delete existing entries then
+	// reinsert them (potentially with changes).
 	lkt_create_templategroup();
-	lkt_insert_templates();
+	lkt_insert_templates($from_version);
 	lkt_create_stylesheet();
 }
 
 function linktools_uninstall() {
-	global $db;
+	global $db, $cache;
 
 	if ($db->table_exists('urls')) {
 		$db->drop_table('urls');
@@ -218,7 +236,11 @@ function linktools_uninstall() {
 	$db->delete_query('templates', "title LIKE 'linktools_%'");
 	$db->delete_query('templategroups', "prefix in ('linktools')");
 
-	$db->delete_query('themestylesheets', "name = 'linktools.css' AND tid = 1");
+	lkt_delete_stylesheet();
+
+	$lrs_plugins = $cache->read('lrs_plugins');
+	unset($lrs_plugins[C_ACT]);
+	$cache->update('lrs_plugins', $lrs_plugins);
 }
 
 function linktools_is_installed() {
@@ -228,7 +250,22 @@ function linktools_is_installed() {
 }
 
 function linktools_activate() {
-	global $db, $plugins, $cache, $lang;
+	global $db, $plugins, $cache, $lang, $lkt_plugin_upgrade_message;
+
+	$info = linktools_info();
+	$to_version = $info['version_code'];
+	$lrs_plugins = $cache->read('lrs_plugins');
+	if (!is_array($lrs_plugins)) {
+		$lrs_plugins = array();
+	}
+	$from_version = isset($lrs_plugins[C_LKT]) ? $lrs_plugins[C_LKT]['version_code'] : false;
+
+	lkt_install_or_upgrade($from_version, $to_version);
+
+	if ($from_version !== false && $to_version > $from_version) {
+		$lkt_plugin_upgrade_message = $lang->sprintf($lang->lkt_successful_upgrade_msg, $lang->lkt_name, $info['version']);
+		update_admin_session('lkt_plugin_info_upgrade_message', $lang->sprintf($lang->lkt_successful_upgrade_msg_for_info, $info['version']));
+	}
 
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
 	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$linktools_div}');
@@ -256,6 +293,12 @@ function linktools_activate() {
 		$tid = $db->fetch_field($res, 'tid');
 		$db->update_query('tasks', array('enabled' => 1), "tid={$tid}");
 	}
+
+	$lrs_plugins[C_LKT] = array(
+		'version'      => $info['version'     ],
+		'version_code' => $info['version_code'],
+	);
+	$cache->update('lrs_plugins', $lrs_plugins);
 }
 
 function linktools_deactivate() {
@@ -267,17 +310,29 @@ function linktools_deactivate() {
 	$db->update_query('tasks', array('enabled' => 0), 'file=\'linktools\'');
 }
 
+function lkt_hookin__admin_config_plugins_activate_commit() {
+	global $message, $lkt_plugin_upgrade_message;
+
+	if (!empty($lkt_plugin_upgrade_message)) {
+		$message = $lkt_plugin_upgrade_message;
+	}
+}
+
 function lkt_create_templategroup() {
 	global $db;
 
-	$templateset = array(
-		'prefix' => 'linktools',
-		'title' => 'Link Tools',
-	);
-	$db->insert_query('templategroups', $templateset);
+	// This function can be called on upgrade, so only create if non-existent
+	$res = $db->simple_select('templategroups', 'prefix', "prefix='linktools'");
+	if ($db->num_rows($res) < 1) {
+		$templateset = array(
+			'prefix' => 'linktools',
+			'title' => 'Link Tools',
+		);
+		$db->insert_query('templategroups', $templateset);
+	}
 }
 
-function lkt_insert_templates() {
+function lkt_insert_templates($from_version) {
 	global $mybb, $db;
 
 	$templates = array(
@@ -371,9 +426,6 @@ function lkt_toggle_hidden_posts() {
 	// Remove any existing Master templates for this plugin.
 	$db->delete_query('templates', "title LIKE 'linktools%' AND sid=-2");
 
-	$info = linktools_info();
-	$from_version = $info['version_code'];
-
 	foreach ($templates as $template_title => $template_data) {
 		// First, flag any of this plugin's templates that have been modified in the plugin since
 		// the version of the plugin from which we are upgrading, flagging all templates if that
@@ -381,7 +433,7 @@ function lkt_toggle_hidden_posts() {
 		// *if* the user has also modified them, and without false positives. The way we flag them
 		// is to zero the `version` column of the `templates` table where `sid` is not -2 for this
 		// plugin's templates.
-		if ($template_data['version_at_last_change'] > $from_version) {
+		if ($from_version === false || $template_data['version_at_last_change'] > $from_version) {
 			$db->update_query('templates', array('version' => 0), "title='{$template_title}' and sid <> -2");
 		}
 
@@ -488,6 +540,9 @@ EOF;
 function lkt_create_stylesheet() {
 	global $db;
 
+	// This function can be called on upgrade, so first delete any existing stylesheet.
+	lkt_delete_stylesheet();
+
 	$row = array(
 		'name' => 'linktools.css',
 		'tid' => 1,
@@ -506,6 +561,12 @@ function lkt_create_stylesheet() {
 	while ($theme = $db->fetch_array($tids)) {
 		update_theme_stylesheet_list($theme['tid']);
 	}
+}
+
+function lkt_delete_stylesheet() {
+	global $db;
+
+	$db->delete_query('themestylesheets', "name = 'linktools.css' AND tid = 1");
 }
 
 function lkt_get_scheme($url) {

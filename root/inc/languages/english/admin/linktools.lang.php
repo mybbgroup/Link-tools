@@ -2,6 +2,9 @@
 
 $l['lkt_name'             ] = 'Link Tools';
 $l['lkt_desc'             ] = 'Keeps track of links (URLs) in posts and then provides two link services: (1) seamless link searching and (2) warning a member if a link in a thread they are about to start has already been shared to the forum.';
+$l['lkt_successful_upgrade_msg_for_info'  ] = 'Successfully upgraded to version {1}.';
+$l['lkt_successful_upgrade_msg'           ] = 'The {1} plugin has been activated successfully and upgraded to version {2}.';
+
 $l['lkt_all_links_extracted'              ] = ' All {1} links have been successfully extracted from all {2} posts.';
 $l['lkt_x_of_y_posts_unextracted'         ] = '{1} of {2} posts have not yet had links extracted from them.';
 $l['lkt_to_extract_links_click_here'      ] = ' To extract links from that/those {1} post(s), click {2}here{3} (or simply leave it up to the scheduled Link Tools task, assuming you have not disabled it). Note that at the end of the process, the success message will read "Successfully repopulated the links tables for Link Tools." Rest assured that despite that message, when that function is run from here the links table is not repopulated from scratch: links are extracted only from the aforementioned posts from which links have not yet been extracted; posts from which links have already been extracted are left untouched.';
