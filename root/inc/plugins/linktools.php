@@ -234,8 +234,8 @@ function linktools_activate() {
 	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$linktools_div}');
 	find_replace_templatesets('newthread', '({\\$codebuttons})'   , '{$codebuttons}{$linktools_js}'    );
 
-	$task_exists = $db->simple_select('tasks', 'tid', "file='linktools'", array('limit' => '1'));
-	if ($db->num_rows($task_exists) == 0) {
+	$res = $db->simple_select('tasks', 'tid', "file='linktools'", array('limit' => '1'));
+	if ($db->num_rows($res) == 0) {
 		require_once MYBB_ROOT . '/inc/functions_task.php';
 		$new_task = array(
 			'title' => $db->escape_string($lang->lkt_task_title),
@@ -252,6 +252,9 @@ function linktools_activate() {
 		$new_task['nextrun'] = fetch_next_run($new_task);
 		$db->insert_query('tasks', $new_task);
 		$cache->update_tasks();
+	} else {
+		$tid = $db->fetch_field($res, 'tid');
+		$db->update_query('tasks', array('enabled' => 1), "tid={$tid}");
 	}
 }
 
