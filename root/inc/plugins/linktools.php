@@ -81,9 +81,9 @@ function linktools_info() {
 	$ret = array(
 		'name'          => $lang->lkt_name,
 		'description'   => $lang->lkt_desc,
-		'website'       => '',
+		'website'       => 'https://github.com/lairdshaw/MyBB-link-tools',
 		'author'        => 'Laird Shaw',
-		'authorsite'    => '',
+		'authorsite'    => 'https://creativeandcritical.net/',
 		'version'       => '0.0.5.dev.code-may-change',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
