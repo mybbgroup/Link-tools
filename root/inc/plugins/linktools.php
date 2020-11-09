@@ -28,7 +28,7 @@ const lkt_rehit_delay_in_secs = 3;
 const lkt_max_allowable_redirects_for_a_url = 25;
 const lkt_max_allowable_redirect_resolution_runtime_secs = 60;
 const lkt_curl_timeout = 10;
-const c_max_url_lock_time = 120;
+const lkt_max_url_lock_time = 120;
 
 const lkt_term_tries_secs = array(
 	0,             // First attempt has no limits.
@@ -1696,7 +1696,7 @@ lkt_get_and_store_terms_start:
 	// and pause between successive requests to that server, this optimises the total
 	// runtime of all operations - or, at least, that's my understanding unless/until
 	// somebody corrects me.
-	$conds = '('.lkt_get_sql_conds_for_ltt().') AND '.time().' > lock_time + '.c_max_url_lock_time;
+	$conds = '('.lkt_get_sql_conds_for_ltt().') AND '.time().' > lock_time + '.lkt_max_url_lock_time;
 	$start = 0;
 	$continue = true;
 	while ($continue) {
@@ -1802,7 +1802,7 @@ lkt_get_and_store_terms_start:
 
 	} while (count($urls_new) >= $num_urls);
 
-	// Lock the relevant rows in the urls table for two minutes (c_max_url_lock_time).
+	// Lock the relevant rows in the urls table for two minutes (lkt_max_url_lock_time).
 	// If we find that they have ALL already been locked (by some other process also
 	// accessing this function) in between the above and now, then go back to the
 	// beginning of this function and try again (to find any other unlocked urls).
@@ -1812,7 +1812,7 @@ lkt_get_and_store_terms_start:
 		if ($db->write_query('
 UPDATE '.TABLE_PREFIX.'urls SET lock_time = '.$now.'
 WHERE url = \''.$db->escape_string($url).'\' AND '.
-      $now.' > lock_time + '.c_max_url_lock_time)
+      $now.' > lock_time + '.lkt_max_url_lock_time)
 		    &&
 		    $db->affected_rows() >= 1) {
 			$cnt++;
