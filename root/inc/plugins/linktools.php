@@ -278,16 +278,24 @@ function lkt_insert_templates() {
 	global $mybb, $db;
 
 	$templates = array(
-		'linktools_div'
-			=> '<div id="dlw-msg-sidebar-div" style="margin: auto; width: 170px; margin-top: 20px;"></div>',
-		'linktools_op_post_div'
-			=>'<div><span class="first-post">{$lang->lkt_opening_post}</span></div>',
-		'linktools_non_op_post_div'
-			=> '<div>{$lang->lkt_non_opening_post} {$post[\'plink\']} {$lang->lkt_posted_by} {$post[\'ulink_p\']}, {$post[\'dtlink_p\']}</div>',
-		'linktools_matching_url_item'
-			=> '<li style="padding: 0; margin: 0;">$matching_url_msg</li>',
-		'linktools_matching_post' =>
-			'<div$div_main_class>
+		'linktools_div' => array(
+			'template' => '<div id="dlw-msg-sidebar-div" style="margin: auto; width: 170px; margin-top: 20px;"></div>',
+			'version_at_last_change' => '10000',
+		),
+		'linktools_op_post_div' => array(
+			'template' =>'<div><span class="first-post">{$lang->lkt_opening_post}</span></div>',
+			'version_at_last_change' => '10000',
+		),
+		'linktools_non_op_post_div' => array(
+			'template' => '<div>{$lang->lkt_non_opening_post} {$post[\'plink\']} {$lang->lkt_posted_by} {$post[\'ulink_p\']}, {$post[\'dtlink_p\']}</div>',
+			'version_at_last_change' => '10000',
+		),
+		'linktools_matching_url_item' => array(
+			'template'=> '<li style="padding: 0; margin: 0;">$matching_url_msg</li>',
+			'version_at_last_change' => '10000',
+		),
+		'linktools_matching_post' => array(
+			'template' => '<div$div_main_class>
 	<div>{$post[\'flinks\']}<br />{$post[\'nav_bit_img\']}{$post[\'tlink\']}</div>
 	<div>{$lang->lkt_started_by} {$post[\'ulink_t\']}, {$post[\'dtlink_t\']}</div>
 	$div_posted_by
@@ -299,16 +307,22 @@ function lkt_insert_templates() {
 	</div>
 	<div class="dlw-post-message">{$post[\'message\']}</div>
 </div>',
-		'linktools_review_buttons'
-			=> '<div style="text-align:center">
+			'version_at_last_change' => '10000',
+		),
+		'linktools_review_buttons' => array(
+			'template' => '<div style="text-align:center">
 	<input type="submit" class="button" name="ignore_dup_link_warn" value="{$lang->lkt_post_anyway}" accesskey="s" />
 	<input type="submit" class="button" name="previewpost" value="{$lang->preview_post}" />
 	{$savedraftbutton}
 </div>',
-		'linktools_toggle_button'
-	              => '<div style="text-align:center"><button id="id_btn_toggle_quote_posts" onclick="lkt_toggle_hidden_posts();" type="button">{$lang->lkt_btn_toggle_msg_hide}</button></div>',
-		'linktools_review_page'
-			=> '<html>
+			'version_at_last_change' => '10000',
+		),
+		'linktools_toggle_button' => array(
+			'template' => '<div style="text-align:center"><button id="id_btn_toggle_quote_posts" onclick="lkt_toggle_hidden_posts();" type="button">{$lang->lkt_btn_toggle_msg_hide}</button></div>',
+			'version_at_last_change' => '10000',
+		),
+		'linktools_review_page' => array(
+			'template' => '<html>
 <head>
 <title>{$mybb->settings[\'bbname\']}</title>
 {$headerinclude}
@@ -343,30 +357,37 @@ function lkt_toggle_hidden_posts() {
 </script>
 </body>
 </html>',
-		'linktools_matching_posts_warning_div'
-			=> '<div class="red_alert">$matching_posts_warning_msg</div>',
+			'version_at_last_change' => '10000',
+		),
+		'linktools_matching_posts_warning_div' => array(
+			'template' => '<div class="red_alert">$matching_posts_warning_msg</div>',
+			'version_at_last_change' => '10000',
+		),
 	);
 
-	$info = linktools_info();
-	$plugin_version_code = $info['version_code'];
-	// Left-pad the version code with any zero that we forbade in linktools_info(),
-	// where it would have been interpreted as octal.
-	while (strlen($plugin_version_code) < 6) {
-		$plugin_version_code = '0'.$plugin_version_code;
-	}
+	// Remove any existing Master templates for this plugin.
+	$db->delete_query('templates', "title LIKE 'linktools%' AND sid=-2");
 
-	// Insert templates into the Master group (sid=-2) with a (string) version set to a value that
-	// will compare greater than the current MyBB version_code. We set the version to this value so that
-	// the SQL comparison "m.version > t.version" in the query to find updated templates
-	// (in admin/modules/style/templates.php) is true for templates modified by the user:
-	// MyBB sets the version for modified templates to the value of $mybb->version_code.
-	$version = substr($mybb->version_code.'_'.$plugin_version_code, 0, 20);
+	$info = linktools_info();
+	$from_version = $info['version_code'];
+
 	foreach ($templates as $template_title => $template_data) {
+		// First, flag any of this plugin's templates that have been modified in the plugin since
+		// the version of the plugin from which we are upgrading, flagging all templates if that
+		// version number is not available. This ensures that Find Updated Templates detects them
+		// *if* the user has also modified them, and without false positives. The way we flag them
+		// is to zero the `version` column of the `templates` table where `sid` is not -2 for this
+		// plugin's templates.
+		if ($template_data['version_at_last_change'] > $from_version) {
+			$db->update_query('templates', array('version' => 0), "title='{$template_title}' and sid <> -2");
+		}
+
+		// Now insert/update master templates with SID -2.
 		$insert_templates = array(
 			'title'    => $db->escape_string($template_title),
-			'template' => $db->escape_string($template_data),
+			'template' => $db->escape_string($template_data['template']),
 			'sid'      => '-2',
-			'version'  => $version,
+			'version'  => '1',
 			'dateline' => TIME_NOW
 		);
 		$db->insert_query('templates', $insert_templates);
