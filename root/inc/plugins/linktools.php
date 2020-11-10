@@ -239,7 +239,7 @@ function linktools_uninstall() {
 	lkt_delete_stylesheet();
 
 	$lrs_plugins = $cache->read('lrs_plugins');
-	unset($lrs_plugins[C_ACT]);
+	unset($lrs_plugins[C_LKT]);
 	$cache->update('lrs_plugins', $lrs_plugins);
 }
 
