@@ -1,7 +1,7 @@
 <?php
 
 /**
- * For purposes of correctly determining links which are identical to
+ * For purposes of correctly determining which links are identical to
  * one another, Link Tools "normalises" each link (URL). Part of the
  * normalisation process is the alphabetical sorting of any query
  * parameters.
@@ -11,13 +11,13 @@
  * parameter is that added by Facebook to outgoing links:
  *  fbclid=[token].
  * Whether or not this parameter is present, and no matter its value,
- * the same page is shown. Thus all variants of the URL with and
+ * the same page is shown. Thus, all variants of the URL with and
  * without this query should be treated as equal, which is ensured by
  * this aspect of Link Tools' link (URL) "normalisation" process.
  * 
  * The purpose of this file is to specify those parameters which should
- * be ignored during normalisation. See further below for customisation
- * instructions.
+ * be ignored (removed from links) as part of normalisation.
+ * See further below for customisation instructions.
  *
  * Supported array entry formats:
  *
