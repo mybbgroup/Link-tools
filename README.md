@@ -1,8 +1,8 @@
 ## About Link Tools
 
-Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links (URLs) in posts made to your forum and then provides you with two new features:
+Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links (URLs) in posts made to your forum, and then provides you with two new features:
 
-1. *Seamless link searching*. Just type a link (URL) into the default field ("Keyword") of the standard MyBB search form and Link Tools will intercept the search, and provide accurate results: only posts which contain the link or its equivalent will be listed. The default MyBB search does not handle links at all well and typically returns results completely unrelated to the link for which you searched.
+1. *Seamless link searching*. Just type a link (URL) into the default field ("Keyword") of the standard MyBB search form and Link Tools will intercept the search and provide accurate results: only posts which contain the link or its equivalent will be listed. The default MyBB search does not handle links at all well and typically returns results completely unrelated to the link for which you searched.
 
 2. *A duplicate link warner*. When a member is starting a new thread, s/he will be warned if any links (URLs) that s/he includes in the thread-starter have already been posted to the board. This feature is especially useful when your board is heavily resource-based and there is a risk of members starting duplicate discussions about resources (links and videos) that have already been discussed.
 
@@ -10,9 +10,9 @@ Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links 
 
 Anything that MyBB core also considers to be a link:
 
-1. The URLs in [url] tags.
+1. The URLs in `[url]` tags.
 
-2. The URLs in [video] tags.
+2. The URLs in `[video]` tags.
 
 3. Bare URLs: those beginning with `http://`, `https://`, `ftp://`, `ftp.`, and `www.`.
 
@@ -48,7 +48,7 @@ But what if you want to add more? Simply follow the instructions in the comments
 
 ## Customisation #2: adding to the auto-terminating link types
 
-The terminating links of some types of link can be determined automatically without querying those links, e.g., youtu.be links reliably terminate in www.youtube.com video links. Link Tools ships with a list of rules to this effect, which minimise queries for some common links. You can find these rules (regular expressions and their replacements) in the file `inc/plugins/linktools/auto-term-links.php`.
+The terminating links of some types of link can be determined automatically without querying those links, e.g., `youtu.be` links reliably terminate in `www.youtube.com` video links. Link Tools ships with a list of rules to this effect, which eliminate queries for some common links. You can find these rules (regular expressions and their replacements) in the file `inc/plugins/linktools/auto-term-links.php`.
 
 As for ignored query parameters, if you want to add more rules, then simply follow the instructions in the comments at the top of that file (again, look for the all-caps beginning "DO NOT MODIFY THIS FILE").
 
@@ -58,7 +58,7 @@ As for ignored query parameters, if you want to add more rules, then simply foll
 
 ## Licence
 
-Link Tools is licensed under the GPL 3.
+Link Tools is licensed under the GPL version 3.
 
 ## Installing
 
