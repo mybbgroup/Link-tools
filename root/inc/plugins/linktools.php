@@ -849,7 +849,7 @@ function lkt_get_url_search_sql($urls, $already_normalised = false, $extra_condi
 	$conds = '('.$conds.') AND p.visible > 0 '.$extra_conditions;
 
 	return '
-SELECT DISTINCT u2.url as matching_url, u.url_norm AS queried_norm_url,
+SELECT DISTINCT u2.url as matching_url, IF(u.url_norm IN '.$url_paren_list.', u.url_norm, u.url_term_norm) AS queried_norm_url,
                 p.pid, p.uid AS uid_post, p.username AS username_post, p.dateline as dateline_post, p.message, p.subject AS subject_post, p.edittime,
                 t.tid, t.uid AS uid_thread, t.username AS username_thread, t.subject AS subject_thread, t.firstpost, t.dateline as dateline_thread,
                 (p.pid = t.firstpost) AS isfirstpost,
