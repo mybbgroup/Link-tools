@@ -58,6 +58,9 @@ $plugins->add_hook('admin_tools_recount_rebuild'            , 'lkt_hookin__admin
 $plugins->add_hook('global_start'                           , 'lkt_hookin__global_start'                           );
 $plugins->add_hook('search_do_search_start'                 , 'lkt_hookin__search_do_search_start'                 );
 $plugins->add_hook('admin_config_plugins_activate_commit'   , 'lkt_hookin__admin_config_plugins_activate_commit'   );
+$plugins->add_hook('xmlhttp'                                , 'lkt_hookin__xmlhttp'                                );
+$plugins->add_hook('admin_config_settings_change'           , 'lkt_hookin__admin_config_settings_change'           );
+$plugins->add_hook('admin_page_output_footer'               , 'lkt_hookin__admin_page_output_footer'               );
 
 function lkt_hookin__global_start() {
 	if (defined('THIS_SCRIPT')) {
@@ -207,13 +210,20 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD lkt_got_urls boolean NOT NULL default FALSE");
 	}
 
-	// These three functions are compatible with upgrading -
+	if (!$db->field_exists('lkt_warn_about_links', 'users')) {
+		$db->query('ALTER TABLE '.TABLE_PREFIX.'users ADD `lkt_warn_about_links` tinyint(1) NOT NULL default \'1\'');
+	}
+
+	// These five functions are compatible with upgrading -
 	// they either check for existing database entries before
 	// inserting new ones, or they delete existing entries then
-	// reinsert them (potentially with changes).
+	// reinsert them (potentially with changes), or they update
+	// existing entries.
 	lkt_create_templategroup();
 	lkt_insert_templates($from_version);
 	lkt_create_stylesheet();
+	lkt_create_settingsgroup();
+	lkt_create_settings();
 }
 
 function linktools_uninstall() {
@@ -229,6 +239,10 @@ function linktools_uninstall() {
 
 	if ($db->field_exists('lkt_got_urls', 'posts')) {
 		$db->query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN lkt_got_urls');
+	}
+
+	if ($db->field_exists('lkt_warn_about_links', 'users')) {
+		$db->query('ALTER TABLE '.TABLE_PREFIX.'users DROP column `lkt_warn_about_links`');
 	}
 
 	$db->delete_query('tasks', "file='linktools'");
@@ -567,6 +581,90 @@ function lkt_delete_stylesheet() {
 	global $db;
 
 	$db->delete_query('themestylesheets', "name = 'linktools.css' AND tid = 1");
+}
+
+function lkt_create_settingsgroup() {
+	global $db, $lang;
+
+	if (!isset($lang->linktools)) {
+		$lang->load(C_LKT);
+	}
+
+	$res = $db->simple_select('settinggroups', 'gid', "name = '".C_LKT."_settings'", array('limit' => 1));
+	$gid = $db->fetch_field($res, 'gid');
+
+	$fields = array(
+		'title'        => $db->escape_string($lang->lkt_settings     ),
+		'description'  => $db->escape_string($lang->lkt_settings_desc),
+	);
+
+	if (!$gid) {
+		$res = $db->simple_select('settinggroups', 'MAX(disporder) as max_disporder');
+		$disporder = $db->fetch_field($res, 'max_disporder') + 1;
+		$fields = array_merge($fields, array(
+			'name'         => C_LKT.'_settings',
+			'disporder'    => intval($disporder),
+			'isdefault'    => 0
+		));
+		// Insert the plugin settings group into the database.
+		$db->insert_query('settinggroups', $fields);
+	} else	$db->update_query('settinggroups', $fields, "gid={$gid}");
+}
+
+function lkt_create_settings() {
+	global $db, $lang;
+
+	if (!isset($lang->linktools)) {
+		$lang->load(C_LKT);
+	}
+
+	$existing_setting_values = array();
+	$res = $db->simple_select('settinggroups', 'gid', "name = '".C_LKT."_settings'", array('limit' => 1));
+	$gid = $db->fetch_field($res, 'gid');
+	if ($gid) {
+		$res2 = $db->simple_select('settings', 'value, name', "gid={$gid}");
+		while ($setting = $db->fetch_array($res2)) {
+			$existing_setting_values[$setting['name']] = $setting['value'];
+		}
+		// Delete existing settings, without deleting their group.
+		$db->delete_query('settings', "gid='{$gid}'");
+	}
+
+	// The settings to (re)create in the database.
+	$settings = array(
+		'enable_dlw' => array(
+			'title'       => $lang->lkt_enable_dlw_title,
+			'description' => $lang->lkt_enable_dlw_desc ,
+			'optionscode' => 'yesno',
+			'value'       => '1',
+		),
+		'force_dlw' => array(
+			'title'       => $lang->lkt_force_dlw_title,
+			'description' => $lang->lkt_force_dlw_desc ,
+			'optionscode' => 'yesno',
+			'value'       => '0',
+		),
+	);
+
+	// (Re)create the settings, retaining the old values where they exist.
+	$ordernum = 1;
+	foreach ($settings as $name => $setting) {
+		$value = isset($existing_setting_values[C_LKT.'_'.$name]) ? $existing_setting_values[C_LKT.'_'.$name] : $setting['value'];
+		$insert_settings = array(
+			'name'        => $db->escape_string(C_LKT.'_'.$name        ),
+			'title'       => $db->escape_string($setting['title'      ]),
+			'description' => $db->escape_string($setting['description']),
+			'optionscode' => $db->escape_string($setting['optionscode']),
+			'value'       => $value                                     ,
+			'disporder'   => $ordernum                                  ,
+			'gid'         => $gid                                       ,
+			'isdefault'   => 0
+		);
+		$db->insert_query('settings', $insert_settings);
+		$ordernum++;
+	}
+
+	rebuild_settings();
 }
 
 function lkt_get_scheme($url) {
@@ -1986,12 +2084,13 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 function lkt_hookin__datahandler_post_insert_thread($posthandler) {
 	global $db, $mybb, $templates, $lang, $headerinclude, $header, $footer;
 
-	if ($mybb->get_input('ignore_dup_link_warn') || $posthandler->data['savedraft']) {
+	if ($mybb->get_input('ignore_dup_link_warn') || $posthandler->data['savedraft'] ||
+	    !($mybb->settings[C_LKT.'_enable_dlw'] && ($mybb->settings[C_LKT.'_force_dlw'] || $mybb->user['lkt_warn_about_links']))) {
 		return;
 	}
 
 	if (!isset($lang->linktools)) {
-		$lang->load('linktools');
+		$lang->load(C_LKT);
 	}
 
 	$urls = lkt_extract_urls($posthandler->data['message']);
@@ -2084,6 +2183,10 @@ function lkt_hookin__datahandler_post_insert_thread($posthandler) {
 function lkt_hookin__newthread_start() {
 	global $mybb, $lang, $templates, $linktools_div, $linktools_js;
 
+	if (!$mybb->settings[C_LKT.'_enable_dlw']) {
+		return;
+	}
+
 	if (!isset($lang->linktools)) {
 		$lang->load(C_LKT);
 	}
@@ -2119,6 +2222,8 @@ function lkt_hookin__newthread_start() {
 	$linktools_js = <<<EOF
 <script type="text/javascript" src="{$mybb->settings['bburl']}/jscripts/linktools.js"></script>
 <script type="text/javascript">
+var lkt_setting_warn_about_links  = {$mybb->user['lkt_warn_about_links']};
+var lkt_setting_dlw_forced        = {$mybb->settings['linktools_force_dlw']};
 var lkt_msg_started_by            = '{$lkt_msg_started_by}';
 var lkt_msg_opening_post          = '{$lkt_msg_opening_post}';
 var lkt_msg_non_opening_post      = '{$lkt_msg_non_opening_post}';
@@ -2561,4 +2666,33 @@ function lkt_search($urls) {
 	);
 	$db->insert_query('searchlog', $searcharray);
 	redirect('search.php?action=results&sid='.$sid, $lang->redirect_searchresults);
+}
+
+function lkt_hookin__xmlhttp() {
+	global $mybb, $db;
+
+	if ($mybb->input['action'] == 'lkt_set_warn_about_links') {
+		$lkt_setting_warn_about_links = $mybb->get_input('lkt_setting_warn_about_links', MyBB::INPUT_INT) ? 1 : 0;
+		$db->update_query('users', array('lkt_warn_about_links' => $lkt_setting_warn_about_links), "uid='{$mybb->user['uid']}'");
+	}
+}
+
+function lkt_hookin__admin_config_settings_change() {
+	global $db, $mybb, $lkt_settings_peeker;
+
+	$res = $db->simple_select('settinggroups', 'gid', "name = '".C_LKT."_settings'", array('limit' => 1));
+	$gid = $db->fetch_field($res, 'gid');
+	$lkt_settings_peeker = ($mybb->input['gid'] == $gid) && ($mybb->request_method != 'post');
+}
+
+function lkt_hookin__admin_page_output_footer() {
+	global $lkt_settings_peeker;
+
+	if ($lkt_settings_peeker) {
+		echo '<script type="text/javascript">
+		$(document).ready(function() {
+			new Peeker($(".setting_'.C_LKT.'_enable_dlw"), $("#row_setting_'.C_LKT.'_force_dlw"), 1, true)
+		});
+		</script>';
+	}
 }

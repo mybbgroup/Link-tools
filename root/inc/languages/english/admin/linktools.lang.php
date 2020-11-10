@@ -34,3 +34,12 @@ $l['lkt_success_rebuild_renorm'] = 'Successfully renormalised links for Link Too
 $l['lkt_task_title'       ] = 'Link Tools Link Extraction And Redirect Resolution';
 $l['lkt_task_description' ] = 'Extracts links from any posts from which links have not already been extracted, and stores them into the database. Then resolves ultimate redirect targets for up to '.lkt_default_rebuild_term_items_per_page.' links for which an ultimate redirect target has not yet already been resolved, and stores those targets into the database. The first part of this task is most useful in cases in which the plugin is deactivated for a period, during which new posts will not have their links extracted by the plugin - this task then "catches up" on those posts when the plugin is reactivated. On top of that scenario, the second part of this task is necessary because even though redirect targets are resolved when links are first extracted and stored after being edited into a new or existing post, there can sometimes be network errors or downed sites which prevent proper resolution of any redirect(s) at the time.';
 $l['lkt_task_ran'         ] = 'The Link Tools link extraction and redirect resolution task successfully ran.'; // duplicated in ../linktools.php
+
+$l['lkt_enable_dlw_title' ] = 'Enable the duplicate link warner?';
+$l['lkt_enable_dlw_desc'  ] = 'When enabled, a member posting a new thread will be warned if any links in their thread-starter have already been posted to the forum in one or more existing posts.';
+
+$l['lkt_settings'         ] = 'Link Tools Settings';
+$l['lkt_settings_desc'    ] = 'Settings to customise the Link Tools plugin';
+
+$l['lkt_force_dlw_title'  ] = 'Force members to use the duplicate link warner?';
+$l['lkt_force_dlw_desc'   ] = 'When set to "Yes", a member posting a new thread will not be permitted to disable the duplicate link warner. Otherwise, members may uncheck a "Warn about duplicate links" checkbox while posting a new thread to disable the duplicate link warner. The value of this checkbox persists across pages and sessions - it is stored in the member\'s settings.';

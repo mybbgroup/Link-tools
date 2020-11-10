@@ -516,7 +516,7 @@ var DLW = {
 	},
 
 	warn_summ_box: function(flash) {
-		if ($('#dlw-cbx-do-warn').length && !($('#dlw-cbx-do-warn').prop('checked'))) {
+		if (!lkt_setting_dlw_forced && $('#dlw-cbx-do-warn').length && !($('#dlw-cbx-do-warn').prop('checked'))) {
 			return;
 		}
 
@@ -655,20 +655,23 @@ var DLW = {
 
 		var lkt_sidebar_div = $('#dlw-msg-sidebar-div');
 		if (lkt_sidebar_div.length) {
-			lkt_sidebar_div.append('<input type="checkbox" id="dlw-cbx-do-warn" name="dlw-cbx-do-warn" checked="checked" /> <span title="' + lkt_title_warn_about_links + '">' + lkt_warn_about_links + '</span>');
-			$('#dlw-cbx-do-warn').bind('click', function(e) {
-				if (!$('#dlw-cbx-do-warn').prop('checked')) {
-					if ($('#dlw-warn-summ-box').length) {
-						$('#dlw-warn-summ-box').remove();
+			if (!lkt_setting_dlw_forced) {
+				lkt_sidebar_div.append('<input type="checkbox" id="dlw-cbx-do-warn" name="dlw-cbx-do-warn"' + (lkt_setting_warn_about_links ? ' checked="checked"' : '') + ' /> <span title="' + lkt_title_warn_about_links + '">' + lkt_warn_about_links + '</span>');
+				$('#dlw-cbx-do-warn').bind('click', function(e) {
+					if (!$('#dlw-cbx-do-warn').prop('checked')) {
+						if ($('#dlw-warn-summ-box').length) {
+							$('#dlw-warn-summ-box').remove();
+						}
+						$('#dlw-btn-undismiss').hide();
+					} else {
+						if (DLW.have_dismissed()) {
+							$('#dlw-btn-undismiss').show();
+						}
+						DLW.warn_summ_box(false);
 					}
-					$('#dlw-btn-undismiss').hide();
-				} else {
-					if (DLW.have_dismissed()) {
-						$('#dlw-btn-undismiss').show();
-					}
-					DLW.warn_summ_box(false);
-				}
-			});
+					$.ajax(rootpath + '/xmlhttp.php?action=lkt_set_warn_about_links&lkt_setting_warn_about_links=' +  ($('#dlw-cbx-do-warn').prop('checked') ? '1' : '0'));
+				});
+			}
 		} else	console.debug('Could not locate the duplicate link warner sidebar div. The "Warn about duplicate links" checkbox and "Undismiss all duplicate link warnings" button will be unavailable.');
 
 		$('<input>').attr({
