@@ -76,7 +76,7 @@ function linktools_info() {
 	global $lang, $db, $mybb, $plugins_cache, $admin_session;
 
 	if (!isset($lang->linktools)) {
-		$lang->load('linktools');
+		$lang->load(C_LKT);
 	}
 
 	$ret = array(
@@ -1854,7 +1854,7 @@ WHERE url = \''.$db->escape_string($url).'\' AND '.
 function lkt_hookin__admin_tools_recount_rebuild_output_list() {
 	global $lang, $form_container, $form;
 	if (!isset($lang->linktools)) {
-		$lang->load('linktools');
+		$lang->load(C_LKT);
 	}
 
 	$form_container->output_cell("<label>{$lang->lkt_rebuild_links}</label><div class=\"description\">{$lang->lkt_rebuild_links_desc}</div>");
@@ -1876,7 +1876,7 @@ function lkt_hookin__admin_tools_recount_rebuild_output_list() {
 function lkt_hookin__admin_tools_recount_rebuild() {
 	global $db, $mybb, $lang;
 	if (!isset($lang->linktools)) {
-		$lang->load('linktools');
+		$lang->load(C_LKT);
 	}
 
 	if($mybb->request_method == "post") {
@@ -2085,7 +2085,7 @@ function lkt_hookin__newthread_start() {
 	global $mybb, $lang, $templates, $linktools_div, $linktools_js;
 
 	if (!isset($lang->linktools)) {
-		$lang->load('linktools');
+		$lang->load(C_LKT);
 	}
 
 	$linktools_div = "\n";
