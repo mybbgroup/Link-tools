@@ -221,7 +221,6 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 	// existing entries.
 	lkt_create_templategroup();
 	lkt_insert_templates($from_version);
-	lkt_create_stylesheet();
 	lkt_create_settingsgroup();
 	lkt_create_settings();
 }
@@ -280,6 +279,8 @@ function linktools_activate() {
 		$lkt_plugin_upgrade_message = $lang->sprintf($lang->lkt_successful_upgrade_msg, $lang->lkt_name, $info['version']);
 		update_admin_session('lkt_plugin_info_upgrade_message', $lang->sprintf($lang->lkt_successful_upgrade_msg_for_info, $info['version']));
 	}
+
+	lkt_create_stylesheet();
 
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
 	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$linktools_div}');
@@ -554,7 +555,7 @@ EOF;
 function lkt_create_stylesheet() {
 	global $db;
 
-	// This function can be called on upgrade, so first delete any existing stylesheet.
+	// This function is called on activate, so first delete any existing stylesheet.
 	lkt_delete_stylesheet();
 
 	$row = array(
