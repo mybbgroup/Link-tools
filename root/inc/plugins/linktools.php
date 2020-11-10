@@ -106,10 +106,10 @@ function linktools_info() {
 		'website'       => 'https://github.com/lairdshaw/MyBB-link-tools',
 		'author'        => 'Laird Shaw',
 		'authorsite'    => 'https://creativeandcritical.net/',
-		'version'       => '1.0.0',
+		'version'       => '1.0.1',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
-		'version_code'  => '10000',
+		'version_code'  => '10001',
 		'guid'          => '',
 		'codename'      => C_LKT,
 		'compatibility' => '18*'
