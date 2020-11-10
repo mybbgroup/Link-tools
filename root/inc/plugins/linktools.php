@@ -32,11 +32,11 @@ const lkt_default_rebuild_renorm_items_per_page = 500;
 
 const lkt_max_matching_posts = 10;
 
-const urls_limit_for_get_and_store_terms = 2000;
+const lkt_urls_limit_for_get_and_store_terms = 2000;
 
 // 2083 was chosen because it is the maximum size URL that Internet Explorer will accept
 // (other major browsers have higher limits).
-const c_max_url_len = 2083;
+const lkt_max_url_len = 2083;
 
 const lkt_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
 const lkt_check_for_html_redirects = true;
@@ -106,7 +106,7 @@ function linktools_info() {
 		'website'       => 'https://github.com/lairdshaw/MyBB-link-tools',
 		'author'        => 'Laird Shaw',
 		'authorsite'    => 'https://creativeandcritical.net/',
-		'version'       => '1.0.1',
+		'version'       => '1.0.1-dev',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
 		'version_code'  => '10001',
@@ -200,10 +200,10 @@ function lkt_install_or_upgrade($from_version, $to_version) {
 		$db->query('
 CREATE TABLE '.TABLE_PREFIX.'urls (
   urlid         int unsigned NOT NULL auto_increment,
-  url           varchar('.c_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  url_norm      varchar('.c_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  url_term      varchar('.c_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  url_term_norm varchar('.c_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url           varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_norm      varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_term      varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_term_norm varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   got_term      boolean       NOT NULL DEFAULT FALSE,
   term_tries    tinyint unsigned NOT NULL DEFAULT 0,
   last_term_try int unsigned  NOT NULL default 0,
@@ -1067,10 +1067,10 @@ function lkt_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 			if ($row = $db->fetch_array($res)) {
 				$urlid = $row['urlid'];
 			} else {
-				$url_fit         = substr($url   , 0, c_max_url_len);
-				$url_norm_fit    = substr(lkt_normalise_url($url), 0, c_max_url_len);
-				$target_fit      = substr($target, 0, c_max_url_len);
-				$target_norm_fit = substr(lkt_normalise_url($target == false ? $url : $target), 0, c_max_url_len);
+				$url_fit         = substr($url   , 0, lkt_max_url_len);
+				$url_norm_fit    = substr(lkt_normalise_url($url), 0, lkt_max_url_len);
+				$target_fit      = substr($target, 0, lkt_max_url_len);
+				$target_norm_fit = substr(lkt_normalise_url($target == false ? $url : $target), 0, lkt_max_url_len);
 				// Simulate the enforcement of a UNIQUE constraint on the `url` column
 				// using a SELECT with a HAVING condition. This prevents the possibility of
 				// rows with duplicate values for `url`.
@@ -1823,7 +1823,7 @@ lkt_get_and_store_terms_start:
 			$conds,
 			array(
 				'limit_start' => $start,
-				'limit' => urls_limit_for_get_and_store_terms
+				'limit' => lkt_urls_limit_for_get_and_store_terms
 			),
 			array(
 				'order_by' => 'urlid',
@@ -1950,8 +1950,8 @@ WHERE url = \''.$db->escape_string($url).'\' AND '.
 				if ($term === false) {
 					$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET term_tries = term_tries + 1, last_term_try = '.time().', lock_time = 0 WHERE urlid='.$ids[$url]);
 				} else  {
-					$term_fit      = substr($term                   , 0, c_max_url_len);
-					$term_norm_fit = substr(lkt_normalise_url($term), 0, c_max_url_len);
+					$term_fit      = substr($term                   , 0, lkt_max_url_len);
+					$term_norm_fit = substr(lkt_normalise_url($term), 0, lkt_max_url_len);
 					$fields = array(
 						'url_term'      => $db->escape_string($term_fit     ),
 						'url_term_norm' => $db->escape_string($term_norm_fit),
@@ -2085,8 +2085,8 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 			$updates = array();
 			while (($row = $db->fetch_array($res))) {
 				$updates[$row['urlid']] = array(
-					'url_norm'      => $db->escape_string(substr(lkt_normalise_url($row['url'     ]), 0, c_max_url_len)),
-					'url_term_norm' => $db->escape_string(substr(lkt_normalise_url($row['url_term']), 0, c_max_url_len)),
+					'url_norm'      => $db->escape_string(substr(lkt_normalise_url($row['url'     ]), 0, lkt_max_url_len)),
+					'url_term_norm' => $db->escape_string(substr(lkt_normalise_url($row['url_term']), 0, lkt_max_url_len)),
 				);
 			}
 			foreach ($updates as $urlid => $update_fields) {
