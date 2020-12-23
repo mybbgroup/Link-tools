@@ -939,7 +939,7 @@ function lkt_get_posts_for_urls($urls, $post_edit_times = array()) {
 	$db->free_result($res);
 
 	if (!$matching_posts) {
-		return array(null, $forum_names, false);
+		return array($matching_posts, $forum_names, false);
 	}
 
 	uasort($matching_posts, function ($post1, $post2) use ($urls) {
