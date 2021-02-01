@@ -1195,14 +1195,7 @@ function lkt_handle_new_post($posthandler) {
 		return;
 	}
 
-	// Ensure that if the user cancels while the page is loading, the parsing
-	// out of, and especially the resolution of redirects of, and then the
-	// storage into the database of, URLs continues to run - the redirect
-	// resolution in particular might take some time.
-	add_shutdown('lkt_get_and_add_urls_of_post', array(
-		$posthandler->data['message'],
-		$posthandler->pid
-	));
+	lkt_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
 }
 
 function lkt_get_and_add_urls_of_post($message, $pid = null) {
@@ -1591,6 +1584,7 @@ function lkt_get_linkhelper_classnames() {
 }
 
 /**
+ * @param string $term_url A terminating URL.
  * @return Mixed.
  *         Boolean False if a preview is not required for the supplied URL.
  *         Null If a preview is required and a valid one has been retrieved from
@@ -1600,18 +1594,18 @@ function lkt_get_linkhelper_classnames() {
  *           preview if a preview is required but a valid one does not exist in
  *           the DB.
  */
-function lkt_url_has_needs_preview($url, &$preview, &$has_db_entry) {
+function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
 	global $db, $mybb;
 
 	$has_db_entry = null;
 
-	if (!in_array(lkt_get_scheme($url), array('http', 'https', ''))) {
+	if (!in_array(lkt_get_scheme($term_url), array('http', 'https', ''))) {
 		return false;
 	}
 
-	// First, check settings to determine whether we need a preview for this type of $url.
+	// First, check settings to determine whether we need a preview for this type of URL.
 	$only_if_helper = $only_if_3p = false;
-	if (!$mybb->settings[C_LKT.'_link_preview_disable_self_dom'] && lkt_get_norm_server_from_url($url) == lkt_get_norm_server_from_url($mybb->settings['bburl'])) {
+	if (!$mybb->settings[C_LKT.'_link_preview_disable_self_dom'] && lkt_get_norm_server_from_url($term_url) == lkt_get_norm_server_from_url($mybb->settings['bburl'])) {
 		return false;
 	} else {
 		switch ($mybb->settings[C_LKT.'_link_preview_type']) {
@@ -1633,7 +1627,7 @@ function lkt_url_has_needs_preview($url, &$preview, &$has_db_entry) {
 				$ret = !$whitelisting;
 				foreach ($list as $domain) {
 					$listed_domain = lkt_normalise_domain($domain);
-					$url_domain = lkt_get_norm_server_from_url($url);
+					$url_domain = lkt_get_norm_server_from_url($term_url);
 					if ($listed_domain && $listed_domain == $url_domain) {
 						$ret = $whitelisting;
 						break;
@@ -1663,7 +1657,7 @@ function lkt_url_has_needs_preview($url, &$preview, &$has_db_entry) {
 			break;
 		}
 		foreach ($LinkHelperClassNames[$helper_type] as $helper_class_name) {
-			if ($helper_class_name::supports_link($url)
+			if ($helper_class_name::supports_link($term_url)
 			    &&
 			    ($helper_class_name::get_priority() > $max_priority
 			     ||
@@ -1707,7 +1701,7 @@ function lkt_url_has_needs_preview($url, &$preview, &$has_db_entry) {
 	// still-prioritised Helper (when the relevant plugin setting is
 	// enabled).
 	$regen = false;
-	$url_norm = lkt_normalise_url($url);
+	$url_norm = lkt_normalise_url($term_url);
 	$query = $db->simple_select('urls_extra', 'valid, dateline, helper_class_name, helper_class_vers, preview', "url_norm = '".$db->escape_string($url_norm)."'");
 	$row = $db->fetch_array($query);
 	if ($row) {
@@ -1730,20 +1724,29 @@ function lkt_url_has_needs_preview($url, &$preview, &$has_db_entry) {
 	return $regen ? $priority_helper_classname : null;
 }
 
-function lkt_get_gen_link_previews($urls) {
+/**
+ * @param $term_urls Array. Keys are non-normalised URLs; values are their
+ *                          non-normalised terminating URLs.
+ *
+ * @return Array. Keys are non-normalised URLs as supplied in $term_urls;
+ *                values are the previews of the corresponding terminating URLs
+ *                also as supplied in $term_urls.
+ */
+function lkt_get_gen_link_previews($term_urls) {
 	global $db;
 
 	$previews = $lh_data = array();
-	$urls = array_unique($urls);
-	foreach ($urls as $url) {
+	$term_urls_uniq = array_values(array_unique($term_urls));
+
+	foreach ($term_urls_uniq as $term_url) {
 		// There is room for optimisation here: potentially, a database
 		// query is made here on each iteration of the loop, which is
 		// inefficient.
-		$res = lkt_url_has_needs_preview($url, $preview, $has_db_entry);
+		$res = lkt_url_has_needs_preview($term_url, $preview, $has_db_entry);
 		if (is_null($res)) {
-			$previews[$url] = $preview;
+			$previews[$term_url] = $preview;
 		} else if ($res) {
-			$lh_data[$url] = array(
+			$lh_data[$term_url] = array(
 				'lh_classname' => $res,
 				'has_db_entry' => $has_db_entry
 			);
@@ -1856,10 +1859,15 @@ function lkt_get_gen_link_previews($urls) {
 			$i++;
 		// The condition with $i is simply defensive programming in case
 		// this loop accidentally otherwise becomes infinite.
-		} while ($i <= count($urls) && ($qry_urls || $min_wait < PHP_INT_MAX && $min_wait > 0));
+		} while ($i <= count($term_urls) && ($qry_urls || $min_wait < PHP_INT_MAX && $min_wait > 0));
 	}
 
-	return $previews;
+	$ret = array();
+	foreach ($term_urls as $url => $term_url) {
+		$ret[$url] = $previews[$term_url];
+	}
+
+	return $ret;
 }
 
 /**
@@ -1871,11 +1879,11 @@ function lkt_get_gen_link_previews($urls) {
  * is assumed that a database entry for the link already exists, and so an
  * update query is performed rather than an insert query.
  */
-function lkt_get_gen_link_preview($url, $html, $lh_classname = false, $has_db_entry = null) {
+function lkt_get_gen_link_preview($term_url, $html, $lh_classname = false, $has_db_entry = null) {
 	global $db;
 
 	if (!$lh_classname) {
-		$res = lkt_url_has_needs_preview($url, $preview, $has_db_entry);
+		$res = lkt_url_has_needs_preview($term_url, $preview, $has_db_entry);
 	} else	$res = $lh_classname;
 
 	if ($res === false) {
@@ -1883,9 +1891,9 @@ function lkt_get_gen_link_preview($url, $html, $lh_classname = false, $has_db_en
 	} else if ($res) {
 		// (Re)generate the preview and return it.
 		$priority_helper_classname = $res;
-		$url_norm = lkt_normalise_url($url);
+		$url_norm = lkt_normalise_url($term_url);
 		$helper = $priority_helper_classname::get_instance();
-		$preview = $helper->get_preview($url, $html);
+		$preview = $helper->get_preview($term_url, $html);
 		$fields = array(
 			'valid' => '1',
 			'dateline' => TIME_NOW,
@@ -1948,7 +1956,7 @@ function lkt_get_url_term_redirs($urls, &$got_terms = array(), $get_link_preview
 
 	$redirs = lkt_get_url_term_redirs_auto($urls);
 	if ($get_link_previews) {
-		lkt_get_gen_link_previews($redirs);
+		lkt_get_gen_link_previews($redirs, false);
 	}
 
 	$use_head_method = $want_use_head_method;
@@ -2271,14 +2279,7 @@ function lkt_hookin__datahandler_post_update_end($posthandler) {
 
 	$db->delete_query('post_urls', "pid={$posthandler->pid}");
 	if (isset($posthandler->data['message'])) {
-		// Ensure that if the user cancels while the page is loading, the parsing
-		// out of, and especially the resolution of redirects of, and then the
-		// storage into the database of, URLs continues to run - the redirect
-		// resolution in particular might take some time.
-		add_shutdown('lkt_get_and_add_urls_of_post', array(
-			$posthandler->data['message'],
-			$posthandler->pid
-		));
+		lkt_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
 	}
 }
 
@@ -3242,7 +3243,7 @@ function lkt_hookin__postbit($post) {
 	global $g_lkt_links;
 
 	if ($g_lkt_links) {
-		foreach (lkt_get_gen_link_previews($g_lkt_links) as $preview) {
+		foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($g_lkt_links), true) as $preview) {
 			$post['message'] .= $preview;
 		}
 	}
@@ -3254,7 +3255,7 @@ function lkt_hookin__xmlhttp_update_post() {
 	global $g_lkt_links, $post;
 
 	if ($g_lkt_links) {
-		foreach (lkt_get_gen_link_previews($g_lkt_links) as $preview) {
+		foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($g_lkt_links), true) as $preview) {
 			$post['message'] .= $preview;
 		}
 	}
@@ -3285,4 +3286,28 @@ function lkt_hookin__admin_config_action_handler(&$actions) {
 		'active' => 'linkhelpers'    ,
 		'file'   => 'linkhelpers.php',
 	);
+}
+
+/**
+ * In contrast to lkt_get_url_term_redirs(), which queries web servers for
+ * terminating URLs, this retrieves those already-web-queried terminating URLs
+ * from the table to which they were stored in our database.
+ */
+function lkt_retrieve_terms($urls) {
+	global $db;
+
+	$urls = array_unique($urls);
+	$terms = array();
+	$query = $db->simple_select('urls', 'url, url_term', "url_norm IN ('".implode("', '", array_map(function($url) use ($db) {return $db->escape_string(lkt_normalise_url($url));}, $urls))."')");
+	while ($row = $db->fetch_array($query)) {
+		$terms[$row['url']] = $row['url_term'];
+	}
+
+	foreach ($urls as $url) {
+		if (!isset($terms[$url])) {
+			$terms[$url] = $url;
+		}
+	}
+
+	return $terms;
 }
