@@ -594,6 +594,7 @@ function lkt_get_linkpreview_css() {
 	border: 1px solid #AAA;
 	margin-top: 20px;
 	max-width: 550px;
+	min-height: 35px;
 }
 
 .lkt-link-preview a {

@@ -56,7 +56,7 @@ class LinkHelperDefault extends LinkHelper {
 		global $mybb;
 
 		$max_title_chars = 80;
-		$max_desc_chars = 85;
+		$max_desc_chars = 83;
 
 		$title = preg_match('(<title>(.*?)</title>)', $html, $matches) ? $matches[1] : 'Untitled';
 		$need_ellipsis_title = strlen($title) > $max_title_chars;
@@ -70,10 +70,10 @@ class LinkHelperDefault extends LinkHelper {
 		) {
 			$description = $matches[1];
 		} else {
-			$arr = explode('<body>', $html, 2);
+			$arr = preg_split('(<body[^>]*>)', $html, 2);
 			if (count($arr) >= 2) {
 				$body = $arr[1];
-				$plaintext = strip_tags($body);
+				$plaintext = preg_replace('(\\s+)', ' ', strip_tags($body));
 				$description = $plaintext;
 			} else	$description = '';
 		}

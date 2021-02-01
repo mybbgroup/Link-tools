@@ -164,7 +164,7 @@ abstract class LinkHelper {
 	 * @return string The safe HTML.
 	 */
 	public function make_safe($html) {
-		return htmlspecialchars_uni(htmlspecialchars_decode(strip_tags($html)));
+		return strip_tags($html);
 	}
 
 	static public function mk_tpl_nm_frm_classnm($classname) {
