@@ -69,8 +69,10 @@ $l['lkt_link_preview_expire_on_new_helper_title'] = 'Expire link previews on hel
 $l['lkt_link_preview_expire_on_new_helper_desc' ] = 'Whether or not a link preview should be expired (and regenerated on-demand) when the helper which originally generated it is changed, or when a new, higher priority helper applies to the link. Choose "Yes" for expiry and "No" to leave such link previewss unexpired.';
 
 $l['lkt_linkhelpers'] = 'Link Helpers';
-$l['lkt_template_installed'] = 'Template installed for this helper?';
-$l['lkt_instuninst_lhelpertpl'] = 'Install/uninstall helper templates';
+$l['lkt_template_installed'] = 'Template installed?';
+$l['lkt_helper_enabled'    ] = 'Enabled?';
+$l['lkt_helper_name'       ] = 'Helper name';
+$l['lkt_update'            ] = 'Update Link Helpers';
 $l['lkt_missing_hlp_name'] = '"{1}" (Class name; helper file missing so friendly name unknown)';
 
 // One or the other of these two strings...

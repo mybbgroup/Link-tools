@@ -198,7 +198,7 @@ function linktools_info() {
 
 		$inst_hlp_tpl_miss_cnt = 0;
 		foreach ($present_helpers as $present_helper) {
-			if (!isset($inst_helpers[$present_helper])) {
+			if (empty($inst_helpers[$present_helper]['tpl_installed'])) {
 				$helperobj = $present_helper::get_instance();
 				if ($helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
 					$inst_hlp_tpl_miss_cnt++;
@@ -208,7 +208,7 @@ function linktools_info() {
 
 		if ($inst_hlp_tpl_miss_cnt) {
 			$lang_helper_or_helpers = $inst_hlp_tpl_miss_cnt == 1 ? $lang->lkt_one_helper : $lang->sprintf($lang->lkt_helpers, $inst_hlp_tpl_miss_cnt);
-			$desc .= '	<li style="list-style-image: url(styles/default/images/icons/warning.png); color: red;">'.$lang->sprintf($lang->lkt_need_inst_helpers, $lang_helper_or_helpers, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=config-linkhelpers" style="display: inline;"><input type="hidden" name="installall" value="1" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_installuninstall" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;" /></form>').'</li>';
+			$desc .= '	<li style="list-style-image: url(styles/default/images/icons/warning.png); color: red;">'.$lang->sprintf($lang->lkt_need_inst_helpers, $lang_helper_or_helpers, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=config-linkhelpers" style="display: inline;"><input type="hidden" name="installall" value="1" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_update" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;" /></form>').'</li>';
 		}
 
 		$desc .= '</ul>'.PHP_EOL;
@@ -516,7 +516,6 @@ function lkt_toggle_hidden_posts() {
 	$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
 	                  ? $lrs_plugins[C_LKT]['installed_link_helpers']
 	                  : array();
-	$inst_helpers['LinkHelperDefault'] = LinkHelperDefault::get_instance()->get_version();
 	$present_helpers = array();
 	foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
 		$present_helpers = array_merge($present_helpers, $classnames);
@@ -552,7 +551,7 @@ function lkt_toggle_hidden_posts() {
 
 	// And now do the same for installed Link Helper templates.
 	foreach (array_intersect($present_helpers, array_keys($inst_helpers)) as $helper) {
-		$from_version   = $inst_helpers[$helper];
+		$from_version   = $inst_helpers[$helper]['tpl_installed'];
 		$latest_version = $helper::get_version();
 		$helperobj      = $helper::get_instance();
 		if ($tplname = $helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
@@ -569,7 +568,7 @@ function lkt_toggle_hidden_posts() {
 			);
 			$db->insert_query('templates', $fields);
 
-			$inst_helpers[$helper] = $latest_version;
+			$inst_helpers[$helper]['tpl_installed'] = $latest_version;
 		}
 	}
 
@@ -1587,7 +1586,7 @@ function lkt_get_linkhelper_classnames() {
  *           the DB.
  */
 function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
-	global $db, $mybb;
+	global $db, $mybb, $cache;
 
 	$has_db_entry = null;
 
@@ -1639,6 +1638,12 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
 	// Next, get all LinkHelper classes.
 	$LinkHelperClassNames = lkt_get_linkhelper_classnames();
 
+	// Load all installed helpers.
+	$lrs_plugins = $cache->read('lrs_plugins');
+	$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
+	                  ? $lrs_plugins[C_LKT]['installed_link_helpers']
+	                  : array();
+
 	// Now, get the highest-prioritised LinkHelper class for this link type.
 	$max_priority = PHP_INT_MIN;
 	$priority_helper_classname = '';
@@ -1649,7 +1654,9 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
 			break;
 		}
 		foreach ($LinkHelperClassNames[$helper_type] as $helper_class_name) {
-			if ($helper_class_name::supports_link($term_url)
+			if (!empty($inst_helpers[$helper_class_name]['enabled'])
+			    &&
+			    $helper_class_name::supports_link($term_url)
 			    &&
 			    ($helper_class_name::get_priority() > $max_priority
 			     ||
