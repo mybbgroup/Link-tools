@@ -825,6 +825,18 @@ function lkt_create_settings() {
 			'optionscode' => 'yesno',
 			'value'       => '1',
 		),
+		'link_preview_on_fly' => array(
+			'title'       => $lang->lkt_link_preview_on_fly_title,
+			'description' => $lang->lkt_link_preview_on_fly_desc,
+			'optionscode' => "select\nalways={$lang->lkt_link_preview_on_fly_always}\nnever={$lang->lkt_link_preview_on_fly_never}\nonly_without_cache={$lang->lkt_link_preview_on_fly_only_without_cache}\nwhitelist={$lang->lkt_link_preview_on_fly_whitelist}\nblacklist={$lang->lkt_link_preview_on_fly_blacklist}",
+			'value'       => 'only_without_cache',
+		),
+		'link_preview_on_fly_dom_list' => array(
+			'title'       => $lang->lkt_link_preview_on_fly_dom_list_title,
+			'description' => $lang->lkt_link_preview_op_fly_dom_list_desc,
+			'optionscode' => 'textarea',
+			'value'       => '',
+		),
 	);
 
 	// (Re)create the settings, retaining the old values where they exist.
@@ -1633,6 +1645,37 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
 				// Preview needed.
 				break;
 		}
+		$regen = false;
+		if (THIS_SCRIPT == 'showthread.php') {
+			switch ($mybb->settings[C_LKT.'_link_preview_on_fly']) {
+			case 'always':
+				$regen = true;
+				break;
+			case 'never':
+				return false;
+			case 'whitelist':
+			case 'blacklist':
+				$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_on_fly_dom_list']);
+				$whitelisting = $mybb->settings[C_LKT.'_link_preview_on_fly'] == 'whitelist';
+				if ($whitelisting && !$list) {
+					return false;
+				}
+				$ret = !$whitelisting;
+				foreach ($list as $domain) {
+					$listed_domain = lkt_normalise_domain($domain);
+					$url_domain = lkt_get_norm_server_from_url($term_url);
+					if ($listed_domain && $listed_domain == $url_domain) {
+						$ret = $whitelisting;
+						break;
+					}
+				}
+				if ($ret === false) {
+					return false;
+				}
+				$regen = true;
+				break;
+			}
+		}
 	}
 
 	// Next, get all LinkHelper classes.
@@ -1699,12 +1742,11 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
 	// no-longer-prioritised Helper or an earlier version of the
 	// still-prioritised Helper (when the relevant plugin setting is
 	// enabled).
-	$regen = false;
 	$url_norm = lkt_normalise_url($term_url);
 	$query = $db->simple_select('urls_extra', 'valid, dateline, helper_class_name, helper_class_vers, preview', "url_norm = '".$db->escape_string($url_norm)."'");
 	$row = $db->fetch_array($query);
-	if ($row) {
-		$has_db_entry = true;
+	$has_db_entry = $row ? true : false;
+	if ($row && !$regen) {
 		$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
 		$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
 		if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
@@ -1714,9 +1756,6 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
 		if (!$regen) {
 			$preview = $row['preview'];
 		}
-	} else {
-		$has_db_entry = false;
-		$regen = true;
 	}
 
 	// Earlier returns possible.
@@ -3261,9 +3300,11 @@ function lkt_hookin__xmlhttp_update_post() {
 }
 
 function lkt_hookin__parse_message_start($message) {
-	global $g_lkt_links;
+	global $g_lkt_links, $mybb;
 
-	$g_lkt_links = lkt_extract_urls($message, /*$exclude_videos = */true);
+	if (!(THIS_SCRIPT == 'showthread.php' && $mybb->settings[C_LKT.'_link_preview_on_fly'] == 'never')) {
+		$g_lkt_links = lkt_retrieve_terms(lkt_extract_urls($message, /*$exclude_videos = */true));
+	} else	$g_lkt_links = array();
 
 	return $message;
 }
