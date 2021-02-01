@@ -80,7 +80,7 @@ abstract class LinkHelper {
 	 * This contains the contents of the template which Link Tools adds to
 	 * MyBB when this Link Helper is enabled in the ACP. If it is empty, the
 	 * call to $this->get_template_for_eval() will return the contents of the
-	 * 'linktools_linkpreview_base' template. If it is not empty, it will
+	 * 'linktools_linkpreview_default' template. If it is not empty, it will
 	 * be named 'linktools_linkpreview_' followed by the lowercased class
 	 * name with the "LinkHelper" prefix removed.
 	 *
@@ -188,7 +188,7 @@ abstract class LinkHelper {
 			return self::mk_tpl_nm_frm_classnm(get_class($this));
 		} else if ($ret_empty_if_default) {
 			return '';
-		} else	return 'linktools_linkpreview_base';
+		} else	return 'linktools_linkpreview_default';
 	}
 
 	/**

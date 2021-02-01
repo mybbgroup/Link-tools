@@ -506,16 +506,6 @@ function lkt_toggle_hidden_posts() {
 			'template' => '<div class="red_alert">$matching_posts_warning_msg</div>',
 			'version_at_last_change' => '10000',
 		),
-		'linktools_linkpreview_base' => array(
-			'template' => '<div class="lkt-link-preview" style="padding-left: 3px;">
-	<a href="$link_safe">
-		<img src="$img_url" />
-		$title_safe<br />
-		<span style="font-size: small;">$description_safe</span>
-	</a>
-</div>',
-			'version_at_last_change' => '10100',
-		),
 	);
 
 	// Remove any existing Master templates for this plugin except for
@@ -526,11 +516,11 @@ function lkt_toggle_hidden_posts() {
 	$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
 	                  ? $lrs_plugins[C_LKT]['installed_link_helpers']
 	                  : array();
+	$inst_helpers['LinkHelperDefault'] = LinkHelperDefault::get_instance()->get_version();
 	$present_helpers = array();
 	foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
 		$present_helpers = array_merge($present_helpers, $classnames);
 	}
-	$present_helpers = array_diff($present_helpers, array('LinkHelperDefault'));
 	$inst_but_missing = array_diff(array_keys($inst_helpers), $present_helpers);
 	$tplnames = array_map(function($helper) {return LinkHelper::mk_tpl_nm_frm_classnm($helper);}, $inst_but_missing);
 	if ($tplnames) {
@@ -592,6 +582,7 @@ function lkt_get_linkpreview_css() {
 	return <<<EOF
 .lkt-link-preview {
 	border: 1px solid #AAA;
+	padding-left: 3px;
 	margin-top: 20px;
 	max-width: 550px;
 	min-height: 35px;

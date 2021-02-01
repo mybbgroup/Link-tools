@@ -49,6 +49,14 @@ class LinkHelperDefault extends LinkHelper {
 
 	protected $friendly_name = 'The default helper';
 
+	protected $template = '<div class="lkt-link-preview">
+	<a href="$link_safe">
+		<img src="$img_url" />
+		$title_safe<br />
+		<span style="font-size: small;">$description_safe</span>
+	</a>
+</div>';
+
 	/**
 	 * The heart of the class.
 	 */
