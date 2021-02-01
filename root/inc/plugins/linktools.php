@@ -38,6 +38,9 @@ const lkt_urls_limit_for_get_and_store_terms = 2000;
 // (other major browsers have higher limits).
 const lkt_max_url_len = 2083;
 
+const lkt_max_helper_class_name_len = 100;
+const lkt_max_helper_class_vers_len =  15;
+
 const lkt_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
 const lkt_check_for_html_redirects = true;
 const lkt_check_for_canonical_tags = true;
@@ -79,6 +82,11 @@ $plugins->add_hook('admin_config_plugins_activate_commit'   , 'lkt_hookin__admin
 $plugins->add_hook('xmlhttp'                                , 'lkt_hookin__xmlhttp'                                );
 $plugins->add_hook('admin_config_settings_change'           , 'lkt_hookin__admin_config_settings_change'           );
 $plugins->add_hook('admin_page_output_footer'               , 'lkt_hookin__admin_page_output_footer'               );
+$plugins->add_hook('postbit'                                , 'lkt_hookin__postbit'                                );
+$plugins->add_hook('parse_message_start'                    , 'lkt_hookin__parse_message_start'                    );
+$plugins->add_hook('xmlhttp_update_post'                    , 'lkt_hookin__xmlhttp_update_post'                    );
+$plugins->add_hook('admin_config_menu'                      , 'lkt_hookin__admin_config_menu'                      );
+$plugins->add_hook('admin_config_action_handler'            , 'lkt_hookin__admin_config_action_handler'            );
 
 function lkt_hookin__global_start() {
 	if (defined('THIS_SCRIPT')) {
@@ -94,7 +102,7 @@ function lkt_hookin__global_start() {
 define('C_LKT', str_replace('.php', '', basename(__FILE__)));
 
 function linktools_info() {
-	global $lang, $db, $mybb, $plugins_cache, $admin_session;
+	global $lang, $db, $mybb, $plugins_cache, $cache, $admin_session;
 
 	if (!isset($lang->linktools)) {
 		$lang->load(C_LKT);
@@ -175,7 +183,33 @@ function linktools_info() {
 				$desc .= $lang->lkt_no_links_eligible_for_resolution;
 			}
 		}
-		$desc .= '</li>'.PHP_EOL;
+		$desc .= '	</li>'.PHP_EOL;
+
+		$lrs_plugins = $cache->read('lrs_plugins');
+		$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
+		                  ? $lrs_plugins[C_LKT]['installed_link_helpers']
+		                  : array();
+
+		$present_helpers = array();
+		foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
+			$present_helpers = array_merge($present_helpers, $classnames);
+		}
+		$present_helpers = array_diff(array_unique($present_helpers), array('LinkHelperDefault'));
+
+		$inst_hlp_tpl_miss_cnt = 0;
+		foreach ($present_helpers as $present_helper) {
+			if (!isset($inst_helpers[$present_helper])) {
+				$helperobj = $present_helper::get_instance();
+				if ($helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
+					$inst_hlp_tpl_miss_cnt++;
+				}
+			}
+		}
+
+		if ($inst_hlp_tpl_miss_cnt) {
+			$lang_helper_or_helpers = $inst_hlp_tpl_miss_cnt == 1 ? $lang->lkt_one_helper : $lang->sprintf($lang->lkt_helpers, $inst_hlp_tpl_miss_cnt);
+			$desc .= '	<li style="list-style-image: url(styles/default/images/icons/warning.png); color: red;">'.$lang->sprintf($lang->lkt_need_inst_helpers, $lang_helper_or_helpers, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=config-linkhelpers" style="display: inline;"><input type="hidden" name="installall" value="1" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_installuninstall" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;" /></form>').'</li>';
+		}
 
 		$desc .= '</ul>'.PHP_EOL;
 
@@ -206,12 +240,29 @@ CREATE TABLE '.TABLE_PREFIX.'urls (
   url_term_norm varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   got_term      boolean       NOT NULL DEFAULT FALSE,
   term_tries    tinyint unsigned NOT NULL DEFAULT 0,
-  last_term_try int unsigned  NOT NULL default 0,
-  lock_time     int unsigned  NOT NULL default 0,
+  last_term_try int unsigned  NOT NULL DEFAULT 0,
+  lock_time     int unsigned  NOT NULL DEFAULT 0,
   KEY           url           (url(168)),
   KEY           url_norm      (url_norm(166)),
   KEY           url_term_norm (url_term_norm(166)),
   PRIMARY KEY   (urlid)
+)'.$db->build_create_table_collation().';');
+	}
+
+	if (!$db->table_exists('urls_extra')) {
+		// utf8_bin collation was chosen for the varchar columns
+		// so that SELECTs are case-sensitive, given that everything
+		// after the server name in URLs is case-sensitive.
+		$db->query('
+CREATE TABLE '.TABLE_PREFIX.'urls_extra (
+  url_norm     varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  preview      text             NOT NULL DEFAULT \'\',
+  dateline     int(10) unsigned NOT NULL DEFAULT 0,
+  valid        tinyint(1)       NOT NULL DEFAULT 1,
+  helper_class_name varchar('.lkt_max_helper_class_name_len.') NOT NULL DEFAULT \'\',
+  helper_class_vers varchar('.lkt_max_helper_class_vers_len.') NOT NULL DEFAULT \'\',
+  KEY         url_norm (url_norm(166)),
+  PRIMARY KEY (url_norm(166))
 )'.$db->build_create_table_collation().';');
 	}
 
@@ -264,10 +315,10 @@ function linktools_uninstall() {
 
 	$db->delete_query('tasks', "file='linktools'");
 
-	$db->delete_query('templates', "title LIKE 'linktools_%'");
+	$db->delete_query('templates', "title LIKE 'linktools\\_%'");
 	$db->delete_query('templategroups', "prefix in ('linktools')");
 
-	lkt_delete_stylesheet();
+	lkt_delete_stylesheets();
 
 	$lrs_plugins = $cache->read('lrs_plugins');
 	unset($lrs_plugins[C_LKT]);
@@ -298,7 +349,7 @@ function linktools_activate() {
 		update_admin_session('lkt_plugin_info_upgrade_message', $lang->sprintf($lang->lkt_successful_upgrade_msg_for_info, $info['version']));
 	}
 
-	lkt_create_stylesheet();
+	lkt_create_stylesheets();
 
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
 	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$linktools_div}');
@@ -327,10 +378,11 @@ function linktools_activate() {
 		$db->update_query('tasks', array('enabled' => 1), "tid={$tid}");
 	}
 
-	$lrs_plugins[C_LKT] = array(
-		'version'      => $info['version'     ],
-		'version_code' => $info['version_code'],
-	);
+	// Reread as this cache entry is updated in lkt_insert_templates()
+	// which is called by lkt_install_or_upgrade() above.
+	$lrs_plugins = $cache->read('lrs_plugins');
+	$lrs_plugins[C_LKT]['version'     ] = $info['version'     ];
+	$lrs_plugins[C_LKT]['version_code'] = $info['version_code'];
 	$cache->update('lrs_plugins', $lrs_plugins);
 }
 
@@ -366,7 +418,7 @@ function lkt_create_templategroup() {
 }
 
 function lkt_insert_templates($from_version) {
-	global $mybb, $db;
+	global $mybb, $cache, $db;
 
 	$templates = array(
 		'linktools_div' => array(
@@ -454,23 +506,50 @@ function lkt_toggle_hidden_posts() {
 			'template' => '<div class="red_alert">$matching_posts_warning_msg</div>',
 			'version_at_last_change' => '10000',
 		),
+		'linktools_linkpreview_base' => array(
+			'template' => '<div class="lkt-link-preview" style="padding-left: 3px;">
+	<a href="$link_safe">
+		<img src="$img_url" />
+		$title_safe<br />
+		<span style="font-size: small;">$description_safe</span>
+	</a>
+</div>',
+			'version_at_last_change' => '10100',
+		),
 	);
 
-	// Remove any existing Master templates for this plugin.
-	$db->delete_query('templates', "title LIKE 'linktools%' AND sid=-2");
+	// Remove any existing Master templates for this plugin except for
+	// those for installed link helpers no longer present in the filesystem.
+	require_once __DIR__.'/linktools/LinkHelperBase.php';
+	$helper_conds = '';
+	$lrs_plugins = $cache->read('lrs_plugins');
+	$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
+	                  ? $lrs_plugins[C_LKT]['installed_link_helpers']
+	                  : array();
+	$present_helpers = array();
+	foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
+		$present_helpers = array_merge($present_helpers, $classnames);
+	}
+	$present_helpers = array_diff($present_helpers, array('LinkHelperDefault'));
+	$inst_but_missing = array_diff(array_keys($inst_helpers), $present_helpers);
+	$tplnames = array_map(function($helper) {return LinkHelper::mk_tpl_nm_frm_classnm($helper);}, $inst_but_missing);
+	if ($tplnames) {
+		$helper_conds = " AND title NOT IN ('".implode("','", $tplnames)."')";
+	}
+	$db->delete_query('templates', "sid=-2 AND title LIKE 'linktools%'{$helper_conds}");
 
 	foreach ($templates as $template_title => $template_data) {
-		// First, flag any of this plugin's templates that have been modified in the plugin since
+		// Now, flag any of this plugin's templates that have been modified in the plugin since
 		// the version of the plugin from which we are upgrading, flagging all templates if that
 		// version number is not available. This ensures that Find Updated Templates detects them
 		// *if* the user has also modified them, and without false positives. The way we flag them
 		// is to zero the `version` column of the `templates` table where `sid` is not -2 for this
 		// plugin's templates.
 		if ($from_version === false || $template_data['version_at_last_change'] > $from_version) {
-			$db->update_query('templates', array('version' => 0), "title='{$template_title}' and sid <> -2");
+			$db->update_query('templates', array('version' => 0), "title='{$template_title}' AND sid <> -2");
 		}
 
-		// Now insert/update master templates with SID -2.
+		// And insert/update master templates with SID -2.
 		$insert_templates = array(
 			'title'    => $db->escape_string($template_title),
 			'template' => $db->escape_string($template_data['template']),
@@ -480,9 +559,59 @@ function lkt_toggle_hidden_posts() {
 		);
 		$db->insert_query('templates', $insert_templates);
 	}
+
+	// And now do the same for installed Link Helper templates.
+	foreach (array_intersect($present_helpers, array_keys($inst_helpers)) as $helper) {
+		$from_version   = $inst_helpers[$helper];
+		$latest_version = $helper::get_version();
+		$helperobj      = $helper::get_instance();
+		if ($tplname = $helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
+			if ($latest_version > $from_version) {
+				$db->update_query('templates', array('version' => 0), "title='".$db->escape_string($tplname)."' AND sid <> -2");
+			}
+
+			$fields = array(
+				'title'    => $db->escape_string($tplname),
+				'template' => $db->escape_string($helperobj->get_template_raw()),
+				'sid'      => '-2',
+				'version'  => '1',
+				'dateline' => TIME_NOW
+			);
+			$db->insert_query('templates', $fields);
+
+			$inst_helpers[$helper] = $latest_version;
+		}
+	}
+
+	$lrs_plugins[C_LKT]['installed_link_helpers'] = $inst_helpers;
+	$cache->update('lrs_plugins', $lrs_plugins);
+	$lrs_plugins = $cache->read('lrs_plugins');
 }
 
-function lkt_get_css() {
+function lkt_get_linkpreview_css() {
+	return <<<EOF
+.lkt-link-preview {
+	border: 1px solid #AAA;
+	margin-top: 20px;
+	max-width: 550px;
+}
+
+.lkt-link-preview a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.lkt-link-preview img {
+	float: left;
+	width: 35px;
+	height: 35px;
+	margin-right: 5px;
+	object-fit: cover;
+}
+EOF;
+}
+
+function lkt_get_linktools_css() {
 	return <<<EOF
 #dlw-extra-info, .dlw-post-inner {
 	position             : static;
@@ -570,25 +699,37 @@ ul.matching-urls {
 EOF;
 }
 
-function lkt_create_stylesheet() {
+function lkt_create_stylesheets() {
 	global $db;
 
 	// This function is called on activate, so first delete any existing stylesheet.
-	lkt_delete_stylesheet();
+	lkt_delete_stylesheets();
 
-	$row = array(
-		'name' => 'linktools.css',
-		'tid' => 1,
-		'attachedto' => 'newthread.php',
-		'stylesheet' => $db->escape_string(lkt_get_css()),
-		'cachefile' => 'linktools.css',
-		'lastmodified' => TIME_NOW
+	$rows = array(
+		array(
+			'name' => 'linktools.css',
+			'tid' => 1,
+			'attachedto' => 'newthread.php',
+			'stylesheet' => $db->escape_string(lkt_get_linktools_css()),
+			'cachefile' => 'linktools.css',
+			'lastmodified' => TIME_NOW
+		),
+		array(
+			'name' => 'linkpreview.css',
+			'tid' => 1,
+			'attachedto' => 'showthread.php',
+			'stylesheet' => $db->escape_string(lkt_get_linkpreview_css()),
+			'cachefile' => 'linkpreview.css',
+			'lastmodified' => TIME_NOW
+		),
 	);
 
 	require_once MYBB_ADMIN_DIR.'inc/functions_themes.php';
 
-	$sid = $db->insert_query('themestylesheets', $row);
-	$db->update_query('themestylesheets', array('cachefile' => 'css.php?stylesheet='.$sid), "sid = '".$sid."'", 1);
+	foreach ($rows as $row) {
+		$sid = $db->insert_query('themestylesheets', $row);
+		$db->update_query('themestylesheets', array('cachefile' => 'css.php?stylesheet='.$sid), "sid = '".$sid."'", 1);
+	}
 
 	$tids = $db->simple_select('themes', 'tid');
 	while ($theme = $db->fetch_array($tids)) {
@@ -596,10 +737,10 @@ function lkt_create_stylesheet() {
 	}
 }
 
-function lkt_delete_stylesheet() {
+function lkt_delete_stylesheets() {
 	global $db;
 
-	$db->delete_query('themestylesheets', "name = 'linktools.css' AND tid = 1");
+	$db->delete_query('themestylesheets', "(name = 'linktools.css' OR name = 'linkpreview.css') AND tid = 1");
 }
 
 function lkt_create_settingsgroup() {
@@ -662,6 +803,36 @@ function lkt_create_settings() {
 			'description' => $lang->lkt_force_dlw_desc ,
 			'optionscode' => 'yesno',
 			'value'       => '0',
+		),
+		'link_preview_type' => array(
+			'title'       => $lang->lkt_link_preview_type_title,
+			'description' => $lang->lkt_link_preview_type_desc,
+			'optionscode' => "select\nall={$lang->lkt_link_preview_type_all}\nnone={$lang->lkt_link_preview_type_none}\nonly_link_helpers={$lang->lkt_link_preview_type_only_link_helpers}\nonly_3rd_party={$lang->lkt_link_preview_type_only_3rd_party}\nwhitelist={$lang->lkt_link_preview_type_whitelist}\nblacklist={$lang->lkt_link_preview_type_blacklist}",
+			'value'       => 'all',
+		),
+		'link_preview_dom_list' => array(
+			'title'       => $lang->lkt_link_preview_dom_list_title,
+			'description' => $lang->lkt_link_preview_dom_list_desc,
+			'optionscode' => 'textarea',
+			'value'       => '',
+		),
+		'link_preview_disable_self_dom' => array(
+			'title'       => $lang->lkt_link_preview_disable_self_dom_title,
+			'description' => $lang->lkt_link_preview_disable_self_dom_desc,
+			'optionscode' => 'yesno',
+			'value'       => '1',
+		),
+		'link_preview_expiry_period' => array(
+			'title'       => $lang->lkt_link_preview_expiry_period_title,
+			'description' => $lang->lkt_link_preview_expiry_period_desc,
+			'optionscode' => 'numeric',
+			'value'       => '7',
+		),
+		'link_preview_expire_on_new_helper' => array(
+			'title'       => $lang->lkt_link_preview_expire_on_new_helper_title,
+			'description' => $lang->lkt_link_preview_expire_on_new_helper_desc,
+			'optionscode' => 'yesno',
+			'value'       => '1',
 		),
 	);
 
@@ -788,7 +959,7 @@ function lkt_test_add_url($url, &$urls) {
 }
 
 # Should be kept in sync with the extract_urls() method of the DLW object in ../jscripts/linktools.js
-function lkt_extract_urls($text) {
+function lkt_extract_urls($text, $exclude_videos = false) {
 	$urls = array();
 
 	# First, strip out all [img] tags.
@@ -804,8 +975,10 @@ function lkt_extract_urls($text) {
 	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1, 2));
 	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript:)[^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1));
 
-	# [video] tag regex from postParser::parse_mycode() in ../class_parser.php.
-	lkt_extract_url_from_mycode_tag($text, $urls, "#\[video=(.*?)\](.*?)\[/video\]#i", array(2));
+	if (!$exclude_videos) {
+		# [video] tag regex from postParser::parse_mycode() in ../class_parser.php.
+		lkt_extract_url_from_mycode_tag($text, $urls, "#\[video=(.*?)\](.*?)\[/video\]#i", array(2));
+	}
 
 	lkt_extract_bare_urls($text, $urls);
 
@@ -1130,7 +1303,9 @@ function lkt_get_norm_server_from_url($url) {
 }
 
 /**
- * Resolves and returns the immediate redirects for each URL in $urls.
+ * Resolves and returns the immediate redirects for each URL in $urls. Optionally, while doing this
+ * (with access to the HTML of any terminating redirects), generate link previews for those
+ * terminating redirects.
  *
  * Uses the non-blocking functionality of cURL so that multiple URLs can be checked simultaneously,
  * but avoids hitting the same web server more than once every lkt_rehit_delay_in_secs seconds.
@@ -1144,6 +1319,10 @@ function lkt_get_norm_server_from_url($url) {
  *                                      indexed by normalised (any 'www.' prefix removed) server name.
  * @param $use_head_method Boolean. If true, the HEAD method is used for all requests, otherwise
  *                                  the GET method is used.
+ * @param $check_html_redirects Boolean. Self-explanatory.
+ * @param $check_html_canonical_tag Boolean. Self-explanatory.
+ * @param $get_link_previews Boolean. Whether or not to generate link previews and store them to the DB.
+ *
  * @return An array with two array entries, $redirs and $deferred_urls.
  *         $redirs contains the immediate redirects of each of the URLs in $urls (which form
  *                   the keys of $redir array), if any.
@@ -1155,12 +1334,12 @@ function lkt_get_norm_server_from_url($url) {
  *         $deferred_urls lists any URLs that were deferred because requesting it would have polled its
  *                        server within lkt_rehit_delay_in_secs seconds of the last time it was polled.
  */
-function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_urls = [], $use_head_method = true, $check_html_redirects = false, $check_html_canonical_tag = false) {
+function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_urls = [], $use_head_method = true, $check_html_redirects = false, $check_html_canonical_tag = false, $get_link_previews = true) {
 	$redirs = $deferred_urls = $curl_handles = [];
 
 	if (!$urls) return [$redirs, $deferred_urls];
 
-	if ($check_html_redirects || $check_html_canonical_tag) {
+	if ($check_html_redirects || $check_html_canonical_tag || $get_link_previews) {
 		$use_head_method = false;
 	}
 
@@ -1287,6 +1466,9 @@ function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 					}
 					$target = lkt_check_absolutise_relative_uri($target, $url);
 				}
+				if ($target == $url && $html) {
+					lkt_get_gen_link_preview($url, $html);
+				}
 				$redirs[$url] = $target;
 				$origin_urls[$target] = $origin_urls[$url];
 			} else {
@@ -1385,6 +1567,344 @@ function lkt_get_url_term_redirs_auto($urls) {
 	return $redirs;
 }
 
+function lkt_get_linkhelper_classnames() {
+	static $LinkHelperClassNames = false;
+
+	require_once __DIR__.'/linktools/LinkHelperBase.php';
+
+	if (!$LinkHelperClassNames) {
+		$LinkHelperClassNames = array('3p' => array(), 'dist' => array());
+		foreach (array('link-helpers-3rd-party', 'link-helpers-dist') as $subdir) {
+			foreach (new DirectoryIterator(__DIR__.'/linktools/'.$subdir) as $file) {
+				if ($file->isDot()) {
+					continue;
+				}
+				$filepath = __DIR__.'/linktools/'.$subdir.'/'.$file->getFilename();
+				$helper_classname = $file->getBasename('.php');
+				require_once $filepath;
+				$LinkHelperClassNames[$subdir == 'link-helpers-3rd-party' ? '3p' : 'dist'][] = $helper_classname;
+			}
+		}
+	}
+
+	return $LinkHelperClassNames;
+}
+
+/**
+ * @return Mixed.
+ *         Boolean False if a preview is not required for the supplied URL.
+ *         Null If a preview is required and a valid one has been retrieved from
+ *           the DB, in which case the supplied parameter $preview is set to the
+ *           retrieved preview.
+ *         String. The name of the prioritised Helper class to generate the
+ *           preview if a preview is required but a valid one does not exist in
+ *           the DB.
+ */
+function lkt_url_has_needs_preview($url, &$preview, &$has_db_entry) {
+	global $db, $mybb;
+
+	$has_db_entry = null;
+
+	if (!in_array(lkt_get_scheme($url), array('http', 'https', ''))) {
+		return false;
+	}
+
+	// First, check settings to determine whether we need a preview for this type of $url.
+	$only_if_helper = $only_if_3p = false;
+	if (!$mybb->settings[C_LKT.'_link_preview_disable_self_dom'] && lkt_get_norm_server_from_url($url) == lkt_get_norm_server_from_url($mybb->settings['bburl'])) {
+		return false;
+	} else {
+		switch ($mybb->settings[C_LKT.'_link_preview_type']) {
+			case 'none':
+				return false;
+			case 'only_link_helpers':
+				$only_if_helper = true;
+				break;
+			case 'only_3rd_party':
+				$only_if_3p = true;
+				break;
+			case 'whitelist':
+			case 'blacklist':
+				$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_dom_list']);
+				$whitelisting = $mybb->settings[C_LKT.'_link_preview_type'] == 'whitelist';
+				if ($whitelisting && !$list) {
+					return false;
+				}
+				$ret = !$whitelisting;
+				foreach ($list as $domain) {
+					$listed_domain = lkt_normalise_domain($domain);
+					$url_domain = lkt_get_norm_server_from_url($url);
+					if ($listed_domain && $listed_domain == $url_domain) {
+						$ret = $whitelisting;
+						break;
+					}
+				}
+				if ($ret === false) {
+					return false;
+				}
+				break;
+			case 'all':
+			default:
+				// Preview needed.
+				break;
+		}
+	}
+
+	// Next, get all LinkHelper classes.
+	$LinkHelperClassNames = lkt_get_linkhelper_classnames();
+
+	// Now, get the highest-prioritised LinkHelper class for this link type.
+	$max_priority = PHP_INT_MIN;
+	$priority_helper_classname = '';
+	$types = $only_if_3p ? array('3p') : array('3p', 'dist');
+	foreach ($types as $helper_type) {
+		// Third-party helpers are prioritised over those in the plugin's base distribution.
+		if ($helper_type == 'dist' && $priority_helper_classname != '') {
+			break;
+		}
+		foreach ($LinkHelperClassNames[$helper_type] as $helper_class_name) {
+			if ($helper_class_name::supports_link($url)
+			    &&
+			    ($helper_class_name::get_priority() > $max_priority
+			     ||
+			     ($priority_helper_classname == ''
+			      &&
+			      $helper_class_name == 'LinkHelperDefault'
+			     )
+			     ||
+			     // LinkHelperDefault's priority is PHP_INT_MIN, so
+			     // ensure that we flag a viable Helper when one is
+			     // available with that same lowest priority and our
+			     // settings require a non-default Helper to exist.
+			     // Admittedly, this is an extremely unlikely
+			     // scenario.
+			     ($only_if_helper
+			      &&
+			      $max_priority == LinkHelperDefault::get_priority()
+			      &&
+			      $helper_class_name::get_priority() == $max_priority
+			      &&
+			      $helper_class_name != 'LinkHelperDefault'
+			     )
+			    )
+			) {
+				$max_priority = $helper_class_name::get_priority();
+				$priority_helper_classname = $helper_class_name;
+			}
+		}
+	}
+
+	if ($only_if_helper && $priority_helper_classname == 'LinkHelperDefault'
+	    ||
+	    $only_if_3p && !$priority_helper_classname
+	) {
+		return false;
+	}
+
+	// Now, check whether the preview already exists, is valid, has not
+	// yet expired, and is not invalid due to having been generated by a
+	// no-longer-prioritised Helper or an earlier version of the
+	// still-prioritised Helper (when the relevant plugin setting is
+	// enabled).
+	$regen = false;
+	$url_norm = lkt_normalise_url($url);
+	$query = $db->simple_select('urls_extra', 'valid, dateline, helper_class_name, helper_class_vers, preview', "url_norm = '".$db->escape_string($url_norm)."'");
+	$row = $db->fetch_array($query);
+	if ($row) {
+		$has_db_entry = true;
+		$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
+		$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
+		if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
+			$org_helper = $row['helper_class_name'];
+			$regen = ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']);
+		}
+		if (!$regen) {
+			$preview = $row['preview'];
+		}
+	} else {
+		$has_db_entry = false;
+		$regen = true;
+	}
+
+	// Earlier returns possible.
+	return $regen ? $priority_helper_classname : null;
+}
+
+function lkt_get_gen_link_previews($urls) {
+	global $db;
+
+	$previews = $lh_data = array();
+	$urls = array_unique($urls);
+	foreach ($urls as $url) {
+		// There is room for optimisation here: potentially, a database
+		// query is made here on each iteration of the loop, which is
+		// inefficient.
+		$res = lkt_url_has_needs_preview($url, $preview, $has_db_entry);
+		if (is_null($res)) {
+			$previews[$url] = $preview;
+		} else if ($res) {
+			$lh_data[$url] = array(
+				'lh_classname' => $res,
+				'has_db_entry' => $has_db_entry
+			);
+		}
+	}
+	if ($lh_data) {
+		$server_urls = array();
+		foreach (array_keys($lh_data) as $url) {
+			$server = lkt_get_norm_server_from_url($url);
+			if (!isset($server_urls[$server])) {
+				$server_urls[$server] = array('last_hit' => 0, 'urls' => array());
+			}
+			$server_urls[$server]['urls'][] = $url;
+		}
+
+		$i = -1;
+		do {
+			$qry_urls = array();
+			$min_wait = PHP_INT_MAX;
+			$ts_now = microtime(true);
+			foreach ($server_urls as $server => &$val) {
+				$srv_urls =& $val['urls'    ];
+				if (!$srv_urls) {
+					continue;
+				}
+				$last_hit =  $val['last_hit'];
+				if ($last_hit == 0) {
+					$server_wait = -1;
+				} else {
+					$time_since = $ts_now - $last_hit;
+					$server_wait = lkt_rehit_delay_in_secs - $time_since;
+				}
+				if ($server_wait < 0) {
+					if (count($server_urls) > 0) {
+						$qry_urls[] = array_shift($srv_urls);
+					}
+				} else	$min_wait = min($min_wait, $server_wait);
+			}
+			unset($val);
+			unset($srv_urls);
+			if ($qry_urls) {
+				$curl_handles = array();
+
+				if (($mh = curl_multi_init()) === false) {
+					return false;
+				}
+
+				foreach ($qry_urls as $url) {
+					if (($ch = curl_init()) === false) {
+						return false;
+					}
+
+					// Strip from any # in the URL onwards because URLs with fragments
+					// appear to be buggy either in certain older versions of cURL and/or
+					// web server environments from which cURL is called.
+					list($url_trim_nohash) = explode('#', trim($url), 2);
+
+					if (!curl_setopt_array($ch, array(
+						CURLOPT_URL            => $url_trim_nohash,
+						CURLOPT_RETURNTRANSFER => true,
+						CURLOPT_HEADER         => true,
+						CURLOPT_TIMEOUT        => lkt_curl_timeout,
+						CURLOPT_USERAGENT      => 'The MyBB Link Tools plugin',
+					))) {
+						curl_close($ch);
+						return false;
+					}
+					if (curl_multi_add_handle($mh, $ch) !== CURLM_OK/*==0*/) {
+						return false;
+					}
+					$curl_handles[$url] = $ch;
+				}
+
+				$active = null;
+				do {
+					$mrc = curl_multi_exec($mh, $active);
+				} while ($mrc == CURLM_CALL_MULTI_PERFORM);
+
+				while ($active && $mrc == CURLM_OK) {
+					if (curl_multi_select($mh) != -1) {
+						do {
+							$mrc = curl_multi_exec($mh, $active);
+						} while ($mrc == CURLM_CALL_MULTI_PERFORM);
+					}
+				}
+
+				$ts_now2 = microtime(true);
+				foreach ($curl_handles as $url => $ch) {
+					if ($ch) {
+						$content = curl_multi_getcontent($ch);
+						$server_urls[lkt_get_norm_server_from_url($url)]['last_hit'] = $ts_now2;
+						if ($content
+						    &&
+						    ($header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE)) !== false
+						     &&
+						     ($response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE)) !== false
+						   ) {
+							$html = substr($content, $header_size);
+							$previews[$url] = lkt_get_gen_link_preview($url, $html, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
+						}
+						curl_multi_remove_handle($mh, $ch);
+					}
+				}
+
+				curl_multi_close($mh);
+
+			} else if ($min_wait < PHP_INT_MAX) {
+				usleep($min_wait * 1000000);
+			}
+			$i++;
+		// The condition with $i is simply defensive programming in case
+		// this loop accidentally otherwise becomes infinite.
+		} while ($i <= count($urls) && ($qry_urls || $min_wait < PHP_INT_MAX && $min_wait > 0));
+	}
+
+	return $previews;
+}
+
+/**
+ * Get the preview for a link, first (re)generating it and storing to the DB if
+ * appropriate/necessary. If a Link Helper class name is provided, it is assumed
+ * the check for whether a link needs to be (re)generated has already been
+ * performed, and resulted in a need for (re)generation via the Link Helper with
+ * the provided class name. If, additionally, $has_db_entry is set true, then it
+ * is assumed that a database entry for the link already exists, and so an
+ * update query is performed rather than an insert query.
+ */
+function lkt_get_gen_link_preview($url, $html, $lh_classname = false, $has_db_entry = null) {
+	global $db;
+
+	if (!$lh_classname) {
+		$res = lkt_url_has_needs_preview($url, $preview, $has_db_entry);
+	} else	$res = $lh_classname;
+
+	if ($res === false) {
+		return false;
+	} else if ($res) {
+		// (Re)generate the preview and return it.
+		$priority_helper_classname = $res;
+		$url_norm = lkt_normalise_url($url);
+		$helper = $priority_helper_classname::get_instance();
+		$preview = $helper->get_preview($url, $html);
+		$fields = array(
+			'valid' => '1',
+			'dateline' => TIME_NOW,
+			'helper_class_name' => $db->escape_string($priority_helper_classname),
+			'helper_class_vers' => $db->escape_string($priority_helper_classname::get_version()),
+			'preview' => $db->escape_string($preview),
+		);
+		if ($has_db_entry) {
+			$db->update_query('urls_extra', $fields, "url_norm = '".$db->escape_string($url_norm)."'");
+		} else {
+			$fields['url_norm'] = $db->escape_string($url_norm);
+			$db->insert_query('urls_extra', $fields);
+		}
+	} // else $preview was set in the second argument to the call to
+	//   lkt_url_has_needs_preview() above.
+
+	return $preview;
+}
+
 /**
  * Resolves and returns the terminating redirect targets (i.e., after following as many
  * redirects as possible) for each URL in $urls.
@@ -1402,7 +1922,7 @@ function lkt_get_url_term_redirs_auto($urls) {
  *         3. Null in the case that a non-link-specific error occurred, such as failure to
  *            initialise a generic cURL handle.
  */
-function lkt_get_url_term_redirs($urls, &$got_terms = array()) {
+function lkt_get_url_term_redirs($urls, &$got_terms = array(), $get_link_previews = true) {
 	$terms = $redirs = $server_urls = $server_last_hit_times = $to_retry = array();
 	static $min_wait_flag_value = 99999;
 	static $want_use_head_method = lkt_use_head_method && !(lkt_check_for_canonical_tags || lkt_check_for_html_redirects);
@@ -1427,9 +1947,12 @@ function lkt_get_url_term_redirs($urls, &$got_terms = array()) {
 	$num_servers = count($server_urls);
 
 	$redirs = lkt_get_url_term_redirs_auto($urls);
+	if ($get_link_previews) {
+		lkt_get_gen_link_previews($redirs);
+	}
 
 	$use_head_method = $want_use_head_method;
-	list($redirs2, $deferred_urls) = lkt_get_url_redirs(array_diff($urls, array_keys($redirs)), $server_last_hit_times, $origin_urls, $use_head_method, lkt_check_for_html_redirects, lkt_check_for_canonical_tags);
+	list($redirs2, $deferred_urls) = lkt_get_url_redirs(array_diff($urls, array_keys($redirs)), $server_last_hit_times, $origin_urls, $use_head_method, lkt_check_for_html_redirects, lkt_check_for_canonical_tags, $get_link_previews);
 	if ($redirs2 === false && !$redirs) {
 		return false;
 	}
@@ -1443,7 +1966,6 @@ function lkt_get_url_term_redirs($urls, &$got_terms = array()) {
 	//  3. A maximum per-url redirect count of lkt_max_allowable_redirects_for_a_url.
 	$max_iterations = $max_urls_for_a_server * ($num_servers < 5 ? 5 : $num_servers) * floor(lkt_max_allowable_redirects_for_a_url/3);
 	$num_iterations = 0;
-	$max_runtime = max(lkt_rehit_delay_in_secs, lkt_curl_timeout) * $max_iterations;
 	$ts_max = $ts_start + lkt_max_allowable_redirect_resolution_runtime_secs;
 	do {
 		$max_num_redirected_for_a_url = 0;
@@ -2714,4 +3236,53 @@ function lkt_hookin__admin_page_output_footer() {
 		});
 		</script>';
 	}
+}
+
+function lkt_hookin__postbit($post) {
+	global $g_lkt_links;
+
+	if ($g_lkt_links) {
+		foreach (lkt_get_gen_link_previews($g_lkt_links) as $preview) {
+			$post['message'] .= $preview;
+		}
+	}
+
+	return $post;
+}
+
+function lkt_hookin__xmlhttp_update_post() {
+	global $g_lkt_links, $post;
+
+	if ($g_lkt_links) {
+		foreach (lkt_get_gen_link_previews($g_lkt_links) as $preview) {
+			$post['message'] .= $preview;
+		}
+	}
+}
+
+function lkt_hookin__parse_message_start($message) {
+	global $g_lkt_links;
+
+	$g_lkt_links = lkt_extract_urls($message, /*$exclude_videos = */true);
+
+	return $message;
+}
+
+function lkt_hookin__admin_config_menu(&$sub_menu) {
+	global $lang;
+
+	$lang->load(C_LKT);
+	$key = max(array_keys($sub_menu)) + 10;
+	$sub_menu[$key] = array(
+		'id'    => 'linkhelpers'                        ,
+		'title' => $lang->lkt_linkhelpers               ,
+		'link'  => 'index.php?module=config-linkhelpers',
+	);
+}
+
+function lkt_hookin__admin_config_action_handler(&$actions) {
+	$actions['linkhelpers'] = array(
+		'active' => 'linkhelpers'    ,
+		'file'   => 'linkhelpers.php',
+	);
 }

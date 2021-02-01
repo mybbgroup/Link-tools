@@ -4,6 +4,8 @@ $l['lkt_name'             ] = 'Link Tools';
 $l['lkt_desc'             ] = 'Keeps track of links (URLs) in posts and then provides two link services: (1) seamless link searching and (2) warning a member if a link in a thread they are about to start has already been shared to the forum.';
 $l['lkt_successful_upgrade_msg_for_info'  ] = 'Successfully upgraded to version {1}.';
 $l['lkt_successful_upgrade_msg'           ] = 'The {1} plugin has been activated successfully and upgraded to version {2}.';
+$l['lkt_needdbupgrade1'                   ] = 'Database changes required. Click <a href="index.php?module=config-plugins&amp;action=lkt_dbupgrade1">here</a> to make them.';
+$l['lkt_needdbupgrade2'                   ] = 'Database changes required. Activate the plugin and then click the provided link.';
 
 $l['lkt_all_links_extracted'              ] = ' All {1} links have been successfully extracted from all {2} posts.';
 $l['lkt_x_of_y_posts_unextracted'         ] = '{1} of {2} posts have not yet had links extracted from them.';
@@ -43,3 +45,36 @@ $l['lkt_settings_desc'    ] = 'Settings to customise the Link Tools plugin';
 
 $l['lkt_force_dlw_title'  ] = 'Force members to use the duplicate link warner?';
 $l['lkt_force_dlw_desc'   ] = 'When set to "Yes", a member posting a new thread will not be permitted to disable the duplicate link warner. Otherwise, members may uncheck a "Warn about duplicate links" checkbox while posting a new thread to disable the duplicate link warner. The value of this checkbox persists across pages and sessions - it is stored in the member\'s settings.';
+
+$l['lkt_link_preview_type_title'] = 'Enable link preview?';
+$l['lkt_link_preview_type_desc' ] = 'Enable link previews for:';
+$l['lkt_link_preview_type_all'  ] = 'All domains';
+$l['lkt_link_preview_type_none' ] = 'No domains';
+$l['lkt_link_preview_type_only_link_helpers'] = 'Only domains with link helpers other than the default';
+$l['lkt_link_preview_type_only_3rd_party'   ] = 'Only domains with 3rd-party link helpers';
+$l['lkt_link_preview_type_whitelist'        ] = 'Only the following domains (whitelist)';
+$l['lkt_link_preview_type_blacklist'        ] = 'All domains except the following (blacklist)';
+
+
+$l['lkt_link_preview_dom_list_title'] = 'Link preview domains';
+$l['lkt_link_preview_dom_list_desc' ] = 'The domain whitelist/blacklist for the previous setting (if applicable). One domain per line.';
+
+$l['lkt_link_preview_disable_self_dom_title'] = 'Self-domain disable?';
+$l['lkt_link_preview_disable_self_dom_desc' ] = 'Disable link previews for links within this board\'s domain?';
+
+$l['lkt_link_preview_expiry_period_title'   ] = 'Link preview expiry period';
+$l['lkt_link_preview_expiry_period_desc'    ] = 'The number of days after which a link preview should be expired (and regenerated on-demand). Zero indicates "Never expire".';
+
+$l['lkt_link_preview_expire_on_new_helper_title'] = 'Expire link previews on helper change?';
+$l['lkt_link_preview_expire_on_new_helper_desc' ] = 'Whether or not a link preview should be expired (and regenerated on-demand) when the helper which originally generated it is changed, or when a new, higher priority helper applies to the link. Choose "Yes" for expiry and "No" to leave such link previewss unexpired.';
+
+$l['lkt_linkhelpers'] = 'Link Helpers';
+$l['lkt_template_installed'] = 'Template installed for this helper?';
+$l['lkt_instuninst_lhelpertpl'] = 'Install/uninstall helper templates';
+$l['lkt_missing_hlp_name'] = '"{1}" (Class name; helper file missing so friendly name unknown)';
+
+// One or the other of these two strings...
+$l['lkt_helpers'          ] = '{1} link helpers';
+$l['lkt_one_helper'       ] = '1 link helper';
+// ...will replace {1} in this string:
+$l['lkt_need_inst_helpers'] = 'Necessary templates need to be installed for {1}. Click {2}here{3} to install them.';
