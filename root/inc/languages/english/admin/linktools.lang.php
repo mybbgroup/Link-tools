@@ -46,7 +46,7 @@ $l['lkt_settings_desc'    ] = 'Settings to customise the Link Tools plugin';
 $l['lkt_force_dlw_title'  ] = 'Force members to use the duplicate link warner?';
 $l['lkt_force_dlw_desc'   ] = 'When set to "Yes", a member posting a new thread will not be permitted to disable the duplicate link warner. Otherwise, members may uncheck a "Warn about duplicate links" checkbox while posting a new thread to disable the duplicate link warner. The value of this checkbox persists across pages and sessions - it is stored in the member\'s settings.';
 
-$l['lkt_link_preview_type_title'] = 'Enable link preview?';
+$l['lkt_link_preview_type_title'] = 'Enable link previews?';
 $l['lkt_link_preview_type_desc' ] = 'Enable link previews for:';
 $l['lkt_link_preview_type_all'  ] = 'All domains';
 $l['lkt_link_preview_type_none' ] = 'No domains';
@@ -66,7 +66,7 @@ $l['lkt_link_preview_expiry_period_title'   ] = 'Link preview expiry period';
 $l['lkt_link_preview_expiry_period_desc'    ] = 'The number of days after which a link preview should be expired (and regenerated on-demand). Zero indicates "Never expire".';
 
 $l['lkt_link_preview_expire_on_new_helper_title'] = 'Expire link previews on helper change?';
-$l['lkt_link_preview_expire_on_new_helper_desc' ] = 'Whether or not a link preview should be expired (and regenerated on-demand) when the helper which originally generated it is changed, or when a new, higher priority helper applies to the link. Choose "Yes" for expiry and "No" to leave such link previewss unexpired.';
+$l['lkt_link_preview_expire_on_new_helper_desc' ] = 'Whether or not a link preview should be expired (and regenerated on-demand) when the helper which originally generated it is changed, or when a new, higher priority helper applies to the link. Choose "Yes" for expiry and "No" to leave such link previews unexpired.';
 
 $l['lkt_link_preview_on_fly_title'] = 'When to (re)generate on-the-fly link previews';
 $l['lkt_link_preview_on_fly_desc' ] = 'Applies to on-the-fly (re)generation of link previews (which are then cached) when viewing a thread/post with links without a valid cached preview. Does not apply to initial on-the-fly generation of link previews (which are then cached) during posting, which cannot be disabled except via disabling link previews for the relevant link types/domains entirely. <strong>Warning: values other than "Never" and "Only when a valid cached copy doesn\'t exist" will cause link previews for the relevant domain(s) to be regenerated <em>every time a thread containing them is viewed</em>. Exercise caution as this may be discourteous the operators of the domain(s) in question.</strong></strong>';
