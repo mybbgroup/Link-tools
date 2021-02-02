@@ -60,6 +60,8 @@ const lkt_term_tries_secs = array(
 	28*7*24*60*60, // 4 weeks
 );
 
+const lkt_preview_regen_min_wait_secs = 30;
+
 /**
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
  * @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts.
@@ -354,6 +356,10 @@ function linktools_activate() {
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
 	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$linktools_div}');
 	find_replace_templatesets('newthread', '({\\$codebuttons})'   , '{$codebuttons}{$linktools_js}'    );
+	find_replace_templatesets('postbit'        , '({\\$post\\[\'poststatus\'\\]})', '{$post[\'poststatus\']}{$post[\'updatepreview\']}');
+	find_replace_templatesets('postbit_classic', '({\\$post\\[\'poststatus\'\\]})', '{$post[\'poststatus\']}{$post[\'updatepreview\']}');
+	find_replace_templatesets('showthread'     , '(<script\\stype="text/javascript"\\ssrc="{\\$mybb->asset_url}/jscripts/thread.js(?:\\?ver=\\d+)"></script>)', '<script type="text/javascript" src="{$mybb->asset_url}/jscripts/thread.js?ver=1822"></script>
+<script type="text/javascript" src="{$mybb->asset_url}/jscripts/linkpreviews.js?ver=1.1.0"></script>');
 
 	$res = $db->simple_select('tasks', 'tid', "file='linktools'", array('limit' => '1'));
 	if ($db->num_rows($res) == 0) {
@@ -392,6 +398,10 @@ function linktools_deactivate() {
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
 	find_replace_templatesets('newthread', '({\\$linktools_div})', '', 0);
 	find_replace_templatesets('newthread', '({\\$linktools_js})' , '', 0);
+	find_replace_templatesets('postbit'        , '({\\$post\\[\'updatepreview\'\\]})', '', 0);
+	find_replace_templatesets('postbit_classic', '({\\$post\\[\'updatepreview\'\\]})', '', 0);
+	find_replace_templatesets('showthread'     , '(\\r?\\n?<script\\stype="text/javascript"\\ssrc="{\\$mybb->asset_url}/jscripts/linkpreviews.js(?:\\?ver=[^"]+)?"></script>)', '', 0);
+
 	$db->update_query('tasks', array('enabled' => 0), 'file=\'linktools\'');
 }
 
@@ -505,6 +515,37 @@ function lkt_toggle_hidden_posts() {
 		'linktools_matching_posts_warning_div' => array(
 			'template' => '<div class="red_alert">$matching_posts_warning_msg</div>',
 			'version_at_last_change' => '10000',
+		),
+		'linktools_preview_regen_link' => array(
+			'template' => '<a href="$link_url">$link_text</a>',
+			'version_at_last_change' => '10100',
+		),
+		'linktools_preview_regen_container' => array(
+			'template' => '<div class="lkt-regen-link-container" id="lkt_regen_cont_{$post[\'pid\']}">{$prefix}{$links}</div>',
+			'version_at_last_change' => '10100',
+		),
+		'linktools_preview_regen_page' => array(
+			'template' => '<html>
+<head>
+<title>{$lang->lkt_preview_regen_pg_title}</title>
+{$headerinclude}
+</head>
+<body>
+{$header}
+
+{$regen_msg}
+<br />
+<br />
+{$return_link}
+
+{$footer}
+</body>
+</html>',
+			'version_at_last_change' => '10100',
+		),
+		'linktools_regen_page_return_link' => array(
+			'template' => '<a href="$link_url">$link_text</a>',
+			'version_at_last_change' => '10100',
 		),
 	);
 
@@ -1593,11 +1634,13 @@ function lkt_get_linkhelper_classnames() {
  *         Null If a preview is required and a valid one has been retrieved from
  *           the DB, in which case the supplied parameter $preview is set to the
  *           retrieved preview.
+ *         Integer. -1 if $manual_regen was set true but it is too soon since
+ *           the last regen to perform another one.
  *         String. The name of the prioritised Helper class to generate the
  *           preview if a preview is required but a valid one does not exist in
  *           the DB.
  */
-function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
+function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual_regen = false) {
 	global $db, $mybb, $cache;
 
 	$has_db_entry = null;
@@ -1645,37 +1688,39 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
 				// Preview needed.
 				break;
 		}
-		$regen = false;
-		if (THIS_SCRIPT == 'showthread.php') {
-			switch ($mybb->settings[C_LKT.'_link_preview_on_fly']) {
-			case 'always':
-				$regen = true;
-				break;
-			case 'never':
-				return false;
-			case 'whitelist':
-			case 'blacklist':
-				$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_on_fly_dom_list']);
-				$whitelisting = $mybb->settings[C_LKT.'_link_preview_on_fly'] == 'whitelist';
-				if ($whitelisting && !$list) {
+		if (!$manual_regen) {
+			$regen = false;
+			if (THIS_SCRIPT == 'showthread.php') {
+				switch ($mybb->settings[C_LKT.'_link_preview_on_fly']) {
+				case 'always':
+					$regen = true;
+					break;
+				case 'never':
 					return false;
-				}
-				$ret = !$whitelisting;
-				foreach ($list as $domain) {
-					$listed_domain = lkt_normalise_domain($domain);
-					$url_domain = lkt_get_norm_server_from_url($term_url);
-					if ($listed_domain && $listed_domain == $url_domain) {
-						$ret = $whitelisting;
-						break;
+				case 'whitelist':
+				case 'blacklist':
+					$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_on_fly_dom_list']);
+					$whitelisting = $mybb->settings[C_LKT.'_link_preview_on_fly'] == 'whitelist';
+					if ($whitelisting && !$list) {
+						return false;
 					}
+					$ret = !$whitelisting;
+					foreach ($list as $domain) {
+						$listed_domain = lkt_normalise_domain($domain);
+						$url_domain = lkt_get_norm_server_from_url($term_url);
+						if ($listed_domain && $listed_domain == $url_domain) {
+							$ret = $whitelisting;
+							break;
+						}
+					}
+					if ($ret === false) {
+						return false;
+					}
+					$regen = true;
+					break;
 				}
-				if ($ret === false) {
-					return false;
-				}
-				$regen = true;
-				break;
 			}
-		}
+		} else	$regen = true;
 	}
 
 	// Next, get all LinkHelper classes.
@@ -1746,15 +1791,22 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry) {
 	$query = $db->simple_select('urls_extra', 'valid, dateline, helper_class_name, helper_class_vers, preview', "url_norm = '".$db->escape_string($url_norm)."'");
 	$row = $db->fetch_array($query);
 	$has_db_entry = $row ? true : false;
-	if ($row && !$regen) {
-		$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
-		$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
-		if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
-			$org_helper = $row['helper_class_name'];
-			$regen = ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']);
-		}
+	if ($row) {
 		if (!$regen) {
-			$preview = $row['preview'];
+			$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
+			$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
+			if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
+				$org_helper = $row['helper_class_name'];
+				$regen = ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']);
+			}
+			if (!$regen) {
+				$preview = $row['preview'];
+			}
+		} else if ($manual_regen) {
+			$min_wait = lkt_preview_regen_min_wait_secs;
+			if (TIME_NOW <= $row['dateline'] + $min_wait) {
+				return -1;
+			}
 		}
 	}
 
@@ -3254,6 +3306,14 @@ function lkt_hookin__xmlhttp() {
 	if ($mybb->input['action'] == 'lkt_set_warn_about_links') {
 		$lkt_setting_warn_about_links = $mybb->get_input('lkt_setting_warn_about_links', MyBB::INPUT_INT) ? 1 : 0;
 		$db->update_query('users', array('lkt_warn_about_links' => $lkt_setting_warn_about_links), "uid='{$mybb->user['uid']}'");
+	} else if ($mybb->input['action'] == 'lkt_get_post_regen_cont') {
+		$post = get_post($mybb->get_input('pid', MyBB::INPUT_INT));
+		if ($post) {
+			$urls = lkt_retrieve_terms(lkt_extract_urls($post['message']));
+			if ($urls) {
+				echo lkt_get_preview_regen_container($post, $urls);
+			}
+		} echo '';
 	}
 }
 
@@ -3277,6 +3337,34 @@ function lkt_hookin__admin_page_output_footer() {
 	}
 }
 
+function lkt_get_preview_regen_container($post, $urls) {
+	global $mybb, $lang, $templates;
+
+	$lang->load(C_LKT);
+
+	$urls = array_values($urls);
+	if (count($urls) == 1) {
+		$link_url  = $mybb->settings['bburl'].'/lkt-regen-preview.php?url='.urlencode($urls[0]).'&amp;return_pid='.$post['pid'];
+		$link_text = $lang->lkt_regen_link_preview;
+		eval('$links = "'.$templates->get('linktools_preview_regen_link', 1, 0).'";');
+		$prefix = '';
+	} else {
+		$link_url = $mybb->settings['bburl'].'/lkt-regen-preview.php?pid='.$post['pid'].'&amp;return_pid='.$post['pid'];
+		$link_text = $lang->lkt_all;
+		eval('$links = "'.$templates->get('linktools_preview_regen_link', 1, 0).'";');
+		foreach ($urls as $i => $url) {
+			$links .= $lang->comma;
+			$link_url = $mybb->settings['bburl'].'/lkt-regen-preview.php?url='.urlencode($url).'&amp;return_pid='.$post['pid'];
+			$link_text = (string)($i+1);
+			eval('$links .= "'.$templates->get('linktools_preview_regen_link', 1, 0).'";');
+		}
+		$prefix = $lang->lkt_regen_link_previews;
+	}
+	eval('$ret = "'.$templates->get('linktools_preview_regen_container', 1, 0).'";');
+
+	return $ret;
+}
+
 function lkt_hookin__postbit($post) {
 	global $g_lkt_links;
 
@@ -3284,6 +3372,7 @@ function lkt_hookin__postbit($post) {
 		foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($g_lkt_links), true) as $preview) {
 			$post['message'] .= $preview;
 		}
+		$post['updatepreview'] = lkt_get_preview_regen_container($post, $g_lkt_links);
 	}
 
 	return $post;
@@ -3303,7 +3392,7 @@ function lkt_hookin__parse_message_start($message) {
 	global $g_lkt_links, $mybb;
 
 	if (!(THIS_SCRIPT == 'showthread.php' && $mybb->settings[C_LKT.'_link_preview_on_fly'] == 'never')) {
-		$g_lkt_links = lkt_retrieve_terms(lkt_extract_urls($message, /*$exclude_videos = */true));
+		$g_lkt_links = lkt_extract_urls($message, /*$exclude_videos = */true);
 	} else	$g_lkt_links = array();
 
 	return $message;
@@ -3333,7 +3422,7 @@ function lkt_hookin__admin_config_action_handler(&$actions) {
  * terminating URLs, this retrieves those already-web-queried terminating URLs
  * from the table to which they were stored in our database.
  */
-function lkt_retrieve_terms($urls) {
+function lkt_retrieve_terms($urls, $set_false_on_not_found = false) {
 	global $db;
 
 	$urls = array_unique($urls);
@@ -3345,7 +3434,7 @@ function lkt_retrieve_terms($urls) {
 
 	foreach ($urls as $url) {
 		if (!isset($terms[$url])) {
-			$terms[$url] = $url;
+			$terms[$url] = $set_false_on_not_found ? false : $url;
 		}
 	}
 

@@ -35,3 +35,18 @@ $l['lkt_show_less'                    ] = 'Show less';
 $l['lkt_undismiss_all_warns'          ] = 'Undismiss all duplicate link warnings';
 $l['lkt_title_warn_about_links'       ] = 'If existing forum posts contain URLs present in your draft, you will be visibly warned about them in real time if you check this box.';
 $l['lkt_warn_about_links'             ] = 'Warn about duplicate links';
+
+$l['lkt_regen_link_preview'           ] = 'Regenerate preview';
+$l['lkt_regen_link_previews'          ] = 'Regenerate previews: ';
+$l['lkt_all'                          ] = 'all';
+
+$l['lkt_preview_regen_pg_title'       ] = 'Regenerate Link Preview(s)';
+$l['lkt_regen_breadcrumb'             ] = 'Regenerate Link Preview(s)';
+$l['lkt_err_regen_no_pid_or_url'      ] = 'Neither a link nor a post ID was provided.';
+$l['lkt_err_regen_no_post_or_msg'     ] = 'Either the post for the supplied ID was missing or its contents were empty.';
+$l['lkt_err_regen_url_not_found_in_db'] = 'The supplied link was not found in the `urls` database table: &lt;{1}&gt;.';
+$l['lkt_err_regen_url_no_helper'      ] = 'The supplied link is not eligible for a preview: &lt;{1}&gt;.';
+$l['lkt_err_regen_url_too_soon'       ] = 'The supplied link was last regenerated in fewer than the minimum wait period in seconds, {1}: &lt;{2}&gt;.';
+$l['lkt_err_regen_no_preview_returned'] = 'A preview was not returned for the supplied link &lt;{1}&gt;.';
+$l['lkt_success_regen_url'            ] = 'Successfully regenerated a preview for the supplied link &lt;{1}&gt;.';
+$l['lkt_regen_page_return_link'       ] = 'Return to post';
