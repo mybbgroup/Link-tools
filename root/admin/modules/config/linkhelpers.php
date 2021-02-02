@@ -28,9 +28,6 @@ if ($mybb->get_input('do_update')) {
 		$install_tpl = (is_array($input_arr) && !empty($input_arr[0])) ? $present_helper : false;
 		$enabled     =  is_array($input_arr) && !empty($input_arr[1]);
 		$inst_helpers[$present_helper]['enabled'] = $enabled ? true : false;
-		if ($enabled) {
-			$install_tpl = $present_helper;
-		}
 		if (($installall || $install_tpl == $present_helper) && empty($inst_helpers[$present_helper]['tpl_installed'])) {
 			$helperobj = $present_helper::get_instance();
 			if ($tplname = $helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
