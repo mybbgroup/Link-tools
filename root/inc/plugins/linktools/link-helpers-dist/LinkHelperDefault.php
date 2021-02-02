@@ -97,7 +97,7 @@ class LinkHelperDefault extends LinkHelper {
 			$img_url = lkt_check_absolutise_relative_uri($matches[1], $link);
 		} else	$img_url = $mybb->settings['bburl'].'/images/image-placeholder-icon.jpg';
 
-		$link_safe = $this->make_safe($link);
+		$link_safe = htmlspecialchars_uni($this->make_safe($link));
 		$title_safe = $this->make_safe($title);
 		if ($need_ellipsis_title) $title_safe .= '&hellip;';
 		$description_safe = $this->make_safe($description);
