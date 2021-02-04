@@ -991,18 +991,17 @@ function lkt_has_valid_scheme($url) {
 
 # Should be kept in sync with the extract_url_from_mycode_tag() method of the DLW object in ../jscripts/linktools.js
 function lkt_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = array(1)) {
-	if (preg_match_all($re, $text, $matches, PREG_SET_ORDER)) {
+	if (preg_match_all($re, $text, $matches, PREG_SET_ORDER|PREG_OFFSET_CAPTURE)) {
 		foreach ($matches as $match) {
 			$url = '';
 			foreach ($indexes_to_use as $i) {
-				$url .= $match[$i];
+				$url .= $match[$i][0];
 			}
-			lkt_test_add_url($url, $urls);
+			$url_match = array('pos' => $match[$indexes_to_use[0]][1], 'url' => trim($url));
+			lkt_test_add_url($url_match, $urls);
 		}
 		$text = preg_replace($re, ' ', $text);
 	}
-
-	$urls = array_map('trim', $urls);
 }
 
 # Based heavily on the corresponding code in postParser::mycode_auto_url_callback() in ../class_parser.php
@@ -1042,7 +1041,6 @@ function lkt_strip_unmatched_closing_parens($url) {
 #
 # Should be kept in sync with the extract_bare_urls() method of the DLW object in ../jscripts/linktools.js
 function lkt_extract_bare_urls(&$text, &$urls) {
-	$urls_matched = [];
 	$text = ' '.$text;
 	$text_new = $text;
 
@@ -1055,8 +1053,8 @@ function lkt_extract_bare_urls(&$text, &$urls) {
 		if (preg_match_all($re, $text, $matches, PREG_SET_ORDER|PREG_OFFSET_CAPTURE)) {
 			foreach ($matches as $match) {
 				$url = $match[2][0].$match[3][0].lkt_strip_unmatched_closing_parens($match[4][0]);
-				$urls_matched[] = $url;
-				lkt_test_add_url($url, $urls);
+				$url_match = array('pos' => $match[2][1], 'url' => trim($url));
+				lkt_test_add_url($url_match, $urls);
 				// Blank out the matched URLs.
 				$text_new = substr($text_new, 0, $match[2][1]).str_repeat(' ', strlen($url)).substr($text_new, $match[2][1] + strlen($url));
 			}
@@ -1065,14 +1063,12 @@ function lkt_extract_bare_urls(&$text, &$urls) {
 
 	$text_new = my_substr($text, 1);
 	$text = $text_new;
-
-	$urls = array_map('trim', $urls);
 }
 
 # Should be kept in sync with the test_add_url() method of the DLW object in ../jscripts/linktools.js
-function lkt_test_add_url($url, &$urls) {
-	if (lkt_has_valid_scheme($url) && !in_array($url, $urls)) {
-		$urls[] = $url;
+function lkt_test_add_url($url_match, &$urls) {
+	if (lkt_has_valid_scheme($url_match['url']) && !in_array($url_match, $urls)) {
+		$urls[] = $url_match;
 	}
 }
 
@@ -1100,9 +1096,16 @@ function lkt_extract_urls($text, $exclude_videos = false) {
 
 	lkt_extract_bare_urls($text, $urls);
 
-	$urls = array_map('trim', $urls);
+	usort($urls, function($a, $b) {return $a['pos'] == $b['pos'] ? 0 : ($a['pos'] < $b['pos'] ? -1 : 1);});
 
-	return array_values(array_unique($urls));
+	$urls_ret = array();
+	foreach ($urls as $url_match) {
+		if (!in_array($url_match['url'], $urls_ret)) {
+			$urls_ret[] = $url_match['url'];
+		}
+	}
+
+	return $urls_ret;
 }
 
 function lkt_get_url_search_sql($urls, $already_normalised = false, $extra_conditions = '') {
@@ -3550,13 +3553,15 @@ function lkt_retrieve_terms($urls, $set_false_on_not_found = false) {
 		$terms[$row['url']] = $row['url_term'];
 	}
 
+	$terms_ordered = array();
 	foreach ($urls as $url) {
 		if (!isset($terms[$url])) {
-			$terms[$url] = $set_false_on_not_found ? false : $url;
-		}
+			$term_url = $set_false_on_not_found ? false : $url;
+		} else	$term_url = $terms[$url];
+		$terms_ordered[$url] = $term_url;
 	}
 
-	return $terms;
+	return $terms_ordered;
 }
 
 function lkt_hookin__editpost_action_start() {
