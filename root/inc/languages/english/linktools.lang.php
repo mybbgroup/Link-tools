@@ -50,3 +50,5 @@ $l['lkt_err_regen_url_too_soon'       ] = 'The supplied link was last regenerate
 $l['lkt_err_regen_no_preview_returned'] = 'A preview was not returned for the supplied link &lt;{1}&gt;.';
 $l['lkt_success_regen_url'            ] = 'Successfully regenerated a preview for the supplied link &lt;{1}&gt;.';
 $l['lkt_regen_page_return_link'       ] = 'Return to post';
+
+$l['lkt_linkpreviewoff'               ] = '<strong>Disable Link Previews</strong>: disable link previews from showing in this post.';

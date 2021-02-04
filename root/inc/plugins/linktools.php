@@ -89,14 +89,25 @@ $plugins->add_hook('parse_message_start'                    , 'lkt_hookin__parse
 $plugins->add_hook('xmlhttp_update_post'                    , 'lkt_hookin__xmlhttp_update_post'                    );
 $plugins->add_hook('admin_config_menu'                      , 'lkt_hookin__admin_config_menu'                      );
 $plugins->add_hook('admin_config_action_handler'            , 'lkt_hookin__admin_config_action_handler'            );
+$plugins->add_hook('editpost_action_start'                  , 'lkt_hookin__editpost_action_start'                  );
+$plugins->add_hook('editpost_do_editpost_end'               , 'lkt_hookin__editpost_do_editpost_end'               );
 
 function lkt_hookin__global_start() {
 	if (defined('THIS_SCRIPT')) {
 		global $templatelist;
 
-		if (THIS_SCRIPT== 'newthread.php') {
+		if (THIS_SCRIPT == 'newthread.php') {
 			if (isset($templatelist)) $templatelist .= ',';
 			$templatelist .= 'linktools_div,linktools_op_post_div,linktools_non_op_post_div,linktools_matching_url_item,linktools_matching_post,linktools_review_buttons,linktools_toggle_button,linktools_review_page,linktools_matching_posts_warning_div';
+		} else if (THIS_SCRIPT == 'showthread.php') {
+			if (isset($templatelist)) $templatelist .= ',';
+			$templatelist .= 'linktools_preview_regen_link,linktools_preview_regen_container';
+		} else if (THIS_SCRIPT == 'lkt-regen-preview.php') {
+			if (isset($templatelist)) $templatelist .= ',';
+			$templatelist .= 'linktools_preview_regen_page,linktools_regen_page_return_link';
+		} else if (THIS_SCRIPT == 'editpage.php') {
+			if (isset($templatelist)) $templatelist .= ',';
+			$templatelist .= 'linktools_cbxdisablelinkpreview';
 		}
 	}
 }
@@ -281,6 +292,10 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD lkt_got_urls boolean NOT NULL default FALSE");
 	}
 
+	if (!$db->field_exists('lkt_linkpreviewoff', 'posts')) {
+		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD lkt_linkpreviewoff boolean NOT NULL default FALSE");
+	}
+
 	if (!$db->field_exists('lkt_warn_about_links', 'users')) {
 		$db->query('ALTER TABLE '.TABLE_PREFIX.'users ADD `lkt_warn_about_links` tinyint(1) NOT NULL default \'1\'');
 	}
@@ -360,6 +375,7 @@ function linktools_activate() {
 	find_replace_templatesets('postbit_classic', '({\\$post\\[\'poststatus\'\\]})', '{$post[\'poststatus\']}{$post[\'updatepreview\']}');
 	find_replace_templatesets('showthread'     , '(<script\\stype="text/javascript"\\ssrc="{\\$mybb->asset_url}/jscripts/thread.js(?:\\?ver=\\d+)"></script>)', '<script type="text/javascript" src="{$mybb->asset_url}/jscripts/thread.js?ver=1822"></script>
 <script type="text/javascript" src="{$mybb->asset_url}/jscripts/linkpreviews.js?ver=1.1.0"></script>');
+	find_replace_templatesets('editpost_postoptions', '({\\$disablesmilies})', '{$disablesmilies}<br />{$disablelinkpreviews}');
 
 	$res = $db->simple_select('tasks', 'tid', "file='linktools'", array('limit' => '1'));
 	if ($db->num_rows($res) == 0) {
@@ -401,6 +417,7 @@ function linktools_deactivate() {
 	find_replace_templatesets('postbit'        , '({\\$post\\[\'updatepreview\'\\]})', '', 0);
 	find_replace_templatesets('postbit_classic', '({\\$post\\[\'updatepreview\'\\]})', '', 0);
 	find_replace_templatesets('showthread'     , '(\\r?\\n?<script\\stype="text/javascript"\\ssrc="{\\$mybb->asset_url}/jscripts/linkpreviews.js(?:\\?ver=[^"]+)?"></script>)', '', 0);
+	find_replace_templatesets('editpost_postoptions', '(<br\\s/>{\\$disablelinkpreviews})', '', 0);
 
 	$db->update_query('tasks', array('enabled' => 0), 'file=\'linktools\'');
 }
@@ -545,6 +562,10 @@ function lkt_toggle_hidden_posts() {
 		),
 		'linktools_regen_page_return_link' => array(
 			'template' => '<a href="$link_url">$link_text</a>',
+			'version_at_last_change' => '10100',
+		),
+		'linktools_cbxdisablelinkpreview' => array(
+			'template' => '<label><input type="checkbox" class="checkbox" name="lkt_linkpreviewoff" value="1" tabindex="9"{$linkpreviewoffchecked} /> {$lang->lkt_linkpreviewoff}</label>',
 			'version_at_last_change' => '10100',
 		),
 	);
@@ -3337,7 +3358,7 @@ function lkt_get_preview_regen_container($post, $urls) {
 function lkt_hookin__postbit($post) {
 	global $g_lkt_links;
 
-	if ($g_lkt_links) {
+	if ($g_lkt_links && empty($post['lkt_linkpreviewoff'])) {
 		foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($g_lkt_links)) as $preview) {
 			$post['message'] .= $preview;
 		}
@@ -3350,7 +3371,7 @@ function lkt_hookin__postbit($post) {
 function lkt_hookin__xmlhttp_update_post() {
 	global $g_lkt_links, $post;
 
-	if ($g_lkt_links) {
+	if ($g_lkt_links && empty($post['lkt_linkpreviewoff'])) {
 		foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($g_lkt_links)) as $preview) {
 			$post['message'] .= $preview;
 		}
@@ -3408,4 +3429,20 @@ function lkt_retrieve_terms($urls, $set_false_on_not_found = false) {
 	}
 
 	return $terms;
+}
+
+function lkt_hookin__editpost_action_start() {
+	global $post, $templates, $disablelinkpreviews, $lang;
+
+	$lang->load(C_LKT);
+
+	$linkpreviewoffchecked = empty($post['lkt_linkpreviewoff']) ? '' : ' checked="checked"';
+	eval('$disablelinkpreviews = "'.$templates->get('linktools_cbxdisablelinkpreview').'";');
+}
+
+function lkt_hookin__editpost_do_editpost_end() {
+	global $post, $mybb, $db;
+
+	$val = !empty($mybb->get_input('lkt_linkpreviewoff', MyBB::INPUT_INT)) ? '1' : '0';
+	$db->update_query('posts', array('lkt_linkpreviewoff' => $val), "pid = '{$post['pid']}'");
 }
