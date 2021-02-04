@@ -66,7 +66,7 @@ class LinkHelperDefault extends LinkHelper {
 		$max_title_chars = 80;
 		$max_desc_chars = 83;
 
-		$title = preg_match('(<title>(.*?)</title>)sim', $html, $matches) ? $matches[1] : 'Untitled';
+		$title = preg_match('(<title(?:\\s+[^>]*>|>)(.*?)</title>)sim', $html, $matches) ? $matches[1] : 'Untitled';
 		$title = trim(preg_replace('(\\s+)', ' ', $title));
 		$need_ellipsis_title = strlen($title) > $max_title_chars;
 		if ($need_ellipsis_title) {
@@ -91,9 +91,9 @@ class LinkHelperDefault extends LinkHelper {
 			$description = substr($description, 0, $max_desc_chars);
 		}
 
-		if (preg_match('(<meta\\s+property\\s*=\\s*"og:image"\\s+content\\s*=\\s*"([^"]+)")', $html, $matches)
+		if (preg_match('(<meta\\s+[^>]*property\\s*=\\s*"og:image"\\s+content\\s*=\\s*"([^"]+)")sim', $html, $matches)
 		    ||
-		    preg_match('(<img\\s+.*?src="([^"]*)")', $html, $matches)
+		    preg_match('(<img\\s+.*?src="([^"]*)")sim', $html, $matches)
 		) {
 			$img_url = lkt_check_absolutise_relative_uri($matches[1], $link);
 		} else	$img_url = $mybb->settings['bburl'].'/images/image-placeholder-icon.jpg';
