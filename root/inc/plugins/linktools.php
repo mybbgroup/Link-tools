@@ -938,7 +938,7 @@ function lkt_create_settings() {
 			'title'       => $lang->lkt_link_preview_on_fly_title,
 			'description' => $lang->lkt_link_preview_on_fly_desc,
 			'optionscode' => "select\nalways={$lang->lkt_link_preview_on_fly_always}\nnever={$lang->lkt_link_preview_on_fly_never}\nwhitelist={$lang->lkt_link_preview_on_fly_whitelist}\nblacklist={$lang->lkt_link_preview_on_fly_blacklist}",
-			'value'       => 'always',
+			'value'       => 'never',
 		),
 		'link_preview_on_fly_dom_list' => array(
 			'title'       => $lang->lkt_link_preview_on_fly_dom_list_title,
