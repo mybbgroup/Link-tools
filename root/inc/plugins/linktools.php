@@ -64,6 +64,8 @@ const lkt_term_tries_secs = array(
 
 const lkt_preview_regen_min_wait_secs = 30;
 
+$g_lkt_links = false;
+
 /**
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
  * @todo Maybe add a global and/or per-user setting to disable checking for matching non-opening posts.
@@ -3496,6 +3498,8 @@ function lkt_hookin__postbit($post) {
 		$post['updatepreview'] = lkt_get_preview_regen_container($post, $g_lkt_links);
 	}
 
+	$g_lkt_links = false;
+
 	return $post;
 }
 
@@ -3513,7 +3517,15 @@ function lkt_hookin__parse_message_start($message) {
 	global $g_lkt_links, $mybb;
 
 	if (!(THIS_SCRIPT == 'showthread.php' && $mybb->settings[C_LKT.'_link_preview_on_fly'] == 'never')) {
-		$g_lkt_links = lkt_extract_urls($message, /*$exclude_videos = */true);
+		// We check for $g_lkt_links being false because this hook is
+		// called for any signature of the post after the post itself.
+		// That's why we set $g_lkt_links to false in
+		// lkt_hookin__postbit(). False indicates this is the first call
+		// for this post, i.e., the post message itself rather than its
+		// signature.
+		if ($g_lkt_links === false) {
+			$g_lkt_links = lkt_extract_urls($message, /*$exclude_videos = */true);
+		}
 	} else	$g_lkt_links = array();
 
 	return $message;
