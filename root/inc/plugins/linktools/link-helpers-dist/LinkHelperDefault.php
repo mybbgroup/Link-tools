@@ -81,7 +81,7 @@ class LinkHelperDefault extends LinkHelper {
 		} else {
 			$arr = preg_split('(<body[^>]*>)', $html, 2);
 			if (count($arr) >= 2) {
-				$body = $arr[1];
+				$body = preg_replace('(<script(?:\\s*[^>]*>|>).*?</script>)sim', ' ', $arr[1]);
 				$plaintext = trim(preg_replace('(\\s+)', ' ', strip_tags($body)));
 				$description = $plaintext;
 			} else	$description = '';
