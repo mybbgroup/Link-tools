@@ -839,7 +839,7 @@ function lkt_create_settings() {
 		'link_preview_type' => array(
 			'title'       => $lang->lkt_link_preview_type_title,
 			'description' => $lang->lkt_link_preview_type_desc,
-			'optionscode' => "select\nall={$lang->lkt_link_preview_type_all}\nnone={$lang->lkt_link_preview_type_none}\nonly_link_helpers={$lang->lkt_link_preview_type_only_link_helpers}\nonly_3rd_party={$lang->lkt_link_preview_type_only_3rd_party}\nwhitelist={$lang->lkt_link_preview_type_whitelist}\nblacklist={$lang->lkt_link_preview_type_blacklist}",
+			'optionscode' => "select\nall={$lang->lkt_link_preview_type_all}\nnone={$lang->lkt_link_preview_type_none}\nwhitelist={$lang->lkt_link_preview_type_whitelist}\nblacklist={$lang->lkt_link_preview_type_blacklist}",
 			'value'       => 'all',
 		),
 		'link_preview_dom_list' => array(
@@ -869,7 +869,7 @@ function lkt_create_settings() {
 		'link_preview_on_fly' => array(
 			'title'       => $lang->lkt_link_preview_on_fly_title,
 			'description' => $lang->lkt_link_preview_on_fly_desc,
-			'optionscode' => "select\nalways={$lang->lkt_link_preview_on_fly_always}\nnever={$lang->lkt_link_preview_on_fly_never}\nonly_without_cache={$lang->lkt_link_preview_on_fly_only_without_cache}\nwhitelist={$lang->lkt_link_preview_on_fly_whitelist}\nblacklist={$lang->lkt_link_preview_on_fly_blacklist}",
+			'optionscode' => "select\nalways={$lang->lkt_link_preview_on_fly_always}\nnever={$lang->lkt_link_preview_on_fly_never}\nwhitelist={$lang->lkt_link_preview_on_fly_whitelist}\nblacklist={$lang->lkt_link_preview_on_fly_blacklist}",
 			'value'       => 'only_without_cache',
 		),
 		'link_preview_on_fly_dom_list' => array(
@@ -1650,81 +1650,66 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 	}
 
 	// First, check settings to determine whether we need a preview for this type of URL.
-	$only_if_helper = $only_if_3p = false;
 	if (!$mybb->settings[C_LKT.'_link_preview_disable_self_dom'] && lkt_get_norm_server_from_url($term_url) == lkt_get_norm_server_from_url($mybb->settings['bburl'])) {
 		return false;
-	} else {
-		switch ($mybb->settings[C_LKT.'_link_preview_type']) {
-			case 'none':
+	}
+	switch ($mybb->settings[C_LKT.'_link_preview_type']) {
+		case 'none':
+			return false;
+		case 'whitelist':
+		case 'blacklist':
+			$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_dom_list']);
+			$whitelisting = $mybb->settings[C_LKT.'_link_preview_type'] == 'whitelist';
+			if ($whitelisting && !$list) {
 				return false;
-			case 'only_link_helpers':
-				$only_if_helper = true;
+			}
+			$ret = !$whitelisting;
+			foreach ($list as $domain) {
+				$listed_domain = lkt_normalise_domain($domain);
+				$url_domain = lkt_get_norm_server_from_url($term_url);
+				if ($listed_domain && $listed_domain == $url_domain) {
+					$ret = $whitelisting;
+					break;
+				}
+			}
+			if ($ret === false) {
+				return false;
+			}
+			break;
+		case 'all':
+		default:
+			// Preview needed.
+			break;
+	}
+	$on_the_fly = true;
+	if (!$manual_regen) {
+		if (THIS_SCRIPT == 'showthread.php') {
+			switch ($mybb->settings[C_LKT.'_link_preview_on_fly']) {
+			case 'always':
+				$on_the_fly = true;
 				break;
-			case 'only_3rd_party':
-				$only_if_3p = true;
+			case 'never':
+				$on_the_fly = false;
 				break;
 			case 'whitelist':
 			case 'blacklist':
-				$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_dom_list']);
-				$whitelisting = $mybb->settings[C_LKT.'_link_preview_type'] == 'whitelist';
+				$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_on_fly_dom_list']);
+				$whitelisting = $mybb->settings[C_LKT.'_link_preview_on_fly'] == 'whitelist';
 				if ($whitelisting && !$list) {
-					return false;
+					$on_the_fly = false;
 				}
-				$ret = !$whitelisting;
+				$on_the_fly = !$whitelisting;
 				foreach ($list as $domain) {
 					$listed_domain = lkt_normalise_domain($domain);
 					$url_domain = lkt_get_norm_server_from_url($term_url);
 					if ($listed_domain && $listed_domain == $url_domain) {
-						$ret = $whitelisting;
+						$on_the_fly = $whitelisting;
 						break;
 					}
 				}
-				if ($ret === false) {
-					return false;
-				}
 				break;
-			case 'all':
-			default:
-				// Preview needed.
-				break;
-		}
-		if (!$manual_regen) {
-			$forced_regen = false;
-			if (THIS_SCRIPT == 'showthread.php') {
-				switch ($mybb->settings[C_LKT.'_link_preview_on_fly']) {
-				case 'always':
-				case 'without_cache':
-					$regen = true;
-					break;
-				case 'never':
-					return false;
-				case 'whitelist':
-				case 'blacklist':
-					$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_on_fly_dom_list']);
-					$whitelisting = $mybb->settings[C_LKT.'_link_preview_on_fly'] == 'whitelist';
-					if ($whitelisting && !$list) {
-						return false;
-					}
-					$ret = !$whitelisting;
-					foreach ($list as $domain) {
-						$listed_domain = lkt_normalise_domain($domain);
-						$url_domain = lkt_get_norm_server_from_url($term_url);
-						if ($listed_domain && $listed_domain == $url_domain) {
-							$ret = $whitelisting;
-							break;
-						}
-					}
-					if ($ret === false) {
-						return false;
-					}
-					$forced_regen = true;
-					break;
-				case 'without_cache':
-					$forced_regen = null;
-					break;
-				}
 			}
-		} else	$forced_regen = true;
+		}
 	}
 
 	// Next, get all LinkHelper classes.
@@ -1739,7 +1724,7 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 	// Now, get the highest-prioritised LinkHelper class for this link type.
 	$max_priority = PHP_INT_MIN;
 	$priority_helper_classname = '';
-	$types = $only_if_3p ? array('3p') : array('3p', 'dist');
+	$types = array('3p', 'dist');
 	foreach ($types as $helper_type) {
 		// Third-party helpers are prioritised over those in the plugin's base distribution.
 		if ($helper_type == 'dist' && $priority_helper_classname != '') {
@@ -1750,40 +1735,15 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 			    &&
 			    $helper_class_name::supports_link($term_url)
 			    &&
-			    ($helper_class_name::get_priority() > $max_priority
-			     ||
-			     ($priority_helper_classname == ''
-			      &&
-			      $helper_class_name == 'LinkHelperDefault'
-			     )
-			     ||
-			     // LinkHelperDefault's priority is PHP_INT_MIN, so
-			     // ensure that we flag a viable Helper when one is
-			     // available with that same lowest priority and our
-			     // settings require a non-default Helper to exist.
-			     // Admittedly, this is an extremely unlikely
-			     // scenario.
-			     ($only_if_helper
-			      &&
-			      $max_priority == LinkHelperDefault::get_priority()
-			      &&
-			      $helper_class_name::get_priority() == $max_priority
-			      &&
-			      $helper_class_name != 'LinkHelperDefault'
-			     )
-			    )
+			    // We use >= because the default link helper has a
+			    // priority which equals the initial value of
+			    // $max_priority set above.
+			    $helper_class_name::get_priority() >= $max_priority
 			) {
 				$max_priority = $helper_class_name::get_priority();
 				$priority_helper_classname = $helper_class_name;
 			}
 		}
-	}
-
-	if ($only_if_helper && $priority_helper_classname == 'LinkHelperDefault'
-	    ||
-	    $only_if_3p && !$priority_helper_classname
-	) {
-		return false;
 	}
 
 	$regen = false;
@@ -1797,26 +1757,26 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 	$query = $db->simple_select('url_previews', 'valid, dateline, helper_class_name, helper_class_vers, preview', "url_norm = '".$db->escape_string($url_norm)."'");
 	$row = $db->fetch_array($query);
 	$has_db_entry = $row ? true : false;
-	if ($forced_regen) {
-		$regen = true;
-	} else if ($row) {
+	if ($row) {
+		$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
+		$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
+		if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
+			$org_helper = $row['helper_class_name'];
+			$regen = ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']);
+		}
 		if (!$regen) {
-			$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
-			$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
-			if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
-				$org_helper = $row['helper_class_name'];
-				$regen = ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']);
-			}
-			if (!$regen) {
-				$preview = $row['preview'];
-			}
+			$preview = $row['preview'];
 		} else if ($manual_regen) {
 			$min_wait = lkt_preview_regen_min_wait_secs;
 			if (TIME_NOW <= $row['dateline'] + $min_wait) {
 				return -1;
 			}
 		}
-	} else	$regen = true;
+		if ($regen && !$on_the_fly) {
+			$regen = false;
+			$preview = $row['preview'];
+		}
+	} else	$regen = $on_the_fly;
 
 	// Earlier returns possible.
 	return $regen ? $priority_helper_classname : null;

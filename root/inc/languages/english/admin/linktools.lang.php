@@ -46,37 +46,34 @@ $l['lkt_settings_desc'    ] = 'Settings to customise the Link Tools plugin';
 $l['lkt_force_dlw_title'  ] = 'Force members to use the duplicate link warner?';
 $l['lkt_force_dlw_desc'   ] = 'When set to "Yes", a member posting a new thread will not be permitted to disable the duplicate link warner. Otherwise, members may uncheck a "Warn about duplicate links" checkbox while posting a new thread to disable the duplicate link warner. The value of this checkbox persists across pages and sessions - it is stored in the member\'s settings.';
 
-$l['lkt_link_preview_type_title'] = 'Enable link previews?';
-$l['lkt_link_preview_type_desc' ] = 'Enable link previews for:';
-$l['lkt_link_preview_type_all'  ] = 'All domains';
-$l['lkt_link_preview_type_none' ] = 'No domains';
-$l['lkt_link_preview_type_only_link_helpers'] = 'Only domains with link helpers other than the default';
-$l['lkt_link_preview_type_only_3rd_party'   ] = 'Only domains with 3rd-party link helpers';
-$l['lkt_link_preview_type_whitelist'        ] = 'Only the following domains (whitelist)';
-$l['lkt_link_preview_type_blacklist'        ] = 'All domains except the following (blacklist)';
+$l['lkt_link_preview_type_title'    ] = 'Link preview domains';
+$l['lkt_link_preview_type_desc'     ] = 'The domains for which to enable link previews:';
+$l['lkt_link_preview_type_all'      ] = 'All domains';
+$l['lkt_link_preview_type_none'     ] = 'No domains';
+$l['lkt_link_preview_type_whitelist'] = 'Only the following domains (whitelist)';
+$l['lkt_link_preview_type_blacklist'] = 'All domains except the following (blacklist)';
 
 
-$l['lkt_link_preview_dom_list_title'] = 'Link preview domains';
+$l['lkt_link_preview_dom_list_title'] = 'Link preview domain whitelist/blacklist';
 $l['lkt_link_preview_dom_list_desc' ] = 'The domain whitelist/blacklist for the previous setting (if applicable). One domain per line.';
 
 $l['lkt_link_preview_disable_self_dom_title'] = 'Self-domain disable?';
 $l['lkt_link_preview_disable_self_dom_desc' ] = 'Disable link previews for links within this board\'s domain?';
 
 $l['lkt_link_preview_expiry_period_title'   ] = 'Link preview expiry period';
-$l['lkt_link_preview_expiry_period_desc'    ] = 'The number of days after which a link preview should be expired (and regenerated on-demand). Zero indicates "Never expire".';
+$l['lkt_link_preview_expiry_period_desc'    ] = 'The number of days after which a link preview should be expired (and regenerated on demand). Zero indicates "Never expire".';
 
 $l['lkt_link_preview_expire_on_new_helper_title'] = 'Expire link previews on helper change?';
 $l['lkt_link_preview_expire_on_new_helper_desc' ] = 'Whether or not a link preview should be expired (and regenerated on-demand) when the helper which originally generated it is changed, or when a new, higher priority helper applies to the link. Choose "Yes" for expiry and "No" to leave such link previews unexpired.';
 
-$l['lkt_link_preview_on_fly_title'] = 'When to (re)generate on-the-fly link previews';
-$l['lkt_link_preview_on_fly_desc' ] = 'Applies to on-the-fly (re)generation of link previews (which are then cached) when viewing a thread/post with links without a valid cached preview. Does not apply to initial on-the-fly generation of link previews (which are then cached) during posting, which cannot be disabled except via disabling link previews for the relevant link types/domains entirely. <strong>Warning: values other than "Never" and "Only when a valid cached copy doesn\'t exist" will cause link previews for the relevant domain(s) to be regenerated <em>every time a thread containing them is viewed</em>. Exercise caution as this may be discourteous the operators of the domain(s) in question.</strong></strong>';
-$l['lkt_link_preview_on_fly_always' ] = 'Always';
-$l['lkt_link_preview_on_fly_never' ] = 'Never';
-$l['lkt_link_preview_on_fly_only_without_cache'] = 'Only when a valid cached copy doesn\'t exist';
+$l['lkt_link_preview_on_fly_title'] = 'On-the-fly link preview (re)generation domains';
+$l['lkt_link_preview_on_fly_desc' ] = 'When viewing a thread with links without a valid cached preview in the database, for which domains should a link preview be (re)generated on the fly? Does not apply to initial on-the-fly generation of link previews (which are then cached in the database) during posting, which cannot be disabled except via disabling link previews for the relevant link helper types / domains entirely.';
+$l['lkt_link_preview_on_fly_always' ] = 'All domains';
+$l['lkt_link_preview_on_fly_never' ] = 'No domains';
 $l['lkt_link_preview_on_fly_whitelist'] = 'Only for the following domains (whitelist)';
 $l['lkt_link_preview_on_fly_blacklist'] = 'For all domains except the following domains (blacklist)';
 
-$l['lkt_link_preview_on_fly_dom_list_title'] = 'On-the-fly domains';
+$l['lkt_link_preview_on_fly_dom_list_title'] = 'On-the-fly domain whitelist/blacklist';
 $l['lkt_link_preview_op_fly_dom_list_desc' ] = 'The domain whitelist/blacklist for the previous setting (if applicable). One domain per line.';
 
 $l['lkt_linkhelpers'] = 'Link Helpers';
