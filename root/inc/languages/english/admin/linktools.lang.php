@@ -24,14 +24,19 @@ $l['lkt_admin_log_rebuild_links'] = 'Repopulating the links tables for Link Tool
 $l['lkt_success_rebuild_links'] = 'Successfully repopulated the links tables for Link Tools.';
 
 $l['lkt_rebuild_terms'     ] = 'Repopulate Terminating Redirects For Link Tools';
-$l['lkt_rebuild_terms_desc'] = 'When this is run, the terminating redirects for links in the database are repopulated from scratch. This ensures that any stored terminating redirects that may have changed since the posts were first made are updated. Be cautious about changing the "Data Entries Per Page" setting (to the right of this text), which determines the (maximum) number of web servers queried simultaneously when resolving redirects - setting it too high might cause failures.';
+$l['lkt_rebuild_terms_desc'] = 'When this is run, the terminating redirects for links in the database are repopulated from scratch (regeneration of link previews for those terminating redirects comes along for the ride too). This ensures that any stored terminating redirects that may have changed since the posts were first made are updated. Be cautious about changing the "Data Entries Per Page" setting (to the right of this text), which determines the (maximum) number of web servers queried simultaneously when resolving redirects - setting it too high might cause failures.';
 $l['lkt_admin_log_rebuild_terms'] = 'Repopulating the terminating redirects in the links tables for Link Tools.';
 $l['lkt_success_rebuild_terms'] = 'Successfully repopulated the terminating redirects in the links table for Link Tools.';
 
 $l['lkt_rebuild_renorm'     ] = 'Renormalise Links For Link Tools';
-$l['lkt_rebuild_renorm_desc'] = 'When this is run, stored links are renormalised. This only needs to be run if the "ignored query parameters" array constant is changed.';
+$l['lkt_rebuild_renorm_desc'] = 'When this is run, stored links are renormalised. This only needs to be run if the "ignored query parameters" array is changed. For details on how to change that array, see inc/plugins/linktools/ignored-query-params.php.';
 $l['lkt_admin_log_rebuild_renorm'] = 'Renormalising links for Link Tools.';
 $l['lkt_success_rebuild_renorm'] = 'Successfully renormalised links for Link Tools.';
+
+$l['lkt_rebuild_linkpreviews'     ] = 'Rebuild Link Previews for Link Tools';
+$l['lkt_rebuild_linkpreviews_desc'] = 'When this is run, link previews are (re)generated for all terminating links in the database. Whether link previews are (re)generated for all terminating links or only for those which do not already exist or are invalid can be controlled via the Link Tools setting "Scope of Rebuild Link Previews entry".';
+$l['lkt_admin_log_rebuild_linkpreviews'] = 'Rebuilding link previews for Link Tools.';
+$l['lkt_success_rebuild_linkpreviews'] = 'Successfully rebuilt link previews for Link Tools.';
 
 $l['lkt_task_title'       ] = 'Link Tools Link Extraction And Redirect Resolution';
 $l['lkt_task_description' ] = 'Extracts links from any posts from which links have not already been extracted, and stores them into the database. Then resolves ultimate redirect targets for up to '.lkt_default_rebuild_term_items_per_page.' links for which an ultimate redirect target has not yet already been resolved, and stores those targets into the database. The first part of this task is most useful in cases in which the plugin is deactivated for a period, during which new posts will not have their links extracted by the plugin - this task then "catches up" on those posts when the plugin is reactivated. On top of that scenario, the second part of this task is necessary because even though redirect targets are resolved when links are first extracted and stored after being edited into a new or existing post, there can sometimes be network errors or downed sites which prevent proper resolution of any redirect(s) at the time.';
@@ -75,6 +80,11 @@ $l['lkt_link_preview_on_fly_blacklist'] = 'For all domains except the following 
 
 $l['lkt_link_preview_on_fly_dom_list_title'] = 'On-the-fly domain whitelist/blacklist';
 $l['lkt_link_preview_op_fly_dom_list_desc' ] = 'The domain whitelist/blacklist for the previous setting (if applicable). One domain per line.';
+
+$l['lkt_link_preview_rebuild_scope_title'       ] = 'Scope of Rebuild Link Previews entry';
+$l['lkt_link_preview_rebuild_scope_desc'        ] = 'For which links should previews be rebuilt by the "Rebuild Link Previews for Link Tools" Recount & Rebuild entry?';
+$l['lkt_link_preview_rebuild_scope_all'         ] = 'All';
+$l['lkt_link_preview_rebuild_scope_only_invalid'] = 'Only links with missing/invalid/expired previews';
 
 $l['lkt_linkhelpers'] = 'Link Helpers';
 $l['lkt_template_installed'] = 'Template installed?';

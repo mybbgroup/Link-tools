@@ -29,6 +29,7 @@ const lkt_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
 const lkt_default_rebuild_links_items_per_page = 500;
 const lkt_default_rebuild_term_items_per_page = 150;
 const lkt_default_rebuild_renorm_items_per_page = 500;
+const lkt_default_rebuild_linkpreviews_items_per_page = 150;
 
 const lkt_max_matching_posts = 10;
 
@@ -898,6 +899,12 @@ function lkt_create_settings() {
 			'description' => $lang->lkt_link_preview_op_fly_dom_list_desc,
 			'optionscode' => 'textarea',
 			'value'       => '',
+		),
+		'link_preview_rebuild_scope' => array(
+			'title'       => $lang->lkt_link_preview_rebuild_scope_title,
+			'description' => $lang->lkt_link_preview_rebuild_scope_desc,
+			'optionscode' => "select\nall={$lang->lkt_link_preview_rebuild_scope_all}\nonly_invalid={$lang->lkt_link_preview_rebuild_scope_only_invalid}",
+			'value'       => 'only_invalid'
 		),
 	);
 
@@ -1778,7 +1785,9 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 	$query = $db->simple_select('url_previews', 'valid, dateline, helper_class_name, helper_class_vers, preview', "url_norm = '".$db->escape_string($url_norm)."'");
 	$row = $db->fetch_array($query);
 	$has_db_entry = $row ? true : false;
-	if ($row) {
+	if ($manual_regen === 'force_regen') {
+		$regen = true;
+	} else if ($row) {
 		$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
 		$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
 		if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
@@ -1811,17 +1820,22 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
  *                values are the previews of the corresponding terminating URLs
  *                also as supplied in $term_urls.
  */
-function lkt_get_gen_link_previews($term_urls) {
+function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 	global $db;
 
 	$previews = $lh_data = array();
 	$term_urls_uniq = array_values(array_unique($term_urls));
+	$norm_term_urls = array();
 
 	foreach ($term_urls_uniq as $term_url) {
+		$norm_term_url = lkt_normalise_url($term_url);
+		if (!empty($norm_term_urls[$norm_term_url])) {
+			continue;
+		}
 		// There is room for optimisation here: potentially, a database
 		// query is made here on each iteration of the loop, which is
 		// inefficient.
-		$res = lkt_url_has_needs_preview($term_url, $preview, $has_db_entry);
+		$res = lkt_url_has_needs_preview($term_url, $preview, $has_db_entry, $force_regen ? 'force_regen' : false);
 		if (is_null($res)) {
 			$previews[$term_url] = $preview;
 		} else if ($res) {
@@ -1831,6 +1845,7 @@ function lkt_get_gen_link_previews($term_urls) {
 			);
 		}
 		unset($preview);
+		$norm_term_urls[$norm_term_url] = true;
 	}
 	if ($lh_data) {
 		$server_urls = array();
@@ -2591,6 +2606,11 @@ function lkt_hookin__admin_tools_recount_rebuild_output_list() {
 	$form_container->output_cell($form->generate_numeric_field('lkt_renorm_per_page', lkt_default_rebuild_renorm_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
 	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuild_renorm')));
 	$form_container->construct_row();
+
+	$form_container->output_cell("<label>{$lang->lkt_rebuild_linkpreviews}</label><div class=\"description\">{$lang->lkt_rebuild_linkpreviews_desc}</div>");
+	$form_container->output_cell($form->generate_numeric_field('lkt_linkpreviews_per_page', lkt_default_rebuild_linkpreviews_items_per_page, array('style' => 'width: 150px;', 'min' => 0)));
+	$form_container->output_cell($form->generate_submit_button($lang->go, array('name' => 'do_rebuild_linkpreviews')));
+	$form_container->construct_row();
 }
 
 function lkt_hookin__admin_tools_recount_rebuild() {
@@ -2661,7 +2681,6 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 			check_proceed($finish, $inc, ++$page, $per_page, 'lkt_urls_per_page', 'do_rebuild_terms', $lang->lkt_success_rebuild_terms);
 		}
 
-
 		if (isset($mybb->input['do_rebuild_renorm'])) {
 			if($mybb->input['page'] == 1) {
 				// Log admin action
@@ -2699,6 +2718,42 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
 			check_proceed($finish, $offset + $per_page, ++$page, $per_page, 'lkt_renorm_per_page', 'do_rebuild_renorm', $lang->lkt_success_rebuild_renorm);
+		}
+
+		if (isset($mybb->input['do_rebuild_linkpreviews'])) {
+			if($mybb->input['page'] == 1) {
+				// Log admin action
+				log_admin_action($lang->lkt_admin_log_rebuild_linkpreviews);
+			}
+
+			if (!$mybb->get_input('lkt_linkpreviews_per_page', MyBB::INPUT_INT)) {
+				$mybb->input['lkt_linkpreviews_per_page'] = lkt_default_rebuild_linkpreviews_items_per_page;
+			}
+
+			$page = $mybb->get_input('page', MyBB::INPUT_INT);
+			$per_page = $mybb->get_input('lkt_linkpreviews_per_page', MyBB::INPUT_INT);
+			if ($per_page <= 0) {
+				$per_page = lkt_default_rebuild_linkpreviews_items_per_page;
+			}
+
+			$offset = ($page - 1) * $per_page;
+			$res = $db->simple_select('urls', 'urlid, url, url_term', '', array(
+				'order_by'    => 'urlid',
+				'order_dir'   => 'ASC',
+				'limit_start' => $offset,
+				'limit'       => $per_page
+			));
+			$urls_term = array();
+			while (($row = $db->fetch_array($res))) {
+				$urls_term[$row['url']] = $row['url_term'];
+			}
+
+			lkt_get_gen_link_previews($urls_term, $mybb->settings[C_LKT.'_link_preview_rebuild_scope'] == 'all' ? true : false);
+
+			$finish = $db->fetch_field($db->simple_select('urls', 'count(*) AS count'), 'count');
+
+			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
+			check_proceed($finish, $offset + $per_page, ++$page, $per_page, 'lkt_linkpreviews_per_page', 'do_rebuild_linkpreviews', $lang->lkt_success_rebuild_linkpreviews);
 		}
 	}
 }
