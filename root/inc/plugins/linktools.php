@@ -137,16 +137,14 @@ function linktools_info() {
 		'compatibility' => '18*'
 	);
 
-	if (linktools_is_installed()) {
+	if (linktools_is_installed() && is_array($plugins_cache) && is_array($plugins_cache['active']) && $plugins_cache['active'][C_LKT]) {
 		$desc = '';
 		$desc .= '<ul>'.PHP_EOL;
 
-		if (is_array($plugins_cache) && is_array($plugins_cache['active']) && $plugins_cache['active'][C_LKT]) {
-			if (!empty($admin_session['data']['lkt_plugin_info_upgrade_message'])) {
-				$msg = $admin_session['data']['lkt_plugin_info_upgrade_message'].' '.$msg;
-				update_admin_session('lkt_plugin_info_upgrade_message', '');
-				$desc .= "	<li style=\"list-style-image: url(styles/default/images/icons/success.png)\"><div class=\"success\">{$msg}</div></li>".PHP_EOL;
-			}
+		if (!empty($admin_session['data']['lkt_plugin_info_upgrade_message'])) {
+			$msg = $admin_session['data']['lkt_plugin_info_upgrade_message'].' '.$msg;
+			update_admin_session('lkt_plugin_info_upgrade_message', '');
+			$desc .= "	<li style=\"list-style-image: url(styles/default/images/icons/success.png)\"><div class=\"success\">{$msg}</div></li>".PHP_EOL;
 		}
 
 		$res = $db->simple_select('posts', 'count(*) AS cnt', 'lkt_got_urls = 0');
@@ -201,8 +199,8 @@ function linktools_info() {
 
 		$lrs_plugins = $cache->read('lrs_plugins');
 		$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
-		                  ? $lrs_plugins[C_LKT]['installed_link_helpers']
-		                  : array();
+				? $lrs_plugins[C_LKT]['installed_link_helpers']
+				: array();
 
 		$present_helpers = array();
 		foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
@@ -310,6 +308,9 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 	lkt_insert_templates($from_version);
 	lkt_create_settingsgroup();
 	lkt_create_settings();
+	if ($from_version < (int)'10100') {
+		lkt_enable_all_helpers();
+	}
 }
 
 function linktools_uninstall() {
@@ -421,6 +422,50 @@ function linktools_deactivate() {
 	find_replace_templatesets('editpost_postoptions', '(<br\\s/>{\\$disablelinkpreviews})', '', 0);
 
 	$db->update_query('tasks', array('enabled' => 0), 'file=\'linktools\'');
+}
+
+/**
+ * Enables all helpers present in the filesystem and inserts their templates as necessary.
+ */
+function lkt_enable_all_helpers() {
+	global $cache, $db;
+
+	$lrs_plugins = $cache->read('lrs_plugins');
+	$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
+			? $lrs_plugins[C_LKT]['installed_link_helpers']
+			: array();
+	$present_helpers = array();
+	foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
+		$present_helpers = array_merge($present_helpers, $classnames);
+	}
+
+	foreach ($present_helpers as $present_helper) {
+		if (!is_array($inst_helpers[$present_helper])) {
+			$inst_helpers[$present_helper] = array(
+				'enabled' => true,
+			);
+		}
+		if (empty($inst_helpers[$present_helper]['enabled'])) {
+			$inst_helpers[$present_helper]['enabled'] = true;
+			if (empty($inst_helpers[$present_helper]['tpl_installed'])) {
+				$helperobj = $present_helper::get_instance();
+				if ($tplname = $helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
+					$fields = array(
+						'title'    => $db->escape_string($tplname),
+						'template' => $db->escape_string($helperobj->get_template_raw()),
+						'sid'      => '-2',
+						'version'  => '1',
+						'dateline' => TIME_NOW
+					);
+					$db->insert_query('templates', $fields);
+					$inst_helpers[$present_helper]['tpl_installed'] = $present_helper::get_version();
+				}
+			}
+		}
+	}
+
+	$lrs_plugins[C_LKT]['installed_link_helpers'] = $inst_helpers;
+	$cache->update('lrs_plugins', $lrs_plugins);
 }
 
 function lkt_hookin__admin_config_plugins_activate_commit() {
