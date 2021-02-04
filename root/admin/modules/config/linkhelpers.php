@@ -49,7 +49,6 @@ if ($mybb->get_input('do_update')) {
 			$input_arr = $mybb->get_input($inst_helper, MyBB::INPUT_ARRAY);
 			if (!$just_installed[$inst_helper] && is_array($input_arr) && $input_arr[0] != $inst_helper) {
 				$tpl_nm = LinkHelper::mk_tpl_nm_frm_classnm($inst_helper);
-				echo $tpl_nm;
 				$db->delete_query('templates', "title = '$tpl_nm'");
 				$inst_helpers[$inst_helper]['tpl_installed'] = '';
 			}
