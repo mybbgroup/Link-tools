@@ -1809,6 +1809,7 @@ function lkt_get_gen_link_previews($term_urls) {
 				'has_db_entry' => $has_db_entry
 			);
 		}
+		unset($preview);
 	}
 	if ($lh_data) {
 		$server_urls = array();
