@@ -51,6 +51,7 @@ const lkt_max_allowable_redirects_for_a_url = 25;
 const lkt_max_allowable_redirect_resolution_runtime_secs = 60;
 const lkt_curl_timeout = 10;
 const lkt_max_url_lock_time = 120;
+const lkt_curl_useragent = 'The MyBB Link Tools plugin';
 
 const lkt_term_tries_secs = array(
 	0,             // First attempt has no limits.
@@ -1577,7 +1578,8 @@ function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 					$target = lkt_check_absolutise_relative_uri($target, $url);
 				}
 				if ($target == $url && $html) {
-					lkt_get_gen_link_preview($url, $html);
+					$content_type = lkt_get_content_type_from_hdrs($headers);
+					lkt_get_gen_link_preview($url, $html, $content_type);
 				}
 				$redirs[$url] = $target;
 				$origin_urls[$target] = $origin_urls[$url];
@@ -1951,7 +1953,7 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 						CURLOPT_RETURNTRANSFER => true,
 						CURLOPT_HEADER         => true,
 						CURLOPT_TIMEOUT        => lkt_curl_timeout,
-						CURLOPT_USERAGENT      => 'The MyBB Link Tools plugin',
+						CURLOPT_USERAGENT      => lkt_curl_useragent,
 					))) {
 						curl_close($ch);
 						return false;
@@ -1986,8 +1988,10 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 						     &&
 						     ($response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE)) !== false
 						   ) {
+							$headers = substr($content, 0, $header_size);
+							$content_type = lkt_get_content_type_from_hdrs($headers);
 							$html = substr($content, $header_size);
-							$previews[$url] = lkt_get_gen_link_preview($url, $html, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
+							$previews[$url] = lkt_get_gen_link_preview($url, $html, $content_type, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
 						}
 						curl_multi_remove_handle($mh, $ch);
 					}
@@ -2012,6 +2016,28 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 	return $ret;
 }
 
+function lkt_get_content_type_from_hdrs($headers) {
+	// Strip off any charset declaration
+	return trim(explode(';', lkt_get_header($headers, 'content-type'), 2)[0]);
+}
+
+function lkt_get_header($headers, $header_name) {
+	$header_name = strtolower(trim($header_name));
+	foreach (preg_split('/\r\n|\n|\r/', $headers) as $header) {
+		$arr = explode(':', $header, 2);
+		if (count($arr) >= 2) {
+			$hdr_name = trim($arr[0]);
+			if (strtolower($hdr_name) == $header_name) {
+				$hdr_content = trim($arr[1]);
+
+				return $hdr_content;
+			}
+		}
+	}
+
+	return false;
+}
+
 /**
  * Get the preview for a link, first (re)generating it and storing to the DB if
  * appropriate/necessary. If a Link Helper class name is provided, it is assumed
@@ -2021,7 +2047,7 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
  * is assumed that a database entry for the link already exists, and so an
  * update query is performed rather than an insert query.
  */
-function lkt_get_gen_link_preview($term_url, $html, $lh_classname = false, $has_db_entry = null) {
+function lkt_get_gen_link_preview($term_url, $html, $content_type, $lh_classname = false, $has_db_entry = null) {
 	global $db;
 
 	if (!$lh_classname) {
@@ -2035,7 +2061,7 @@ function lkt_get_gen_link_preview($term_url, $html, $lh_classname = false, $has_
 		$priority_helper_classname = $res;
 		$url_norm = lkt_normalise_url($term_url);
 		$helper = $priority_helper_classname::get_instance();
-		$preview = $helper->get_preview($term_url, $html);
+		$preview = $helper->get_preview($term_url, $html, $content_type);
 		$fields = array(
 			'valid' => '1',
 			'dateline' => TIME_NOW,

@@ -18,7 +18,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-define("IN_MYBB", 1);
+define('IN_MYBB', 1);
 define('THIS_SCRIPT', 'lkt-regen-preview.php');
 require_once "./global.php";
 
@@ -49,6 +49,19 @@ if ($pid = $mybb->get_input('pid', MyBB::INPUT_INT)) {
 	}
 } else	error($lang->lkt_err_regen_no_pid_or_url);
 
+$ch = curl_init();
+if ($ch === false) {
+	error('Failed to initialise cURL.');
+}
+if (!curl_setopt_array($ch, array(
+	CURLOPT_RETURNTRANSFER => true,
+	CURLOPT_HEADER         => true,
+	CURLOPT_TIMEOUT        => lkt_curl_timeout,
+	CURLOPT_USERAGENT      => lkt_curl_useragent,
+))) {
+	curl_close($ch);
+	error('Failed to set cURL options.');
+}
 foreach ($terms as $url => $term_url) {
 	if ($regen_msg) $regen_msg .= '<br />'.PHP_EOL;
 	$res = lkt_url_has_needs_preview($term_url, $preview, $has_db_entry, true);
@@ -57,12 +70,25 @@ foreach ($terms as $url => $term_url) {
 	} else if ($res === -1) {
 		$regen_msg .= $lang->sprintf($lang->lkt_err_regen_url_too_soon , lkt_preview_regen_min_wait_secs, htmlspecialchars_uni($url));
 	} else {
-		$preview = lkt_get_gen_link_preview($term_url, file_get_contents($term_url), $res, $has_db_entry);
-		if (!$preview) {
+		curl_setopt($ch, CURLOPT_URL, $term_url);
+		$content = curl_exec($ch);
+		if ($content
+		    &&
+		    ($header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE)) !== false
+		     &&
+		     ($response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE)) !== false
+		   ) {
+			$headers = substr($content, 0, $header_size);
+			$content_type = lkt_get_content_type_from_hdrs($headers);
+			$html = substr($content, $header_size);
+			$preview = lkt_get_gen_link_preview($term_url, $html, $content_type, $res, $has_db_entry);
+		}
+		if ($preview === false) {
 			$regen_msg .= $lang->sprintf($lang->lkt_err_regen_no_preview_returned, htmlspecialchars_uni($url));
 		} else	$regen_msg .= $lang->sprintf($lang->lkt_success_regen_url, htmlspecialchars_uni($url));
 	}
 }
+curl_close($ch);
 
 if ($pid_ret_to = $mybb->get_input('return_pid', MyBB::INPUT_INT)) {
 	$link_url  = get_post_link($pid_ret_to);

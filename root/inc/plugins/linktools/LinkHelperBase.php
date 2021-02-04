@@ -219,20 +219,22 @@ abstract class LinkHelper {
 	 * Get the preview's valid HTML. This is the primary function called
 	 * by consumers of this class.
 	 *
-	 * @param $link The link for which the preview should be generated.
-	 *              Is checked for validity (support).
-	 * @param $html The HTML of the page at $link.
+	 * @param $link         The link for which the preview should be generated.
+	 *                      Is checked for validity (support).
+	 * @param $content      The contents of the page at $link.
+	 * @param $content_type The content type returned for the contents of
+	 *                      the previous variable ($content_type).
 	 *
 	 * @return Mixed The preview as a string of HTML or false if $link is
 	 *               not supported.
 	 */
-	public function get_preview($link, $html) {
+	public function get_preview($link, $content, $content_type) {
 		$class = static::class;
 		if (!$class::supports_link($link)) {
 			return false;
 		}
 
-		return $this->get_preview_contents($link, $html);
+		return $this->get_preview_contents($link, $content, $content_type);
 	}
 
 	/**
@@ -241,11 +243,13 @@ abstract class LinkHelper {
 	 * which (unless this functionality is overridden in a descendant class)
 	 * is then wrapped by the caller in a container.
 	 *
-	 * @param $link The link for which the preview should be generated.
-	 *              Pre-check this link for validity (support).
-	 * @param $html The HTML of the page at $link.
+	 * @param $link         The link for which the preview should be generated.
+	 *                      Is checked for validity (support).
+	 * @param $content      The contents of the page at $link.
+	 * @param $content_type The content type returned for the contents of
+	 *                      the previous variable ($content_type).
 	 *
 	 * @return string The preview as valid HTML.
 	 */
-	abstract protected function get_preview_contents($link, $html);
+	abstract protected function get_preview_contents($link, $content, $content_type);
 }

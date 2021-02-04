@@ -60,26 +60,30 @@ class LinkHelperDefault extends LinkHelper {
 	/**
 	 * The heart of the class.
 	 */
-	protected function get_preview_contents($link, $html) {
+	protected function get_preview_contents($link, $content, $content_type) {
 		global $mybb;
+
+		if ($content_type != 'text/html') {
+			return '';
+		}
 
 		$max_title_chars = 80;
 		$max_desc_chars = 83;
 
-		$title = preg_match('(<title(?:\\s+[^>]*>|>)(.*?)</title>)sim', $html, $matches) ? $matches[1] : 'Untitled';
+		$title = preg_match('(<title(?:\\s+[^>]*>|>)(.*?)</title>)sim', $content, $matches) ? $matches[1] : 'Untitled';
 		$title = trim(preg_replace('(\\s+)', ' ', $title));
 		$need_ellipsis_title = strlen($title) > $max_title_chars;
 		if ($need_ellipsis_title) {
 			$title = substr($title, 0, $max_title_chars);
 		}
 
-		if (preg_match('(<meta\\s+name\\s*=\\s*"description"\\s+content\\s*=\\s*"([^"]+)")', $html, $matches)
+		if (preg_match('(<meta\\s+name\\s*=\\s*"description"\\s+content\\s*=\\s*"([^"]+)")', $content, $matches)
 		    ||
-		    preg_match('(<meta\\s+content\\s*=\\s*"([^"]+)"\\s+name\\s*=\\s*"description")', $html, $matches)
+		    preg_match('(<meta\\s+content\\s*=\\s*"([^"]+)"\\s+name\\s*=\\s*"description")', $content, $matches)
 		) {
 			$description = $matches[1];
 		} else {
-			$arr = preg_split('(<body[^>]*>)', $html, 2);
+			$arr = preg_split('(<body[^>]*>)', $content, 2);
 			if (count($arr) >= 2) {
 				$body = preg_replace('(<script(?:\\s*[^>]*>|>).*?</script>)sim', ' ', $arr[1]);
 				$plaintext = trim(preg_replace('(\\s+)', ' ', strip_tags($body)));
@@ -91,9 +95,9 @@ class LinkHelperDefault extends LinkHelper {
 			$description = substr($description, 0, $max_desc_chars);
 		}
 
-		if (preg_match('(<meta\\s+[^>]*property\\s*=\\s*"og:image"\\s+content\\s*=\\s*"([^"]+)")sim', $html, $matches)
+		if (preg_match('(<meta\\s+[^>]*property\\s*=\\s*"og:image"\\s+content\\s*=\\s*"([^"]+)")sim', $content, $matches)
 		    ||
-		    preg_match('(<img\\s+.*?src="([^"]*)")sim', $html, $matches)
+		    preg_match('(<img\\s+.*?src="([^"]*)")sim', $content, $matches)
 		) {
 			$img_url = lkt_check_absolutise_relative_uri($matches[1], $link);
 		} else	$img_url = $mybb->settings['bburl'].'/images/image-placeholder-icon.jpg';

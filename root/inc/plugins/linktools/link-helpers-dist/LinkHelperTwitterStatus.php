@@ -100,7 +100,7 @@ EOT;
 	 * The heart of the class. Generates the HTML for the link preview.
 	 *
 	 */
-	protected function get_preview_contents($link, $html) {
+	protected function get_preview_contents($link, $content, $content_type) {
 		$link_safe = $this->make_safe($link);
 
 		preg_match('(/(\\d+)$)', $link, $matches);
