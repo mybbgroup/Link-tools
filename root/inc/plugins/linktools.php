@@ -1833,23 +1833,25 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 	if ($manual_regen === 'force_regen') {
 		$regen = true;
 	} else if ($row) {
-		$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
-		$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
-		if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
-			$org_helper = $row['helper_class_name'];
-			$regen = ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']);
-		}
-		if (!$regen) {
-			$preview = $row['preview'];
-		} else if ($manual_regen) {
+		if ($manual_regen) {
 			$min_wait = lkt_preview_regen_min_wait_secs;
 			if (TIME_NOW <= $row['dateline'] + $min_wait) {
 				return -1;
+			} else	$regen = true;
+		} else {
+			$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
+			$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
+			if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
+				$org_helper = $row['helper_class_name'];
+				$regen = ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']);
 			}
-		}
-		if ($regen && !$on_the_fly) {
-			$regen = false;
-			$preview = $row['preview'];
+			if (!$regen) {
+				$preview = $row['preview'];
+			}
+			if ($regen && !$on_the_fly) {
+				$regen = false;
+				$preview = $row['preview'];
+			}
 		}
 	} else	$regen = $on_the_fly;
 
