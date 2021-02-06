@@ -1085,16 +1085,20 @@ function lkt_extract_urls($text, $exclude_videos = false) {
 	$text = preg_replace("#\[img align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", ' ', $text);
 	$text = preg_replace("#\[img=([1-9][0-9]*)x([1-9][0-9]*) align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", ' ', $text);
 
+	# Next, strip out all [video] tags if required.
+	if ($exclude_videos) {
+		# [video] tag regex from postParser::parse_mycode() in ../class_parser.php.
+		$text = preg_replace("#\[video=(.*?)\](.*?)\[/video\]#i", ' ', $text);
+	}
+
 	# [url] tag regexes from postParser::cache_mycode() in ../class_parser.php.
 	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\[/url\]#si", array(1, 2));
 	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript:)[^\r\n\"<]+?)\[/url\]#i", array(1));
 	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1, 2));
 	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript:)[^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1));
 
-	if (!$exclude_videos) {
-		# [video] tag regex from postParser::parse_mycode() in ../class_parser.php.
-		lkt_extract_url_from_mycode_tag($text, $urls, "#\[video=(.*?)\](.*?)\[/video\]#i", array(2));
-	}
+	# [video] tag regex from postParser::parse_mycode() in ../class_parser.php.
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[video=(.*?)\](.*?)\[/video\]#i", array(2));
 
 	lkt_extract_bare_urls($text, $urls);
 
