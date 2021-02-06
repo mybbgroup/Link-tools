@@ -105,8 +105,10 @@ EOT;
 
 		preg_match('(/(\\d+)$)', $link, $matches);
 		$tweet_id = $matches[1];
-		$rand = mt_rand();
-		eval('$preview_contents = "'.$this->get_template_for_eval().'";');
+		if (strlen($tweet_id) < 1024) {
+			$rand = mt_rand();
+			eval('$preview_contents = "'.$this->get_template_for_eval().'";');
+		} else	$preview_contents = '';
 
 		return $preview_contents;
 	}

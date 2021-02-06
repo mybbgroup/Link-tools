@@ -77,19 +77,21 @@ class LinkHelperDefault extends LinkHelper {
 			$title = substr($title, 0, $max_title_chars);
 		}
 
+		$arr = preg_split('(<body[^>]*>)', $content, 2);
+		if (count($arr) >= 2) {
+			$body = preg_replace('(<script(?:\\s*[^>]*>|>).*?</script>)sim', ' ', $arr[1]);
+			$plaintext = trim(preg_replace('(\\s+)', ' ', strip_tags($body)));
+		} else {
+			$body = '';
+			$plaintext = '';
+		}
+
 		if (preg_match('(<meta\\s+name\\s*=\\s*"description"\\s+content\\s*=\\s*"([^"]+)")', $content, $matches)
 		    ||
 		    preg_match('(<meta\\s+content\\s*=\\s*"([^"]+)"\\s+name\\s*=\\s*"description")', $content, $matches)
 		) {
 			$description = $matches[1];
-		} else {
-			$arr = preg_split('(<body[^>]*>)', $content, 2);
-			if (count($arr) >= 2) {
-				$body = preg_replace('(<script(?:\\s*[^>]*>|>).*?</script>)sim', ' ', $arr[1]);
-				$plaintext = trim(preg_replace('(\\s+)', ' ', strip_tags($body)));
-				$description = $plaintext;
-			} else	$description = '';
-		}
+		} else	$description = $plaintext;
 		$need_ellipsis_desc = strlen($description) > $max_desc_chars;
 		if ($need_ellipsis_desc) {
 			$description = substr($description, 0, $max_desc_chars);
@@ -97,10 +99,19 @@ class LinkHelperDefault extends LinkHelper {
 
 		if (preg_match('(<meta\\s+[^>]*property\\s*=\\s*"og:image"\\s+content\\s*=\\s*"([^"]+)")sim', $content, $matches)
 		    ||
-		    preg_match('(<img\\s+.*?src="([^"]*)")sim', $content, $matches)
+		    preg_match('(<img\\s+.*?src="([^"]*)")sim', $body, $matches)
 		) {
 			$img_url = lkt_check_absolutise_relative_uri($matches[1], $link);
-		} else	$img_url = $mybb->settings['bburl'].'/images/image-placeholder-icon.jpg';
+			if (strlen($img_url) > 2048) {
+				// More than likely this is an image whose src
+				// is inline via data:image/[imagetype] - ignore
+				// it as it wastes DB space.
+				$img_url = '';
+			}
+		}
+		if (!$img_url) {
+			$img_url = $mybb->settings['bburl'].'/images/image-placeholder-icon.png';
+		}
 
 		$link_safe = htmlspecialchars_uni($this->make_safe($link));
 		$title_safe = $this->make_safe($title);
