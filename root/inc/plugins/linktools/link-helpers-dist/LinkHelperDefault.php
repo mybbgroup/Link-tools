@@ -74,7 +74,7 @@ class LinkHelperDefault extends LinkHelper {
 		$title = trim(preg_replace('(\\s+)', ' ', $title));
 		$need_ellipsis_title = strlen($title) > $max_title_chars;
 		if ($need_ellipsis_title) {
-			$title = substr($title, 0, $max_title_chars);
+			$title = my_substr($title, 0, $max_title_chars);
 		}
 
 		$arr = preg_split('(<body[^>]*>)', $content, 2);
@@ -94,7 +94,7 @@ class LinkHelperDefault extends LinkHelper {
 		} else	$description = $plaintext;
 		$need_ellipsis_desc = strlen($description) > $max_desc_chars;
 		if ($need_ellipsis_desc) {
-			$description = substr($description, 0, $max_desc_chars);
+			$description = my_substr($description, 0, $max_desc_chars);
 		}
 
 		if (preg_match('(<meta\\s+[^>]*property\\s*=\\s*"og:image"\\s+content\\s*=\\s*"([^"]+)")sim', $content, $matches)

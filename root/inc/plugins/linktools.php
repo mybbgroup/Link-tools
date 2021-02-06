@@ -64,6 +64,7 @@ const lkt_term_tries_secs = array(
 
 const lkt_preview_regen_min_wait_secs = 30;
 
+global $g_lkt_links;
 $g_lkt_links = false;
 
 /**
@@ -257,6 +258,7 @@ CREATE TABLE '.TABLE_PREFIX.'urls (
   term_tries    tinyint unsigned NOT NULL DEFAULT 0,
   last_term_try int unsigned  NOT NULL DEFAULT 0,
   lock_time     int unsigned  NOT NULL DEFAULT 0,
+  got_preview   boolean       NOT NULL DEFAULT FALSE,
   KEY           url           (url(168)),
   KEY           url_norm      (url_norm(166)),
   KEY           url_term_norm (url_term_norm(166)),
@@ -276,8 +278,7 @@ CREATE TABLE '.TABLE_PREFIX.'url_previews (
   valid        tinyint(1)       NOT NULL DEFAULT 1,
   helper_class_name varchar('.lkt_max_helper_class_name_len.') NOT NULL DEFAULT \'\',
   helper_class_vers varchar('.lkt_max_helper_class_vers_len.') NOT NULL DEFAULT \'\',
-  KEY         url_norm (url_norm(166)),
-  PRIMARY KEY (url_norm(166))
+  KEY         url_norm (url_norm(166))
 )'.$db->build_create_table_collation().';');
 	}
 
@@ -288,6 +289,10 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
   urlid       int unsigned NOT NULL,
   PRIMARY KEY (urlid, pid)
 )'.$db->build_create_table_collation().';');
+	}
+
+	if (!$db->field_exists('got_preview', 'urls')) {
+		$db->query('ALTER TABLE '.TABLE_PREFIX.'urls ADD got_preview boolean NOT NULL DEFAULT FALSE');
 	}
 
 	if (!$db->field_exists('lkt_got_urls', 'posts')) {
@@ -1588,7 +1593,8 @@ function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 				}
 				if ($target == $url && $html) {
 					$content_type = lkt_get_content_type_from_hdrs($headers);
-					lkt_get_gen_link_preview($url, $html, $content_type);
+					$charset = lkt_get_charset($headers, $html);
+					lkt_get_gen_link_preview($url, $html, $content_type, $charset);
 				}
 				$redirs[$url] = $target;
 				$origin_urls[$target] = $origin_urls[$url];
@@ -1871,8 +1877,7 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 }
 
 /**
- * @param $term_urls Array. Keys are non-normalised URLs; values are their
- *                          non-normalised terminating URLs.
+ * @param $term_urls Array of non-normalised terminating URLs.
  *
  * @return Array. Keys are non-normalised URLs as supplied in $term_urls;
  *                values are the previews of the corresponding terminating URLs
@@ -2000,7 +2005,8 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 							$headers = substr($content, 0, $header_size);
 							$content_type = lkt_get_content_type_from_hdrs($headers);
 							$html = substr($content, $header_size);
-							$previews[$url] = lkt_get_gen_link_preview($url, $html, $content_type, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
+							$charset = lkt_get_charset($headers, $html);
+							$previews[$url] = lkt_get_gen_link_preview($url, $html, $content_type, $charset, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
 						}
 						curl_multi_remove_handle($mh, $ch);
 					}
@@ -2023,6 +2029,60 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 	}
 
 	return $ret;
+}
+
+function lkt_get_charset($headers, $html) {
+	$charset = lkt_get_charset_from_content_decl(lkt_get_header($headers, 'content-type'));
+	if (preg_match('(<head(?:\\s[^>]*>|>)(.*?)</head>)sim', $html, $matches)) {
+		$head = $matches[1];
+		$tag_attrs = lkt_get_attrs_of_tags($head, 'meta');
+		foreach ($tag_attrs as $attrs) {
+			if (!empty($attrs['http-equiv']) && $attrs['http-equiv'] == 'content-type' && !empty($attrs['content'])) {
+				$charset = lkt_get_charset_from_content_decl($attrs['content']);
+			} else if (!empty($attrs['charset'])) {
+				$charset = $attrs['charset'];
+			}
+		}
+	}
+
+	return $charset;
+}
+
+function lkt_get_attrs_of_tags($head, $tagname, $lowercase_keys = true) {
+	$attrs = array();
+	if (preg_match_all('(<'.preg_quote($tagname).'\\s+([^>]*)>)', $head, $matches, PREG_PATTERN_ORDER)) {
+		foreach ($matches[1] as $inner) {
+			$attrs_tmp = array();
+			if (preg_match_all('(([^=]+)=\\s*("[^"]*"|[^\\s]+))', trim($inner), $matches2, PREG_SET_ORDER)) {
+				foreach ($matches2 as $m2) {
+					$key = trim($m2[1]);
+					if ($lowercase_keys) {
+						$key = my_strtolower($key);
+					}
+					$val = trim($m2[2], '"');
+
+					$attrs_tmp[$key] = $val;
+				}
+			}
+			$attrs[] = $attrs_tmp;
+		}
+	}
+
+	return $attrs;
+}
+
+function lkt_get_charset_from_content_decl($content_decl) {
+	$charset = '';
+
+	$a = explode(';', $content_decl, 2);
+	if (count($a) == 2) {
+		$a2 = explode('=', trim($a[1]), 2);
+		if (count($a2) == 2 && my_strtolower(trim($a2[0])) == 'charset') {
+			$charset = trim($a2[1]);
+		}
+	}
+
+	return $charset;
 }
 
 function lkt_get_content_type_from_hdrs($headers) {
@@ -2056,7 +2116,7 @@ function lkt_get_header($headers, $header_name) {
  * is assumed that a database entry for the link already exists, and so an
  * update query is performed rather than an insert query.
  */
-function lkt_get_gen_link_preview($term_url, $html, $content_type, $lh_classname = false, $has_db_entry = null) {
+function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = '', $lh_classname = false, $has_db_entry = null) {
 	global $db;
 
 	if (!$lh_classname) {
@@ -2070,6 +2130,13 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $lh_classname
 		$priority_helper_classname = $res;
 		$url_norm = lkt_normalise_url($term_url);
 		$helper = $priority_helper_classname::get_instance();
+
+		// Handle different character sets by converting them to UTF8.
+		if ($charset != 'utf-8') {
+			$from = $charset ? $charset : mb_detect_encoding($html);
+			$html = mb_convert_encoding($html, 'utf-8', $from);
+		}
+
 		$preview = $helper->get_preview($term_url, $html, $content_type);
 		$fields = array(
 			'valid' => '1',
@@ -2082,7 +2149,15 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $lh_classname
 			$db->update_query('url_previews', $fields, "url_norm = '".$db->escape_string($url_norm)."'");
 		} else {
 			$fields['url_norm'] = $db->escape_string($url_norm);
-			$db->insert_query('url_previews', $fields);
+			// Simulate a UNIQUE constraint on the `url_norm` column
+			// using HAVING. We can't use an actual UNIQUE
+			// constraint because the DB's maximum allowable key
+			// length is so short that we often enough end up with
+			// duplicate keys for different values.
+			$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, helper_class_name, helper_class_vers, preview, url_norm)
+       SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['helper_class_name'].'\', \''.$fields['helper_class_vers'].'\', \''.$fields['preview'].'\', \''.$fields['url_norm'].'\'
+       FROM '.TABLE_PREFIX.'url_previews WHERE url_norm=\''.$fields['url_norm'].'\'
+       HAVING COUNT(*) = 0');
 		}
 	} // else $preview was set in the second argument to the call to
 	//   lkt_url_has_needs_preview() above.
@@ -2499,27 +2574,30 @@ function lkt_get_sql_conds_for_ltt() {
 	return $conds;
 }
 
-function lkt_get_and_store_terms($num_urls, $retrieve_count = false, &$count = 0) {
-	global $db, $mybb;
+/**
+ * The purpose of this function is to ensure that the ratio of the numbers of
+ * URLs from different servers in our URLs to be polled based on some criteria
+ * is the same as that of as-yet unpolled (by that same criteria) URLs in the
+ * database.
+ *
+ * Why? Because, given that we only poll each server once at a time, and pause
+ * between successive requests to that server, this minimises the total runtime
+ * of all operations - or, at least, that's my understanding unless/until
+ * somebody corrects me.
+ */
+function lkt_proportion_urls_by_server($num_urls, $conds, $field, &$count = 0, &$ids) {
+	global $db;
 
-lkt_get_and_store_terms_start:
-	$servers = $servers_sought = $servers_tot = $urls_final = $ids = [];
+	$servers = $servers_sought = $servers_tot = $urls_final = $ids = array();
 
-	// The next one hundred or so lines of code ensure that the ratio of the numbers
-	// of URLs from different servers in our urls to be polled is the same as that of
-	// as-yet unresolved URLs in the database.
-	//
-	// Why? Because, given that we only make only one request of each server at a time,
-	// and pause between successive requests to that server, this optimises the total
-	// runtime of all operations - or, at least, that's my understanding unless/until
-	// somebody corrects me.
-	$conds = '('.lkt_get_sql_conds_for_ltt().') AND '.time().' > lock_time + '.lkt_max_url_lock_time;
+	if (!$num_urls) return $urls_final;
+
 	$start = 0;
 	$continue = true;
 	while ($continue) {
 		$res = $db->simple_select(
 			'urls',
-			'url',
+			$field,
 			$conds,
 			array(
 				'limit_start' => $start,
@@ -2533,7 +2611,7 @@ lkt_get_and_store_terms_start:
 
 		$continue = false;
 		while ($row = $db->fetch_array($res)) {
-			$norm_server = lkt_get_norm_server_from_url($row['url']);
+			$norm_server = lkt_get_norm_server_from_url($row[$field]);
 			if (!$norm_server) {
 				$norm_server = '';
 			}
@@ -2546,6 +2624,7 @@ lkt_get_and_store_terms_start:
 			$servers_tot[$norm_server]++;
 		}
 	}
+
 	asort($servers_tot);
 	$servers_tot = array_reverse($servers_tot);
 	$sought_cnt = 0;
@@ -2579,7 +2658,7 @@ lkt_get_and_store_terms_start:
 		$urls_new = array();
 		$res = $db->simple_select(
 			'urls',
-			'url, urlid',
+			"$field, urlid",
 			$conds,
 			array(
 				'limit_start' => $start,
@@ -2591,8 +2670,8 @@ lkt_get_and_store_terms_start:
 			)
 		);
 		while (($row = $db->fetch_array($res))) {
-			$urls_new[] = $row['url'];
-			$ids[$row['url']] = $row['urlid'];
+			$urls_new[] = $row[$field];
+			$ids[$row[$field]] = $row['urlid'];
 		}
 
 		if (!$urls_new) break;
@@ -2619,25 +2698,35 @@ lkt_get_and_store_terms_start:
 
 	} while (count($urls_new) >= $num_urls);
 
-	// Lock the relevant rows in the urls table for two minutes (lkt_max_url_lock_time).
-	// If we find that they have ALL already been locked (by some other process also
-	// accessing this function) in between the above and now, then go back to the
-	// beginning of this function and try again (to find any other unlocked urls).
-	$now = time();
-	$cnt = 0;
-	foreach ($urls_final as $url) {
-		if ($db->write_query('
-UPDATE '.TABLE_PREFIX.'urls SET lock_time = '.$now.'
-WHERE url = \''.$db->escape_string($url).'\' AND '.
-      $now.' > lock_time + '.lkt_max_url_lock_time)
-		    &&
-		    $db->affected_rows() >= 1) {
-			$cnt++;
+	// Early return possible
+	return $urls_final;
+}
+
+function lkt_get_and_store_terms($num_urls, &$count = 0) {
+	global $db, $mybb;
+
+	$conds = '('.lkt_get_sql_conds_for_ltt().') AND '.time().' > lock_time + '.lkt_max_url_lock_time;
+
+	do {
+		$urls_final = lkt_proportion_urls_by_server($num_urls, $conds, /*$field = */'url', $count, $ids);
+
+		// Lock the relevant rows in the urls table for two minutes (lkt_max_url_lock_time).
+		// If we find that they have ALL already been locked (by some other process also
+		// accessing this function) in between the above and now, then go back to the
+		// beginning of this function and try again (to find any other unlocked urls).
+		$now = time();
+		$cnt = 0;
+		foreach ($urls_final as $url) {
+			if ($db->write_query('
+	UPDATE '.TABLE_PREFIX.'urls SET lock_time = '.$now.'
+	WHERE url = \''.$db->escape_string($url).'\' AND '.
+	$now.' > lock_time + '.lkt_max_url_lock_time)
+			&&
+			$db->affected_rows() >= 1) {
+				$cnt++;
+			}
 		}
-	}
-	if (count($urls_final) > 0 && $cnt <= 0) {
-		goto lkt_get_and_store_terms_start;
-	}
+	} while (count($urls_final) > 0 && $cnt <= 0);
 
 	$terms = lkt_get_url_term_redirs($urls_final, $got_terms);
 	if ($terms) {
@@ -2757,7 +2846,7 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 				$db->write_query('UPDATE '.TABLE_PREFIX.'urls SET got_term = 0, term_tries = 0, last_term_try = 0, url_term = url, url_term_norm = url_norm');
 			}
 
-			$inc = lkt_get_and_store_terms($per_page, true, $finish);
+			$inc = lkt_get_and_store_terms($per_page, $finish);
 
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
 			check_proceed($finish, $inc, ++$page, $per_page, 'lkt_urls_per_page', 'do_rebuild_terms', $lang->lkt_success_rebuild_terms);
@@ -2806,6 +2895,8 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 			if($mybb->input['page'] == 1) {
 				// Log admin action
 				log_admin_action($lang->lkt_admin_log_rebuild_linkpreviews);
+				$db->update_query('urls', array('got_preview' => 0));
+				$db->update_query('urls', array('got_preview' => 1), 'url_term_norm IN (SELECT url_norm FROM '.TABLE_PREFIX.'url_previews)');
 			}
 
 			if (!$mybb->get_input('lkt_linkpreviews_per_page', MyBB::INPUT_INT)) {
@@ -2818,24 +2909,33 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 				$per_page = lkt_default_rebuild_linkpreviews_items_per_page;
 			}
 
-			$offset = ($page - 1) * $per_page;
-			$res = $db->simple_select('urls', 'urlid, url, url_term', '', array(
-				'order_by'    => 'urlid',
-				'order_dir'   => 'ASC',
-				'limit_start' => $offset,
-				'limit'       => $per_page
-			));
-			$urls_term = array();
-			while (($row = $db->fetch_array($res))) {
-				$urls_term[$row['url']] = $row['url_term'];
+			$conds = 'got_preview = FALSE';
+
+			$urls_term = lkt_proportion_urls_by_server(
+				$per_page,
+				$conds,
+				/*$field = */'url_term',
+				$count,
+				$ids
+			);
+
+			$previews = lkt_get_gen_link_previews($urls_term, $mybb->settings[C_LKT.'_link_preview_rebuild_scope'] == 'all' ? true : false);
+
+			if ($ids) {
+				$ids_str = '';
+				foreach ($urls_term as $url_term) {
+					if (!empty($ids[$url_term])) {
+						if ($ids_str) $ids_str .= ',';
+						$ids_str .= $ids[$url_term];
+					}
+				}
+				$db->update_query('urls', array('got_preview' => 1), 'urlid IN ('.$ids_str.')');
 			}
 
-			lkt_get_gen_link_previews($urls_term, $mybb->settings[C_LKT.'_link_preview_rebuild_scope'] == 'all' ? true : false);
-
-			$finish = $db->fetch_field($db->simple_select('urls', 'count(*) AS count'), 'count');
+			$finish = $db->fetch_field($db->simple_select('urls', 'count(*) AS count', $conds), 'count');
 
 			// The first two parameters seem to be semantically switched within this function, so that's the way I've passed them.
-			check_proceed($finish, $offset + $per_page, ++$page, $per_page, 'lkt_linkpreviews_per_page', 'do_rebuild_linkpreviews', $lang->lkt_success_rebuild_linkpreviews);
+			check_proceed(count($previews), 0, ++$page, $per_page, 'lkt_linkpreviews_per_page', 'do_rebuild_linkpreviews', $lang->lkt_success_rebuild_linkpreviews);
 		}
 	}
 }
@@ -3520,16 +3620,14 @@ function lkt_hookin__xmlhttp_update_post() {
 function lkt_hookin__parse_message_start($message) {
 	global $g_lkt_links, $mybb;
 
-	if (!(THIS_SCRIPT == 'showthread.php' && $mybb->settings[C_LKT.'_link_preview_on_fly'] == 'never')) {
-		// We check for $g_lkt_links being false because this hook is
-		// called for any signature of the post after the post itself.
-		// That's why we set $g_lkt_links to false in
-		// lkt_hookin__postbit(). False indicates this is the first call
-		// for this post, i.e., the post message itself rather than its
-		// signature.
-		if ($g_lkt_links === false) {
-			$g_lkt_links = lkt_extract_urls($message, /*$exclude_videos = */true);
-		}
+	// We check for $g_lkt_links being false because this hook is
+	// called for any signature of the post after the post itself.
+	// That's why we set $g_lkt_links to false in
+	// lkt_hookin__postbit(). False indicates this is the first call
+	// for this post, i.e., the post message itself rather than its
+	// signature.
+	if ($g_lkt_links === false) {
+		$g_lkt_links = lkt_extract_urls($message, /*$exclude_videos = */true);
 	} else	$g_lkt_links = array();
 
 	return $message;

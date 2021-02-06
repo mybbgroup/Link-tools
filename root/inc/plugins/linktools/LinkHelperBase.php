@@ -170,8 +170,8 @@ abstract class LinkHelper {
 	static public function mk_tpl_nm_frm_classnm($classname) {
 		$prefix = 'linkhelper';
 		$name = strtolower($classname);
-		if (substr($name, 0, strlen($prefix)) == $prefix) {
-			$name = substr($name, strlen($prefix));
+		if (my_substr($name, 0, strlen($prefix)) == $prefix) {
+			$name = my_substr($name, strlen($prefix));
 		}
 
 		return 'linktools_linkpreview_'.$name;

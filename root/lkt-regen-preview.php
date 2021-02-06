@@ -81,7 +81,8 @@ foreach ($terms as $url => $term_url) {
 			$headers = substr($content, 0, $header_size);
 			$content_type = lkt_get_content_type_from_hdrs($headers);
 			$html = substr($content, $header_size);
-			$preview = lkt_get_gen_link_preview($term_url, $html, $content_type, $res, $has_db_entry);
+			$charset = lkt_get_charset($headers, $html);
+			$preview = lkt_get_gen_link_preview($term_url, $html, $content_type, $charset, $res, $has_db_entry);
 		}
 		if ($preview === false) {
 			$regen_msg .= $lang->sprintf($lang->lkt_err_regen_no_preview_returned, htmlspecialchars_uni($url));
