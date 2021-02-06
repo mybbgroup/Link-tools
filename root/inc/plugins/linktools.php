@@ -1730,7 +1730,7 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 	}
 
 	// First, check settings to determine whether we need a preview for this type of URL.
-	if (!$mybb->settings[C_LKT.'_link_preview_disable_self_dom'] && lkt_get_norm_server_from_url($term_url) == lkt_get_norm_server_from_url($mybb->settings['bburl'])) {
+	if ($mybb->settings[C_LKT.'_link_preview_disable_self_dom'] && lkt_get_norm_server_from_url($term_url) == lkt_get_norm_server_from_url($mybb->settings['bburl'])) {
 		return false;
 	}
 	switch ($mybb->settings[C_LKT.'_link_preview_type']) {
