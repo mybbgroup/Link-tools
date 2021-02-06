@@ -27,9 +27,9 @@ if (!defined('IN_MYBB')) {
 const lkt_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
 
 const lkt_default_rebuild_links_items_per_page = 500;
-const lkt_default_rebuild_term_items_per_page = 150;
+const lkt_default_rebuild_term_items_per_page = 40;
 const lkt_default_rebuild_renorm_items_per_page = 500;
-const lkt_default_rebuild_linkpreviews_items_per_page = 150;
+const lkt_default_rebuild_linkpreviews_items_per_page = 40;
 
 const lkt_max_matching_posts = 10;
 
