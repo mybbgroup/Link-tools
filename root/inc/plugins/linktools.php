@@ -1703,7 +1703,7 @@ function lkt_get_linkhelper_classnames() {
 		$LinkHelperClassNames = array('3p' => array(), 'dist' => array());
 		foreach (array('link-helpers-3rd-party', 'link-helpers-dist') as $subdir) {
 			foreach (new DirectoryIterator(__DIR__.'/linktools/'.$subdir) as $file) {
-				if ($file->isDot()) {
+				if ($file->isDot() || strtolower($file->getExtension()) != 'php') {
 					continue;
 				}
 				$filepath = __DIR__.'/linktools/'.$subdir.'/'.$file->getFilename();
