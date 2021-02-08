@@ -332,6 +332,14 @@ function linktools_uninstall() {
 		$db->drop_table('post_urls');
 	}
 
+	if ($db->table_exists('url_previews')) {
+		$db->drop_table('url_previews');
+	}
+
+	if ($db->field_exists('lkt_linkpreviewoff', 'posts')) {
+		$db->query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN lkt_linkpreviewoff');
+	}
+
 	if ($db->field_exists('lkt_got_urls', 'posts')) {
 		$db->query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN lkt_got_urls');
 	}
