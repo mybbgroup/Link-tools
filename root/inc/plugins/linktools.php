@@ -3623,6 +3623,8 @@ function lkt_hookin__xmlhttp_update_post() {
 			$post['message'] .= $preview;
 		}
 	}
+
+	$g_lkt_links = false;
 }
 
 function lkt_hookin__parse_message_start($message) {
@@ -3636,7 +3638,7 @@ function lkt_hookin__parse_message_start($message) {
 	// signature.
 	if ($g_lkt_links === false) {
 		$g_lkt_links = lkt_extract_urls($message, /*$exclude_videos = */true);
-	} else	$g_lkt_links = array();
+	}
 
 	return $message;
 }
