@@ -1727,39 +1727,51 @@ function lkt_get_linkhelper_classnames() {
 
 /**
  * @param string $term_url A terminating URL.
- * @return Mixed.
- *         Boolean False if a preview is not required for the supplied URL.
- *         Null If a preview is required and a valid one has been retrieved from
- *           the DB, in which case the supplied parameter $preview is set to the
- *           retrieved preview.
- *         Integer. -1 if $manual_regen was set true but it is too soon since
- *           the last regen to perform another one.
- *         String. The name of the prioritised Helper class to generate the
- *           preview if a preview is required but a valid one does not exist in
- *           the DB.
+ * @param boolean $manual_regen True if this is a user-requested manual
+ *                              regeneration of the preview; false otherwise.
+ * @return An array containing at least two entries, the first keyed by
+ *         'result', with value as one of the constants defined below, and the
+ *         second keyed by 'has_db_entry', indicating (true/false/null) whether
+ *         the preview for this URL has a database entry. The value for the
+ *         'result' key has the following meanings:
+ *          LKT_PV_NOT_REQUIRED: a preview is not required for the supplied URL.
+ *          LKT_PV_FOUND       : a valid preview was retrieved for the supplied
+ *                               URL, in which case the returned array also
+ *                               contains that preview, indexed by 'preview'.
+ *          LKT_PV_TOO_SOON    : $manual_regen was set true but it is too soon
+ *                               since the last regen to perform another one.
+ *          LKT_PV_GOT_HELPER  : a preview is required but not cached, in which
+ *                               case the returned array also contains the name
+ *                               of the prioritised Link Helper class which
+ *                               should be used to generate the preview, indexed
+ *                               by 'helper'.
  */
-function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual_regen = false) {
+define('LKT_PV_NOT_REQUIRED', 1);
+define('LKT_PV_FOUND'       , 2);
+define('LKT_PV_TOO_SOON'    , 3);
+define('LKT_PV_GOT_HELPER'  , 4);
+function lkt_url_has_needs_preview($term_url, $manual_regen = false) {
 	global $db, $mybb, $cache;
 
 	$has_db_entry = null;
 
 	if (!in_array(lkt_get_scheme($term_url), array('http', 'https', ''))) {
-		return false;
+		return array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
 	}
 
 	// First, check settings to determine whether we need a preview for this type of URL.
 	if ($mybb->settings[C_LKT.'_link_preview_disable_self_dom'] && lkt_get_norm_server_from_url($term_url) == lkt_get_norm_server_from_url($mybb->settings['bburl'])) {
-		return false;
+		return array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
 	}
 	switch ($mybb->settings[C_LKT.'_link_preview_type']) {
 		case 'none':
-			return false;
+			return array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
 		case 'whitelist':
 		case 'blacklist':
 			$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_dom_list']);
 			$whitelisting = $mybb->settings[C_LKT.'_link_preview_type'] == 'whitelist';
 			if ($whitelisting && !$list) {
-				return false;
+				return array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
 			}
 			$ret = !$whitelisting;
 			foreach ($list as $domain) {
@@ -1771,7 +1783,7 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 				}
 			}
 			if ($ret === false) {
-				return false;
+				return array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
 			}
 			break;
 		case 'all':
@@ -1861,7 +1873,7 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 		if ($manual_regen) {
 			$min_wait = lkt_preview_regen_min_wait_secs;
 			if (TIME_NOW <= $row['dateline'] + $min_wait) {
-				return -1;
+				return array('result' => LKT_PV_TOO_SOON, 'has_db_entry' => $has_db_entry);
 			} else	$regen = true;
 		} else {
 			$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
@@ -1881,7 +1893,9 @@ function lkt_url_has_needs_preview($term_url, &$preview, &$has_db_entry, $manual
 	} else	$regen = $on_the_fly;
 
 	// Earlier returns possible.
-	return $regen ? $priority_helper_classname : null;
+	return $regen
+	         ? array('result' => LKT_PV_GOT_HELPER, 'has_db_entry' => $has_db_entry, 'helper'  => $priority_helper_classname)
+	         : array('result' => LKT_PV_FOUND     , 'has_db_entry' => $has_db_entry, 'preview' => $preview                  );
 }
 
 /**
@@ -1906,16 +1920,15 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 		// There is room for optimisation here: potentially, a database
 		// query is made here on each iteration of the loop, which is
 		// inefficient.
-		$res = lkt_url_has_needs_preview($term_url, $preview, $has_db_entry, $force_regen ? 'force_regen' : false);
-		if (is_null($res)) {
-			$previews[$term_url] = $preview;
-		} else if ($res) {
+		$res = lkt_url_has_needs_preview($term_url, $force_regen ? 'force_regen' : false);
+		if ($res['result'] === LKT_PV_FOUND) {
+			$previews[$term_url] = $res['preview'];
+		} else if ($res['result'] == LKT_PV_GOT_HELPER && $res['helper']) {
 			$lh_data[$term_url] = array(
-				'lh_classname' => $res,
-				'has_db_entry' => $has_db_entry
+				'lh_classname' => $res['helper'      ],
+				'has_db_entry' => $res['has_db_entry']
 			);
 		}
-		unset($preview);
 		$norm_term_urls[$norm_term_url] = true;
 	}
 	if ($lh_data) {
@@ -2127,15 +2140,18 @@ function lkt_get_header($headers, $header_name) {
 function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = '', $lh_classname = false, $has_db_entry = null) {
 	global $db;
 
-	if (!$lh_classname) {
-		$res = lkt_url_has_needs_preview($term_url, $preview, $has_db_entry);
-	} else	$res = $lh_classname;
+	$preview = '';
 
-	if ($res === false) {
+	if (!$lh_classname) {
+		$res = lkt_url_has_needs_preview($term_url);
+	} else	$res = array('result' => LKT_PV_GOT_HELPER, 'helper' => $lh_classname, 'has_db_entry' => $has_db_entry);
+
+	if ($res['result'] == LKT_PV_NOT_REQUIRED) {
 		return false;
-	} else if ($res) {
+	} else if ($res['result'] == LKT_PV_GOT_HELPER && $res['helper']) {
 		// (Re)generate the preview and return it.
-		$priority_helper_classname = $res;
+		$has_db_entry = $res['has_db_entry'];
+		$priority_helper_classname = $res['helper'];
 		$url_norm = lkt_normalise_url($term_url);
 		$helper = $priority_helper_classname::get_instance();
 
@@ -2167,8 +2183,9 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
        FROM '.TABLE_PREFIX.'url_previews WHERE url_norm=\''.$fields['url_norm'].'\'
        HAVING COUNT(*) = 0');
 		}
-	} // else $preview was set in the second argument to the call to
-	//   lkt_url_has_needs_preview() above.
+	} else if ($res['result'] == LKT_PV_FOUND) {
+		$preview = $res['preview'];
+	}
 
 	return $preview;
 }
