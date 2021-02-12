@@ -69,7 +69,7 @@ $l['lkt_link_preview_expiry_period_title'   ] = 'Link preview expiry period';
 $l['lkt_link_preview_expiry_period_desc'    ] = 'The number of days after which a link preview should be expired (and regenerated on demand). Zero indicates "Never expire".';
 
 $l['lkt_link_preview_expire_on_new_helper_title'] = 'Expire link previews on helper change?';
-$l['lkt_link_preview_expire_on_new_helper_desc' ] = 'Whether or not a link preview should be expired (and regenerated on-demand) when the helper which originally generated it is changed, or when a new, higher priority helper applies to the link. Choose "Yes" for expiry and "No" to leave such link previews unexpired.';
+$l['lkt_link_preview_expire_on_new_helper_desc' ] = 'Whether or not a link preview should be expired (and regenerated on-demand) when the helper which originally generated it is changed, or when a new, higher priority helper applies to the link. Choose "Yes" for expiry and "No" to leave such link previews unexpired. Note that this setting does not affect link helpers which are selected and prioritised based on the page\'s content or content type, since their selection requires a query of a link\'s web server, defeating the purpose of using the cache where possible.';
 
 $l['lkt_link_preview_on_fly_title'] = 'On-the-fly link preview (re)generation domains';
 $l['lkt_link_preview_on_fly_desc' ] = 'When viewing a thread with links without a valid cached preview in the database, for which domains should a link preview be (re)generated on the fly? Does not apply to initial on-the-fly generation of link previews (which are then cached in the database) during posting, which cannot be disabled except via disabling link previews for the relevant link helper types / domains entirely.';

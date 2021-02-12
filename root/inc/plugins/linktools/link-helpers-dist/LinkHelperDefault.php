@@ -25,7 +25,8 @@ if (!defined('IN_MYBB')) {
 
 class LinkHelperDefault extends LinkHelper {
 	/**
-	 * Support all links.
+	 * Provisionally support all links (subject to the page to which a
+	 * link refers having a content-type of text/html).
 	 */
 	static protected $supported_norm_links_regex = '(^)';
 
@@ -47,7 +48,14 @@ class LinkHelperDefault extends LinkHelper {
 	 */
 	static protected $version = '1.0.0';
 
-	protected $friendly_name = 'Default helper';
+	/**
+	 * This Helper needs the page's content and/or content-type both to
+	 * determine whether it supports the page as well as to generate a
+	 * preview of the page.
+	 */
+	static protected $needs_content_for = LinkHelper::NC_FOR_BOTH;
+
+	protected $friendly_name = 'Default helper (for HTML only)';
 
 	protected $template = '<div class="lkt-link-preview">
 	<a href="$link_safe">
@@ -56,6 +64,13 @@ class LinkHelperDefault extends LinkHelper {
 		<span style="font-size: small;">$description_safe</span>
 	</a>
 </div>';
+
+	/**
+	 * Only support previews of HTML content.
+	 */
+	static public function supports_page($link, $content_type, $content) {
+		return $content_type === 'text/html';
+	}
 
 	/**
 	 * The heart of the class.
@@ -72,7 +87,7 @@ class LinkHelperDefault extends LinkHelper {
 
 		$title = preg_match('(<title(?:\\s+[^>]*>|>)(.*?)</title>)sim', $content, $matches) ? $matches[1] : 'Untitled';
 		$title = trim(preg_replace('(\\s+)', ' ', $title));
-		$need_ellipsis_title = strlen($title) > $max_title_chars;
+		$need_ellipsis_title = my_strlen($title) > $max_title_chars;
 		if ($need_ellipsis_title) {
 			$title = my_substr($title, 0, $max_title_chars);
 		}
@@ -92,7 +107,7 @@ class LinkHelperDefault extends LinkHelper {
 		) {
 			$description = $matches[1];
 		} else	$description = $plaintext;
-		$need_ellipsis_desc = strlen($description) > $max_desc_chars;
+		$need_ellipsis_desc = my_strlen($description) > $max_desc_chars;
 		if ($need_ellipsis_desc) {
 			$description = my_substr($description, 0, $max_desc_chars);
 		}
@@ -102,7 +117,7 @@ class LinkHelperDefault extends LinkHelper {
 		    preg_match('(<img\\s+.*?src="([^"]*)")sim', $body, $matches)
 		) {
 			$img_url = lkt_check_absolutise_relative_uri($matches[1], $link);
-			if (strlen($img_url) > 2048) {
+			if (my_strlen($img_url) > 2048) {
 				// More than likely this is an image whose src
 				// is inline via data:image/[imagetype] - ignore
 				// it as it wastes DB space.

@@ -1745,12 +1745,18 @@ function lkt_get_linkhelper_classnames() {
  *                               of the prioritised Link Helper class which
  *                               should be used to generate the preview, indexed
  *                               by 'helper'.
+ *          LKT_PV_GOT_HELPER_PROVIS: as above, however, the Helper is
+ *                                    provisional; whether it becomes final
+ *                                    depends on its support for the page's yet-
+ *                                    to-be-downloaded content and/or its
+ *                                    content-type.
  */
-define('LKT_PV_NOT_REQUIRED', 1);
-define('LKT_PV_FOUND'       , 2);
-define('LKT_PV_TOO_SOON'    , 3);
-define('LKT_PV_GOT_HELPER'  , 4);
-function lkt_url_has_needs_preview($term_url, $manual_regen = false) {
+define('LKT_PV_NOT_REQUIRED'     , 1);
+define('LKT_PV_FOUND'            , 2);
+define('LKT_PV_TOO_SOON'         , 3);
+define('LKT_PV_GOT_HELPER'       , 4);
+define('LKT_PV_GOT_HELPER_PROVIS', 5);
+function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_type = false, $content = false) {
 	global $db, $mybb, $cache;
 
 	$has_db_entry = null;
@@ -1832,29 +1838,54 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false) {
 	                  : array();
 
 	// Now, get the highest-prioritised LinkHelper class for this link type.
-	$max_priority = PHP_INT_MIN;
-	$priority_helper_classname = '';
+	$max_priority_provis              = $max_priority     = PHP_INT_MIN;
+	$priority_helper_classname_provis = $priority_helper_classname = '';
 	$types = array('3p', 'dist');
+	$have_content = ($content_type !== false && $content !== false);
 	foreach ($types as $helper_type) {
-		// Third-party helpers are prioritised over those in the plugin's base distribution.
-		if ($helper_type == 'dist' && $priority_helper_classname != '') {
-			break;
-		}
 		foreach ($LinkHelperClassNames[$helper_type] as $helper_class_name) {
-			if (!empty($inst_helpers[$helper_class_name]['enabled'])
-			    &&
-			    $helper_class_name::supports_link($term_url)
-			    &&
-			    // We use >= because the default link helper has a
-			    // priority which equals the initial value of
-			    // $max_priority set above.
-			    $helper_class_name::get_priority() >= $max_priority
-			) {
-				$max_priority = $helper_class_name::get_priority();
-				$priority_helper_classname = $helper_class_name;
+			if (!empty($inst_helpers[$helper_class_name]['enabled'])) {
+				if ($have_content) {
+					$supported = $helper_class_name::supports_page($term_url, $content_type, $content);
+					if ($supported && $helper_class_name::get_priority() >= $max_priority) {
+						$max_priority = $helper_class_name::get_priority();
+						$priority_helper_classname = $helper_class_name;
+					}
+				} else {
+					$supported = $helper_class_name::supports_link($term_url);
+					if ($supported) {
+						// We use >= in these tests because the default
+						// link helper has a priority which equals the
+						// initial value of $max_priority set above
+						// (PHP_INT_MIN).
+						if ($helper_class_name::needs_content_for() & LinkHelper::NC_FOR_SUPPORT) {
+							if ($helper_class_name::get_priority() >= $max_priority_provis) {
+								$max_priority_provis = $helper_class_name::get_priority();
+								$priority_helper_classname_provis = $helper_class_name;
+							}
+						} else if ($helper_class_name::get_priority() >= $max_priority) {
+							$max_priority = $helper_class_name::get_priority();
+							$priority_helper_classname = $helper_class_name;
+						}
+					}
+				}
 			}
 		}
 	}
+
+	$is_provisional =
+	   !$have_content
+	   &&
+	   (($max_priority_provis > $max_priority
+	     ||
+	     $priority_helper_classname_provis === 'LinkHelperDefault'
+	    )
+	    &&
+	    !($priority_helper_classname
+	      &&
+	      $priority_helper_classname::needs_content_for() === LinkHelper::NC_NEVER_AND_FINAL
+	     )
+	   );
 
 	$regen = false;
 
@@ -1880,7 +1911,12 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false) {
 			$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
 			if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
 				$org_helper = $row['helper_class_name'];
-				$regen = ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']);
+				// The "Expire link previews on helper change" setting does not
+				// apply to Helpers which depend on content or content type,
+				// because the finalisation of those Helpers requires a query
+				// of the link's web server, defeating the purpose of using
+				// the cache where possible.
+				$regen = (!$is_provisional && ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']));
 			}
 			if (!$regen) {
 				$preview = $row['preview'];
@@ -1894,8 +1930,11 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false) {
 
 	// Earlier returns possible.
 	return $regen
-	         ? array('result' => LKT_PV_GOT_HELPER, 'has_db_entry' => $has_db_entry, 'helper'  => $priority_helper_classname)
-	         : array('result' => LKT_PV_FOUND     , 'has_db_entry' => $has_db_entry, 'preview' => $preview                  );
+	         ? ($is_provisional
+	            ? array('result' => LKT_PV_GOT_HELPER_PROVIS, 'has_db_entry' => $has_db_entry, 'helper'  => $priority_helper_classname_provis)
+	            : array('result' => LKT_PV_GOT_HELPER       , 'has_db_entry' => $has_db_entry, 'helper'  => $priority_helper_classname)
+	           )
+	         : array('result' => LKT_PV_FOUND, 'has_db_entry' => $has_db_entry, 'preview' => $preview);
 }
 
 /**
@@ -1923,11 +1962,22 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 		$res = lkt_url_has_needs_preview($term_url, $force_regen ? 'force_regen' : false);
 		if ($res['result'] === LKT_PV_FOUND) {
 			$previews[$term_url] = $res['preview'];
-		} else if ($res['result'] == LKT_PV_GOT_HELPER && $res['helper']) {
+		} else if ($res['result'] === LKT_PV_GOT_HELPER_PROVIS && $res['helper']) {
 			$lh_data[$term_url] = array(
 				'lh_classname' => $res['helper'      ],
+				'lh_provis'    =>                 true,
 				'has_db_entry' => $res['has_db_entry']
 			);
+		} else if ($res['result'] === LKT_PV_GOT_HELPER && $res['helper']) {
+			if ($res['helper']::needs_content_for() & LinkHelper::NC_FOR_GEN_PV) {
+				$lh_data[$term_url] = array(
+					'lh_classname' => $res['helper'      ],
+					'lh_provis'    =>                false,
+					'has_db_entry' => $res['has_db_entry']
+				);
+			} else {
+				$previews[$term_url] = lkt_get_gen_link_preview($term_url, '', '', '', $res['helper'], $res['has_db_entry']);
+			}
 		}
 		$norm_term_urls[$norm_term_url] = true;
 	}
@@ -2027,7 +2077,20 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 							$content_type = lkt_get_content_type_from_hdrs($headers);
 							$html = substr($content, $header_size);
 							$charset = lkt_get_charset($headers, $html);
-							$previews[$url] = lkt_get_gen_link_preview($url, $html, $content_type, $charset, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
+							$have_preview = false;
+							if ($lh_data[$url]['lh_provis']) {
+								$res = lkt_url_has_needs_preview($url, $force_regen ? 'force_regen' : false, $content_type, $content);
+								if ($res['result'] === LKT_PV_FOUND) {
+									$previews[$url] = $res['preview'];
+									$have_preview = true;
+								}
+								if ($res['result'] === LKT_PV_GOT_HELPER) {
+									$lh_data[$url]['lh_classname'] = $res['helper'];
+								}
+							}
+							if (!$have_preview) {
+								$previews[$url] = lkt_get_gen_link_preview($url, $html, $content_type, $charset, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
+							}
 						}
 						curl_multi_remove_handle($mh, $ch);
 					}
@@ -2143,12 +2206,12 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 	$preview = '';
 
 	if (!$lh_classname) {
-		$res = lkt_url_has_needs_preview($term_url);
+		$res = lkt_url_has_needs_preview($term_url, false, $content_type, $html);
 	} else	$res = array('result' => LKT_PV_GOT_HELPER, 'helper' => $lh_classname, 'has_db_entry' => $has_db_entry);
 
 	if ($res['result'] == LKT_PV_NOT_REQUIRED) {
 		return false;
-	} else if ($res['result'] == LKT_PV_GOT_HELPER && $res['helper']) {
+	} else if (in_array($res['result'], array(LKT_PV_GOT_HELPER, LKT_PV_GOT_HELPER_PROVIS)) && $res['helper']) {
 		// (Re)generate the preview and return it.
 		$has_db_entry = $res['has_db_entry'];
 		$priority_helper_classname = $res['helper'];

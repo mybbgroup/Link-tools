@@ -90,6 +90,43 @@ abstract class LinkHelper {
 	protected $template;
 
 	/**
+	 * The possible values for $needs_content_for as returned by
+	 * needs_content_for() with the meanings described.
+	 */
+
+	/**
+	 * Does not need the page's content or content type, neither in order
+	 * to determine whether it supports the given link, nor to generate the
+	 * link preview.
+	 */
+	const NC_NEVER           = 0;
+	/**
+	 * As above, but in addition, the page should not be downloaded even
+	 * IF it is possible that Link Helpers which DO need content might
+	 * after content is downloaded end up supporting the content at a
+	 * higher priority.
+	 */
+	const NC_NEVER_AND_FINAL = 1;
+	/**
+	 * The page's content (or content type) is necessary for this Helper to
+	 * determine whether it supports previews for a given page.
+	 */
+	const NC_FOR_SUPPORT     = 2;
+	/**
+	 * The page's content (or content type) is necessary for this Helper to
+	 * generate a preview for the pages it supports.
+	 */
+	const NC_FOR_GEN_PV      = 4;
+	/**
+	 * The page's content (or content type) is necessary both for this
+	 * Helper to determine whether it supports previews for a given page, as
+	 * well as to generate a preview for the pages it supports.
+	 */
+	const NC_FOR_BOTH        = self::NC_FOR_SUPPORT | self::NC_FOR_GEN_PV;
+
+	static protected $needs_content_for;
+
+	/**
 	 * Block instantiations of this class using the "new" keyword.
 	 * Instead, get_instance() should be used.
 	 */
@@ -115,6 +152,10 @@ abstract class LinkHelper {
 	/**
 	 * Tests whether the given link is supported by this Helper.
 	 *
+	 * For Helpers for which $needs_content_for & NC_FOR_SUPPORT is true, this
+	 * is only a provisional value; the final value is provided by
+	 * supports_page().
+	 *
 	 * @param $link The link to test.
 	 *
 	 * @return boolean True if supported; false if not supported.
@@ -125,6 +166,32 @@ abstract class LinkHelper {
 		return $class::$supported_norm_links_regex
 		         ? preg_match($class::$supported_norm_links_regex, lkt_normalise_url($link))
 		         : preg_match($class::$supported_links_regex     ,                   $link );
+	}
+
+	/**
+	 * Tests whether this Helper supports the page at the URL $link with
+	 * content $content and content type $content_type.
+	 *
+	 * @param string $link The page's link.
+	 * @param string $content_type The content-type of the page's content.
+	 * @param string $content The content of the page at the URL $link.
+	 *
+	 * @return boolean True if supported; false if not supported.
+	 */
+	static public function supports_page($link, $content_type, $content) {
+		$class = static::class;
+
+		return $class::supports_link($link);
+	}
+
+	/**
+	 * Returns the value of this helper's $needs_content_for property.
+	 *
+	 * @return integer This helper's $needs_content_for property.
+	 */
+	static public function needs_content_for() {
+		$class = static::class;
+		return $class::$needs_content_for;
 	}
 
 	/**
@@ -219,11 +286,15 @@ abstract class LinkHelper {
 	 * Get the preview's valid HTML. This is the primary function called
 	 * by consumers of this class.
 	 *
-	 * @param $link         The link for which the preview should be generated.
-	 *                      Is checked for validity (support).
-	 * @param $content      The contents of the page at $link.
+	 * @param $link         The link for which the preview should be
+	 *                      generated. Is checked for validity (support).
+	 * @param $content      The contents of the page at $link. May be empty
+	 *                      if $needs_content_for & NC_FOR_GEN_PV is false for
+	 *                      this helper.
 	 * @param $content_type The content type returned for the contents of
-	 *                      the previous variable ($content_type).
+	 *                      the previous variable ($content_type). May be
+	 *                      empty if $needs_content_for & NC_FOR_GEN_PV is false
+	 *                      for this helper.
 	 *
 	 * @return Mixed The preview as a string of HTML or false if $link is
 	 *               not supported.
@@ -243,11 +314,16 @@ abstract class LinkHelper {
 	 * which (unless this functionality is overridden in a descendant class)
 	 * is then wrapped by the caller in a container.
 	 *
-	 * @param $link         The link for which the preview should be generated.
-	 *                      Is checked for validity (support).
-	 * @param $content      The contents of the page at $link.
+	 * @param $link         The link for which the preview should be
+	 *                      generated. Should have been pre-checked for
+	 *                      validity (support).
+	 * @param $content      The contents of the page at $link. May be empty
+	 *                      if ($needs_content_for & NC_FOR_GEN_PV) is false for
+	 *                      this helper.
 	 * @param $content_type The content type returned for the contents of
-	 *                      the previous variable ($content_type).
+	 *                      the previous variable ($content_type). May be
+	 *                      empty if ($needs_content_for & NC_FOR_GEN_PV) is
+	 *                      false for this helper.
 	 *
 	 * @return string The preview as valid HTML.
 	 */

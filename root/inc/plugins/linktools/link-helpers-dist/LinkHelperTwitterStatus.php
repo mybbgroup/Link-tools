@@ -52,6 +52,17 @@ class LinkHelperTwitterStatus extends LinkHelper {
 	protected $friendly_name = 'Twitter status';
 
 	/**
+	 * This Helper does not need the page's content and/or content-type at
+	 * all: neither to determine whether it supports the page nor to
+	 * generate a preview of the page (all it needs is the page's URL). In
+	 * addition, if it is the highest-priority Helper among those which do
+	 * not require content, it should be treated as the final Helper; other
+	 * Helpers for which content would need to be downloaded to determine
+	 * their support/preview should be ignored.
+	 */
+	static protected $needs_content_for = LinkHelper::NC_NEVER_AND_FINAL;
+
+	/**
 	 * The contents of this template are stored to the auto-generated (from
 	 * this class's name) template 'linktools_linkpreview_twitterstatus'
 	 * where they can be modified as usual via the MyBB ACP's Templates &
@@ -98,7 +109,7 @@ EOT;
 
 	/**
 	 * The heart of the class. Generates the HTML for the link preview.
-	 *
+	 * Does not need (ignores) $content and $content_type.
 	 */
 	protected function get_preview_contents($link, $content, $content_type) {
 		$link_safe = $this->make_safe($link);
