@@ -2221,7 +2221,9 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 		// Handle different character sets by converting them to UTF8.
 		if ($charset != 'utf-8') {
 			$from = $charset ? $charset : mb_detect_encoding($html);
-			$html = mb_convert_encoding($html, 'utf-8', $from);
+			if (in_array($from, mb_list_encodings())) {
+				$html = mb_convert_encoding($html, 'utf-8', $from);
+			}
 		}
 
 		$preview = $helper->get_preview($term_url, $html, $content_type);
