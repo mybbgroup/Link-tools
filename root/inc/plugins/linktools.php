@@ -3754,7 +3754,7 @@ function lkt_retrieve_terms($urls, $set_false_on_not_found = false) {
 
 	$urls = array_unique($urls);
 	$terms = array();
-	$query = $db->simple_select('urls', 'url, url_term', "url_norm IN ('".implode("', '", array_map(function($url) use ($db) {return $db->escape_string(lkt_normalise_url($url));}, $urls))."')");
+	$query = $db->simple_select('urls', 'url, url_term', "url IN ('".implode("', '", array_map(function($url) use ($db) {return $db->escape_string($url);}, $urls))."')");
 	while ($row = $db->fetch_array($query)) {
 		$terms[$row['url']] = $row['url_term'];
 	}
