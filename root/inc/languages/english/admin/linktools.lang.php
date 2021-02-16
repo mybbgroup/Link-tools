@@ -86,6 +86,9 @@ $l['lkt_link_preview_rebuild_scope_desc'        ] = 'For which links should prev
 $l['lkt_link_preview_rebuild_scope_all'         ] = 'All';
 $l['lkt_link_preview_rebuild_scope_only_invalid'] = 'Only links with missing/invalid/expired previews';
 
+$l['lkt_link_preview_not_in_quotes_title'] = 'Exclude quoted links from preview?';
+$l['lkt_link_preview_not_in_quotes_desc' ] = 'Set to "Yes" to prevent previews from being generated for links within MyBB quote tags.';
+
 $l['lkt_linkhelpers'] = 'Link Helpers';
 $l['lkt_template_installed'] = 'Template installed?';
 $l['lkt_helper_enabled'    ] = 'Enabled?';

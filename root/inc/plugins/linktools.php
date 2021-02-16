@@ -972,6 +972,12 @@ function lkt_create_settings() {
 			'optionscode' => "select\nall={$lang->lkt_link_preview_rebuild_scope_all}\nonly_invalid={$lang->lkt_link_preview_rebuild_scope_only_invalid}",
 			'value'       => 'only_invalid'
 		),
+		'link_preview_not_in_quotes' => array(
+			'title'       => $lang->lkt_link_preview_not_in_quotes_title,
+			'description' => $lang->lkt_link_preview_not_in_quotes_desc,
+			'optionscode' => 'yesno',
+			'value'       => '1',
+		),
 	);
 
 	// (Re)create the settings, retaining the old values where they exist.
@@ -3724,7 +3730,12 @@ function lkt_hookin__parse_message_start($message) {
 	// for this post, i.e., the post message itself rather than its
 	// signature.
 	if ($g_lkt_links === false) {
-		$g_lkt_links = lkt_extract_urls($message, /*$exclude_videos = */true);
+		$msg = $message;
+		if ($mybb->settings[C_LKT.'_link_preview_not_in_quotes']) {
+			$msg = lkt_strip_nestable_mybb_tag($msg, 'quote');
+		}
+
+		$g_lkt_links = lkt_extract_urls($msg, /*$exclude_videos = */true);
 	}
 
 	return $message;
