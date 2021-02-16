@@ -47,6 +47,8 @@ return array(
 	'fbclid',
 	'feature=youtu.be',
 	'time_continue' => 'youtube.com',
+	't' => 'youtube.com',
+	'start' => 'youtube.com',
 	'CMP',
 	'utm_medium',
 	'utm_source',

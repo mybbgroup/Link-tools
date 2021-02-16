@@ -272,13 +272,13 @@ CREATE TABLE '.TABLE_PREFIX.'urls (
 		// after the server name in URLs is case-sensitive.
 		$db->query('
 CREATE TABLE '.TABLE_PREFIX.'url_previews (
-  url_norm     varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  url_term     varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   preview      text             NOT NULL DEFAULT \'\',
   dateline     int(10) unsigned NOT NULL DEFAULT 0,
   valid        tinyint(1)       NOT NULL DEFAULT 1,
   helper_class_name varchar('.lkt_max_helper_class_name_len.') NOT NULL DEFAULT \'\',
   helper_class_vers varchar('.lkt_max_helper_class_vers_len.') NOT NULL DEFAULT \'\',
-  KEY         url_norm (url_norm(166))
+  KEY         url_term (url_term(166))
 )'.$db->build_create_table_collation().';');
 	}
 
@@ -289,6 +289,11 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
   urlid       int unsigned NOT NULL,
   PRIMARY KEY (urlid, pid)
 )'.$db->build_create_table_collation().';');
+	}
+
+	if ($db->table_exists('url_previews') && $db->field_exists('url_norm', 'url_previews') && !$db->field_exists('url_term', 'url_previews')) {
+		$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE url_norm url_term varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL');
+		$db->delete_query('url_previews', "url_term like 'http(s)://%'");
 	}
 
 	if (!$db->field_exists('got_preview', 'urls')) {
@@ -1894,8 +1899,7 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 	// no-longer-prioritised Helper or an earlier version of the
 	// still-prioritised Helper (when the relevant plugin setting is
 	// enabled).
-	$url_norm = lkt_normalise_url($term_url);
-	$query = $db->simple_select('url_previews', 'valid, dateline, helper_class_name, helper_class_vers, preview', "url_norm = '".$db->escape_string($url_norm)."'");
+	$query = $db->simple_select('url_previews', 'valid, dateline, helper_class_name, helper_class_vers, preview', "url_term = '".$db->escape_string($term_url)."'");
 	$row = $db->fetch_array($query);
 	$has_db_entry = $row ? true : false;
 	if ($manual_regen === 'force_regen') {
@@ -2215,7 +2219,6 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 		// (Re)generate the preview and return it.
 		$has_db_entry = $res['has_db_entry'];
 		$priority_helper_classname = $res['helper'];
-		$url_norm = lkt_normalise_url($term_url);
 		$helper = $priority_helper_classname::get_instance();
 
 		// Handle different character sets by converting them to UTF8.
@@ -2235,17 +2238,17 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 			'preview' => $db->escape_string($preview),
 		);
 		if ($has_db_entry) {
-			$db->update_query('url_previews', $fields, "url_norm = '".$db->escape_string($url_norm)."'");
+			$db->update_query('url_previews', $fields, "url_term = '".$db->escape_string($term_url)."'");
 		} else {
-			$fields['url_norm'] = $db->escape_string($url_norm);
+			$fields['url_term'] = $db->escape_string($term_url);
 			// Simulate a UNIQUE constraint on the `url_norm` column
 			// using HAVING. We can't use an actual UNIQUE
 			// constraint because the DB's maximum allowable key
 			// length is so short that we often enough end up with
 			// duplicate keys for different values.
-			$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, helper_class_name, helper_class_vers, preview, url_norm)
-       SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['helper_class_name'].'\', \''.$fields['helper_class_vers'].'\', \''.$fields['preview'].'\', \''.$fields['url_norm'].'\'
-       FROM '.TABLE_PREFIX.'url_previews WHERE url_norm=\''.$fields['url_norm'].'\'
+			$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, helper_class_name, helper_class_vers, preview, url_term)
+       SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['helper_class_name'].'\', \''.$fields['helper_class_vers'].'\', \''.$fields['preview'].'\', \''.$fields['url_term'].'\'
+       FROM '.TABLE_PREFIX.'url_previews WHERE url_term=\''.$fields['url_term'].'\'
        HAVING COUNT(*) = 0');
 		}
 	} else if ($res['result'] == LKT_PV_FOUND) {
@@ -2456,7 +2459,7 @@ function lkt_normalise_domain($domain) {
 }
 
 
-function lkt_normalise_url($url) {
+function lkt_normalise_url($url, $skip_ignored_query_params = false) {
 	static $ignored_query_params = false;
 
 	if ($ignored_query_params === false) {
@@ -2515,36 +2518,38 @@ function lkt_normalise_url($url) {
 		$query = str_replace('&amp;', '&', $parsed_url['query']);
 		$arr = explode('&', $query);
 		sort($arr);
-		foreach ($ignored_query_params as $param => $domains) {
-			if (is_int($param)) {
-				$param = $domains;
-				$domains = '*';
-			}
-			if (!(!is_array($domains) && trim($domains) === '*')) {
-				$domains = (array)$domains;
-				foreach ($domains as &$dom) {
-					$dom = lkt_normalise_domain($dom);
+		if (!$skip_ignored_query_params) {
+			foreach ($ignored_query_params as $param => $domains) {
+				if (is_int($param)) {
+					$param = $domains;
+					$domains = '*';
 				}
-				if (!in_array($domain, $domains)) {
-					continue;
-				}
-			}
-
-			$found = false;
-			if (strpos($param, '=') === false) {
-				for ($idx = 0; $idx < count($arr); $idx++) {
-					list($key) = explode('=', $arr[$idx], 2);
-					if ($key === $param) {
-						$found = true;
-						break;
+				if (!(!is_array($domains) && trim($domains) === '*')) {
+					$domains = (array)$domains;
+					foreach ($domains as &$dom) {
+						$dom = lkt_normalise_domain($dom);
+					}
+					if (!in_array($domain, $domains)) {
+						continue;
 					}
 				}
-			} else if (($idx = array_search($param, $arr)) !== false) {
-				$found = true;
-			}
-			if ($found) {
-				array_splice($arr, $idx, 1);
-				continue;
+
+				$found = false;
+				if (strpos($param, '=') === false) {
+					for ($idx = 0; $idx < count($arr); $idx++) {
+						list($key) = explode('=', $arr[$idx], 2);
+						if ($key === $param) {
+							$found = true;
+							break;
+						}
+					}
+				} else if (($idx = array_search($param, $arr)) !== false) {
+					$found = true;
+				}
+				if ($found) {
+					array_splice($arr, $idx, 1);
+					continue;
+				}
 			}
 		}
 		if ($arr) $ret .= '?'.implode('&', $arr);
@@ -2986,7 +2991,7 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 				// Log admin action
 				log_admin_action($lang->lkt_admin_log_rebuild_linkpreviews);
 				$db->update_query('urls', array('got_preview' => 0));
-				$db->update_query('urls', array('got_preview' => 1), 'url_term_norm IN (SELECT url_norm FROM '.TABLE_PREFIX.'url_previews)');
+				$db->update_query('urls', array('got_preview' => 1), 'url_term IN (SELECT url_term FROM '.TABLE_PREFIX.'url_previews)');
 			}
 
 			if (!$mybb->get_input('lkt_linkpreviews_per_page', MyBB::INPUT_INT)) {
@@ -3626,7 +3631,7 @@ function lkt_hookin__xmlhttp() {
 	} else if ($mybb->input['action'] == 'lkt_get_post_regen_cont') {
 		$post = get_post($mybb->get_input('pid', MyBB::INPUT_INT));
 		if ($post) {
-			$urls = lkt_retrieve_terms(lkt_extract_urls($post['message']));
+			$urls = lkt_extract_urls($post['message']);
 			if ($urls) {
 				echo lkt_get_preview_regen_container($post, $urls);
 			}

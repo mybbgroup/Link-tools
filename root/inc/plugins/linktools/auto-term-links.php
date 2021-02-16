@@ -41,14 +41,14 @@
 return array(
 	'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?v=([^&]+)(?:&feature=youtu\\.be)?$)'
 					=> 'https://www.youtube.com/watch?v=\\1',
-	'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?(t=([^&]+)&)?v=([^&]+)(?:&feature=youtu\\.be)?$)'
-					=> 'https://www.youtube.com/watch?t=\\2&v=\\3',
-	'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?v=([^&]+)(&t=([^&]+))?(?:&feature=youtu\\.be)?$)'
-					=> 'https://www.youtube.com/watch?t=\\3&v=\\1',
+	'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?((t|start|time_continue)=([^&]+)&)?v=([^&]+)(?:&feature=youtu\\.be)?$)'
+					=> 'https://www.youtube.com/watch?\\2=\\3&v=\\4',
+	'(^http(?:s)?://(?:www.)?youtube\\.com/watch\\?v=([^&]+)(?:&(t|start|time_continue)=([^&]+))?(?:&feature=youtu\\.be)?$)'
+					=> 'https://www.youtube.com/watch?\\2=\\3&v=\\1',
+	'(^http(?:s)?://youtu\\.be/([^\\?/]+)\\?(t|start|time_continue)=([^&]+))'
+					=> 'https://www.youtube.com/watch?\\2=\\3&v=\\1',
 	'(^http(?:s)?://youtu\\.be/([^\\?/]+)$)'
 					=> 'https://www.youtube.com/watch?v=\\1',
-	'(^http(?:s)?://youtu\\.be/([^\\?/]+)\\?t=([\\d]+))'
-					=> 'https://www.youtube.com/watch?t=\\2&v=\\1',
 
 	'(^http(?:s)?://(?:(?:www|en)\\.)wikipedia.org/wiki/(.*)$)'
 					=> 'https://en.wikipedia.org/wiki/\\1',

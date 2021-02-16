@@ -26,9 +26,9 @@ if (!defined('IN_MYBB')) {
 class LinkHelperYouTubeVideo extends LinkHelper {
 	/**
 	 * Support only YouTube video links (as detected after URL
-	 * normalisation).
+	 * normalisation for the terminating link).
 	 */
-	static protected $supported_norm_links_regex = '(^http\\(s\\)://(youtube\\.com/watch\\?(t=[^&]+&)?v=[^&]+$|youtu.be/[^\\?]+\\?t=\\d+$))';
+	static protected $supported_norm_links_regex = '(^http\\(s\\)://youtube\\.com/watch\\?)';
 
 	/**
 	 * Set a neutral priority for this Helper (priorities may be negative).
@@ -77,21 +77,63 @@ class LinkHelperYouTubeVideo extends LinkHelper {
 	 * Does not need (ignores) $content and $content_type.
 	 */
 	protected function get_preview_contents($link, $content, $content_type) {
-		$got = false;
-		$link_norm = lkt_normalise_url($link);
-		if (preg_match('(^http\\(s\\)://youtube\\.com/watch\\?(t=([^&]+)&)?v=([^&]+)$)', $link_norm, $matches)) {
-			$youtube_id = $matches[3];
-			$start = !empty($matches[2]) ? $matches[2] : 0;
-			$got = true;
-		} else if (preg_match('(^http\\(s\\)://youtu.be/([^\\?]+)\\?t=(\\d+)$)', $link_norm, $matches)) {
-			$youtube_id = $matches[1];
-			$start = !empty($matches[2]) ? $matches[2] : 0;
-			$got = true;
+		$youtube_id = '';
+		$start = '';
+		$parsed_url = lkt_parse_url($link);
+		if (isset($parsed_url['query'])) {
+			parse_str($parsed_url['query'], $query);
+			if (!empty($query['v'])) {
+				$youtube_id = $query['v'];
+			}
+			if (!empty($query['start'])) {
+				$start = $query['start'];
+			}
+			// 'time_continue' takes precedence over 'start'
+			if (!empty($query['time_continue'])) {
+				$start = $query['time_continue'];
+			}
+			// 't' takes precedence over 'time_continue'
+			if (!empty($query['t'])) {
+				$start = $query['t'];
+			}
 		}
-		if ($got) {
+
+		if ($youtube_id) {
+			if (preg_match('([^\\d]+)', $start)) {
+				$start = $this->get_secs_from_timecode($start);
+			}
 			eval('$preview_contents = "'.$this->get_template_for_eval().'";');
-		} else	$preview_contents = ''; // We should never reach here
+		} else	$preview_contents = '';
 
 		return $preview_contents;
 	}
+
+	public function get_secs_from_timecode($tcode) {
+		$d = $h = $m = $s = 0;
+		$num = '';
+		foreach (str_split($tcode) as $c) {
+			if (ctype_digit($c)) {
+				$num .= $c;
+			} else {
+				if ($c == 'd') {
+					$d = $num;
+				} else if ($c == 'h') {
+					$h = $num;
+				} else if ($c == 'm') {
+					$m = $num;
+				} else if ($c == 's') {
+					$s = $num;
+				}
+				$num = '';
+			}
+		}
+
+		$ret = $d;
+		$ret = $ret * 24 + $h;
+		$ret = $ret * 60 + $m;
+		$ret = $ret * 60 + $s;
+
+		return $ret;
+	}
+
 }
