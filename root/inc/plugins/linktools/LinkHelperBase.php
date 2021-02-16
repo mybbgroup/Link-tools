@@ -127,6 +127,14 @@ abstract class LinkHelper {
 	static protected $needs_content_for;
 
 	/**
+	 * Whether the preview, once generated, should be cached in the DB.
+	 * Generally, Helpers which set $needs_content_for to NC_NEVER or to
+	 * NC_NEVER_AND_FINAL will probably want to set this false, so as to
+	 * save space in the DB.
+	 */
+	static protected $cache_preview = true;
+
+	/**
 	 * Block instantiations of this class using the "new" keyword.
 	 * Instead, get_instance() should be used.
 	 */
@@ -185,13 +193,23 @@ abstract class LinkHelper {
 	}
 
 	/**
-	 * Returns the value of this helper's $needs_content_for property.
+	 * Gets this helper's $needs_content_for property.
 	 *
 	 * @return integer This helper's $needs_content_for property.
 	 */
 	static public function needs_content_for() {
 		$class = static::class;
 		return $class::$needs_content_for;
+	}
+
+	/**
+	 * Gets this helper's $cache_preview property.
+	 *
+	 * @return boolean This helper's $cache_preview property.
+	 */
+	static public function get_cache_preview() {
+		$class = static::class;
+		return $class::$cache_preview;
 	}
 
 	/**

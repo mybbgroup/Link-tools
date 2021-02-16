@@ -2225,7 +2225,8 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 		// (Re)generate the preview and return it.
 		$has_db_entry = $res['has_db_entry'];
 		$priority_helper_classname = $res['helper'];
-		$helper = $priority_helper_classname::get_instance();
+		$cache_preview = $priority_helper_classname::get_cache_preview();
+		$helper        = $priority_helper_classname::get_instance();
 
 		// Handle different character sets by converting them to UTF8.
 		if ($charset != 'utf-8') {
@@ -2236,26 +2237,28 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 		}
 
 		$preview = $helper->get_preview($term_url, $html, $content_type);
-		$fields = array(
-			'valid' => '1',
-			'dateline' => TIME_NOW,
-			'helper_class_name' => $db->escape_string($priority_helper_classname),
-			'helper_class_vers' => $db->escape_string($priority_helper_classname::get_version()),
-			'preview' => $db->escape_string($preview),
-		);
-		if ($has_db_entry) {
-			$db->update_query('url_previews', $fields, "url_term = '".$db->escape_string($term_url)."'");
-		} else {
-			$fields['url_term'] = $db->escape_string($term_url);
-			// Simulate a UNIQUE constraint on the `url_norm` column
-			// using HAVING. We can't use an actual UNIQUE
-			// constraint because the DB's maximum allowable key
-			// length is so short that we often enough end up with
-			// duplicate keys for different values.
-			$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, helper_class_name, helper_class_vers, preview, url_term)
-       SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['helper_class_name'].'\', \''.$fields['helper_class_vers'].'\', \''.$fields['preview'].'\', \''.$fields['url_term'].'\'
-       FROM '.TABLE_PREFIX.'url_previews WHERE url_term=\''.$fields['url_term'].'\'
-       HAVING COUNT(*) = 0');
+		if ($cache_preview) {
+			$fields = array(
+				'valid' => '1',
+				'dateline' => TIME_NOW,
+				'helper_class_name' => $db->escape_string($priority_helper_classname),
+				'helper_class_vers' => $db->escape_string($priority_helper_classname::get_version()),
+				'preview' => $db->escape_string($preview),
+			);
+			if ($has_db_entry) {
+				$db->update_query('url_previews', $fields, "url_term = '".$db->escape_string($term_url)."'");
+			} else {
+				$fields['url_term'] = $db->escape_string($term_url);
+				// Simulate a UNIQUE constraint on the `url_norm` column
+				// using HAVING. We can't use an actual UNIQUE
+				// constraint because the DB's maximum allowable key
+				// length is so short that we often enough end up with
+				// duplicate keys for different values.
+				$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, helper_class_name, helper_class_vers, preview, url_term)
+	SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['helper_class_name'].'\', \''.$fields['helper_class_vers'].'\', \''.$fields['preview'].'\', \''.$fields['url_term'].'\'
+	FROM '.TABLE_PREFIX.'url_previews WHERE url_term=\''.$fields['url_term'].'\'
+	HAVING COUNT(*) = 0');
+			}
 		}
 	} else if ($res['result'] == LKT_PV_FOUND) {
 		$preview = $res['preview'];

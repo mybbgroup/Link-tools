@@ -63,6 +63,14 @@ class LinkHelperTwitterStatus extends LinkHelper {
 	static protected $needs_content_for = LinkHelper::NC_NEVER_AND_FINAL;
 
 	/**
+	 * Because this Helper does not need to query a link's web server in
+	 * order to generate a preview, there is no value in caching the
+	 * preview, once generated, in the database - we can simply regenerate
+	 * it each time we need it.
+	 */
+	static protected $cache_preview = false;
+
+	/**
 	 * The contents of this template are stored to the auto-generated (from
 	 * this class's name) template 'linktools_linkpreview_twitterstatus'
 	 * where they can be modified as usual via the MyBB ACP's Templates &
