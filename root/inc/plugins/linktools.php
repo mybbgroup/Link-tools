@@ -94,8 +94,11 @@ $plugins->add_hook('parse_message_start'                    , 'lkt_hookin__parse
 $plugins->add_hook('xmlhttp_update_post'                    , 'lkt_hookin__xmlhttp_update_post'                    );
 $plugins->add_hook('admin_config_menu'                      , 'lkt_hookin__admin_config_menu'                      );
 $plugins->add_hook('admin_config_action_handler'            , 'lkt_hookin__admin_config_action_handler'            );
+$plugins->add_hook('admin_tools_menu'                       , 'lkt_hookin__admin_tools_menu'                       );
+$plugins->add_hook('admin_tools_action_handler'             , 'lkt_hookin__admin_tools_action_handler'             );
 $plugins->add_hook('editpost_action_start'                  , 'lkt_hookin__editpost_action_start'                  );
 $plugins->add_hook('editpost_do_editpost_end'               , 'lkt_hookin__editpost_do_editpost_end'               );
+$plugins->add_hook('admin_style_templates_edit_template_commit', 'lkt_hookin__admin_style_templates_edit_template_commit');
 
 function lkt_hookin__global_start() {
 	if (defined('THIS_SCRIPT')) {
@@ -3761,6 +3764,27 @@ function lkt_hookin__admin_config_action_handler(&$actions) {
 	);
 }
 
+function lkt_hookin__admin_tools_menu(&$sub_menu) {
+	global $lang;
+
+	$lang->load(C_LKT);
+	$key = max(array_keys($sub_menu)) + 10;
+	$sub_menu[$key] = array(
+		'id'    => 'linkhelpers'                            ,
+		'title' => $lang->lkt_linkhelpers_cache_invalidation,
+		'link'  => 'index.php?module=tools-linkhelpers'     ,
+	);
+}
+
+function lkt_hookin__admin_tools_action_handler(&$actions) {
+	$actions['linkhelpers'] = array(
+		'active' => 'linkhelpers'    ,
+		'file'   => 'linkhelpers.php',
+	);
+
+	return $actions;
+}
+
 /**
  * In contrast to lkt_get_url_term_redirs(), which queries web servers for
  * terminating URLs, this retrieves those already-web-queried terminating URLs
@@ -3801,4 +3825,55 @@ function lkt_hookin__editpost_do_editpost_end() {
 
 	$val = !empty($mybb->get_input('lkt_linkpreviewoff', MyBB::INPUT_INT)) ? '1' : '0';
 	$db->update_query('posts', array('lkt_linkpreviewoff' => $val), "pid = '{$post['pid']}'");
+}
+
+function lkt_hookin__admin_style_templates_edit_template_commit() {
+	global $mybb;
+
+	$helper = false;
+	$prefix = 'linktools_linkpreview_';
+	if (substr($mybb->input['title'], 0, strlen($prefix)) == $prefix) {
+		$hlp_lc = substr($mybb->input['title'], strlen($prefix));
+		foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
+			foreach ($classnames as $classname) {
+				if ('linkhelper'.$hlp_lc == strtolower($classname)) {
+					$helper = $classname;
+					break;
+				}
+			}
+		}
+	}
+
+	if ($helper && $helper::get_cache_preview()) {
+		global $db, $page, $lang, $templates, $expand_str2;
+
+		if ($mybb->input['continue']) {
+			if ($mybb->input['from'] == 'diff_report') {
+				$url_return = 'index.php?module=style-templates&action=edit_template&title='.urlencode($mybb->input['title']).'&sid='.$mybb->get_input('sid', MyBB::INPUT_INT).$expand_str2.'&amp;from=diff_report';
+			} else	$url_return = 'index.php?module=style-templates&action=edit_template&title='.urlencode($mybb->input['title']).'&sid='.$mybb->get_input('sid', MyBB::INPUT_INT).$expand_str2;
+		} else {
+			if ($mybb->input['from'] == 'diff_report') {
+				$url_return = 'index.php?module=style-templates&amp;action=find_updated';
+			} else	$url_return = 'index.php?module=style-templates&sid='.$mybb->get_input('sid', MyBB::INPUT_INT).$expand_str2."#group_{$group}";
+		}
+
+		$friend_nm_esc = htmlspecialchars_uni($classname::get_instance()->get_friendly_name());
+		$title = $lang->sprintf($lang->lkt_preview_helper_tpl_chg_pg_title, $friend_nm_esc);
+		$page->output_header($title);
+
+		$gid = $db->fetch_field($db->simple_select('settinggroups', 'gid', "name='linktools_settings'"), 'gid');
+		$invalidate_helper_msg = $lang->sprintf($lang->lkt_invalidate_helper_msg, $friend_nm_esc, $gid);
+
+		$table = new Table;
+		$table->construct_cell($invalidate_helper_msg);
+		$table->construct_row();
+		$form = new Form('index.php?module=tools-linkhelpers&amp;action=do_invalidation&amp;helper='.htmlspecialchars_uni($hlp_lc).'&amp;url_return='.urlencode($url_return), 'post');
+		$table->construct_cell($form->generate_submit_button($lang->sprintf($lang->lkt_inval_pv_cache_for, $friend_nm_esc), array('name' => 'do_invalidation')), array('class' => 'align_center'));
+		$table->construct_row();
+		$heading = $lang->sprintf($lang->lkt_preview_helper_tpl_chg_pg_heading, $friend_nm_esc);
+		$table->output($heading);
+
+		$page->output_footer();
+		exit;
+	}
 }

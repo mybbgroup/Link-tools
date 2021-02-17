@@ -101,3 +101,15 @@ $l['lkt_helpers'          ] = '{1} link helpers';
 $l['lkt_one_helper'       ] = '1 link helper';
 // ...will replace {1} in this string:
 $l['lkt_need_inst_helpers'] = 'Necessary templates need to be installed for {1}. Click {2}here{3} to install them.';
+
+$l['lkt_preview_helper_tpl_chg_pg_title'] = 'Invalidate link preview cache for "{1}"?';
+$l['lkt_preview_helper_tpl_chg_pg_heading'] = 'Invalidate link preview cache for <em>{1}</em>?';
+$l['lkt_invalidate_helper_msg'] = 'You have just successfully edited the template for the Link Helper <em>{1}</em>. This Helper generates link previews and caches them. Unless you invalidate the already-cached link previews for this Helper, your changes to this template will not affect them unless/until they naturally expire, and will only affect the previews it generates from here on. Click below if you would like to invalidate this Helper\'s preview cache so that your changes take effect for its already-cached previews. Note though that for invalidated link previews to then be rebuilt, you will need to either:<ul><li>Ensure that the Link Tools plugin\'s <em>On-the-fly link preview (re)generation domains</em> <a href="index.php?module=config-settings&action=change&amp;gid={2}">setting</a> is set to a value which ensures that this Helper\'s previews are regenerated on the fly, or,</li><li>Rebuild the link preview cache at <em><a href="index.php?module=tools-recount_rebuild">Tools &amp; Maintenance</a></em> » <em>Rebuild Link Previews for Link Tools</em>.</li></ul>';
+
+$l['lkt_inval_pv_cache_for'] = 'Invalidate the link preview cache for "{1}"';
+
+$l['lkt_linkhelpers_cache_invalidation'    ] = 'Link Preview Cache Invalidation';
+$l['lkt_linkhelpers_cache_invalidation_msg'] = 'Invalidate Cached Link Previews for the Helper:';
+$l['lkt_all'                    ] = '[All]';
+$l['lkt_linkhelpers_invalidated'] = 'The link preview caches of following Helpers were invalidated: {1}';
+$l['lkt_go_back_link_txt'       ] = '« Go back to where you were';
