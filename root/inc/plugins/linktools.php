@@ -1962,13 +1962,8 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 
 	$previews = $lh_data = array();
 	$term_urls_uniq = array_values(array_unique($term_urls));
-	$norm_term_urls = array();
 
 	foreach ($term_urls_uniq as $term_url) {
-		$norm_term_url = lkt_normalise_url($term_url);
-		if (!empty($norm_term_urls[$norm_term_url])) {
-			continue;
-		}
 		// There is room for optimisation here: potentially, a database
 		// query is made here on each iteration of the loop, which is
 		// inefficient.
