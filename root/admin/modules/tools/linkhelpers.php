@@ -25,7 +25,7 @@ $page->output_header($lang->lkt_linkhelpers_cache_invalidation);
 if ($mybb->get_input('do_invalidation') && ($hlp_lc = $mybb->get_input('helper'))) {
 	$purged_helpers = array();
 	foreach ($all_helpers as $helper) {
-		if (('linkhelper'.$hlp_lc == strtolower($helper) || $hlp_lc == '[all]') && $helper::get_instance()->get_cache_preview()) {
+		if (('linkhelper'.$hlp_lc == strtolower($helper) || $hlp_lc == '[all]') && $helper::get_instance()->get_should_cache_preview()) {
 			$purged_helpers[] = $helper;
 			$db->update_query('url_previews', array('valid' => '0'), "helper_class_name='".$db->escape_string($helper)."'");
 		}
@@ -46,7 +46,7 @@ $table = new Table;
 
 foreach ($all_helpers as $helper) {
 	$helperobj = $helper::get_instance();
-	if ($helperobj->get_cache_preview()) {
+	if ($helperobj->get_should_cache_preview()) {
 		$friendly_name = $helperobj->get_friendly_name();
 		$hlp_lc = strtolower(preg_replace('(^LinkHelper)', '', $helper));
 		$form = new Form('index.php?module=tools-linkhelpers&amp;action=do_invalidation&amp;helper='.htmlspecialchars_uni($hlp_lc), 'post', '', false, '', true);

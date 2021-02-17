@@ -482,7 +482,7 @@ function lkt_enable_all_helpers() {
 						'dateline' => TIME_NOW
 					);
 					$db->insert_query('templates', $fields);
-					$inst_helpers[$present_helper]['tpl_installed'] = $present_helper::get_version();
+					$inst_helpers[$present_helper]['tpl_installed'] = $helperobj->get_version();
 				}
 			}
 		}
@@ -653,7 +653,7 @@ function lkt_toggle_hidden_posts() {
 		$present_helpers = array_merge($present_helpers, $classnames);
 	}
 	$inst_but_missing = array_diff(array_keys($inst_helpers), $present_helpers);
-	$tplnames = array_map(function($helper) {return LinkHelper::mk_tpl_nm_frm_classnm($helper);}, $inst_but_missing);
+	$tplnames = array_map(function($helper) {return lkt_mk_tpl_nm_frm_classnm($helper);}, $inst_but_missing);
 	if ($tplnames) {
 		$helper_conds = " AND title NOT IN ('".implode("','", $tplnames)."')";
 	}
@@ -684,8 +684,8 @@ function lkt_toggle_hidden_posts() {
 	// And now do the same for installed Link Helper templates.
 	foreach (array_intersect($present_helpers, array_keys($inst_helpers)) as $helper) {
 		$from_version   = $inst_helpers[$helper]['tpl_installed'];
-		$latest_version = $helper::get_version();
 		$helperobj      = $helper::get_instance();
+		$latest_version = $helperobj->get_version();
 		if ($tplname = $helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
 			if ($latest_version > $from_version) {
 				$db->update_query('templates', array('version' => 0), "title='".$db->escape_string($tplname)."' AND sid <> -2");
@@ -1859,26 +1859,27 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 	foreach ($types as $helper_type) {
 		foreach ($LinkHelperClassNames[$helper_type] as $helper_class_name) {
 			if (!empty($inst_helpers[$helper_class_name]['enabled'])) {
+				$helperobj = $helper_class_name::get_instance();
 				if ($have_content) {
-					$supported = $helper_class_name::supports_page($term_url, $content_type, $content);
-					if ($supported && $helper_class_name::get_priority() >= $max_priority) {
-						$max_priority = $helper_class_name::get_priority();
+					$supported = $helperobj->supports_page($term_url, $content_type, $content);
+					if ($supported && $helperobj->get_priority() >= $max_priority) {
+						$max_priority = $helperobj->get_priority();
 						$priority_helper_classname = $helper_class_name;
 					}
 				} else {
-					$supported = $helper_class_name::supports_link($term_url);
+					$supported = $helperobj->supports_link($term_url);
 					if ($supported) {
 						// We use >= in these tests because the default
 						// link helper has a priority which equals the
 						// initial value of $max_priority set above
 						// (PHP_INT_MIN).
-						if ($helper_class_name::needs_content_for() & LinkHelper::NC_FOR_SUPPORT) {
-							if ($helper_class_name::get_priority() >= $max_priority_provis) {
-								$max_priority_provis = $helper_class_name::get_priority();
+						if ($helperobj->needs_content_for() & LinkHelper::NC_FOR_SUPPORT) {
+							if ($helperobj->get_priority() >= $max_priority_provis) {
+								$max_priority_provis = $helperobj->get_priority();
 								$priority_helper_classname_provis = $helper_class_name;
 							}
-						} else if ($helper_class_name::get_priority() >= $max_priority) {
-							$max_priority = $helper_class_name::get_priority();
+						} else if ($helperobj->get_priority() >= $max_priority) {
+							$max_priority = $helperobj->get_priority();
 							$priority_helper_classname = $helper_class_name;
 						}
 					}
@@ -1897,7 +1898,7 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 	    &&
 	    !($priority_helper_classname
 	      &&
-	      $priority_helper_classname::needs_content_for() === LinkHelper::NC_NEVER_AND_FINAL
+	      $priority_helper_classname::get_instance()->needs_content_for() === LinkHelper::NC_NEVER_AND_FINAL
 	     )
 	   );
 
@@ -1929,7 +1930,7 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 				// because the finalisation of those Helpers requires a query
 				// of the link's web server, defeating the purpose of using
 				// the cache where possible.
-				$regen = (!$is_provisional && ($org_helper != $priority_helper_classname || $org_helper::get_version() != $row['helper_class_vers']));
+				$regen = (!$is_provisional && ($org_helper != $priority_helper_classname || $org_helper::get_instance()->get_version() != $row['helper_class_vers']));
 			}
 			if (!$regen) {
 				$preview = $row['preview'];
@@ -1977,7 +1978,7 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 				'has_db_entry' => $res['has_db_entry']
 			);
 		} else if ($res['result'] === LKT_PV_GOT_HELPER && $res['helper']) {
-			if ($res['helper']::needs_content_for() & LinkHelper::NC_FOR_GEN_PV) {
+			if ($res['helper']::get_instance()->needs_content_for() & LinkHelper::NC_FOR_GEN_PV) {
 				$lh_data[$term_url] = array(
 					'lh_classname' => $res['helper'      ],
 					'lh_provis'    =>                false,
@@ -1987,7 +1988,6 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 				$previews[$term_url] = lkt_get_gen_link_preview($term_url, '', '', '', $res['helper'], $res['has_db_entry']);
 			}
 		}
-		$norm_term_urls[$norm_term_url] = true;
 	}
 	if ($lh_data) {
 		$server_urls = array();
@@ -2223,8 +2223,8 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 		// (Re)generate the preview and return it.
 		$has_db_entry = $res['has_db_entry'];
 		$priority_helper_classname = $res['helper'];
-		$cache_preview = $priority_helper_classname::get_cache_preview();
-		$helper        = $priority_helper_classname::get_instance();
+		$helperobj            = $priority_helper_classname::get_instance();
+		$should_cache_preview = $helperobj->get_should_cache_preview();
 
 		// Handle different character sets by converting them to UTF8.
 		if ($charset != 'utf-8') {
@@ -2232,13 +2232,13 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 			$html = @mb_convert_encoding($html, 'utf-8', $from);
 		}
 
-		$preview = $helper->get_preview($term_url, $html, $content_type);
-		if ($cache_preview) {
+		$preview = $helperobj->get_preview($term_url, $html, $content_type);
+		if ($should_cache_preview) {
 			$fields = array(
 				'valid' => '1',
 				'dateline' => TIME_NOW,
 				'helper_class_name' => $db->escape_string($priority_helper_classname),
-				'helper_class_vers' => $db->escape_string($priority_helper_classname::get_version()),
+				'helper_class_vers' => $db->escape_string($helperobj->get_version()),
 				'preview' => $db->escape_string($preview),
 			);
 			if ($has_db_entry) {
@@ -3838,7 +3838,7 @@ function lkt_hookin__admin_style_templates_edit_template_commit() {
 		}
 	}
 
-	if ($helper && $helper::get_cache_preview()) {
+	if ($helper && ($helperobj = $helper::get_instance()) && $helperobj->get_should_cache_preview()) {
 		global $db, $page, $lang, $templates, $expand_str2;
 
 		if ($mybb->input['continue']) {
@@ -3851,7 +3851,7 @@ function lkt_hookin__admin_style_templates_edit_template_commit() {
 			} else	$url_return = 'index.php?module=style-templates&sid='.$mybb->get_input('sid', MyBB::INPUT_INT).$expand_str2."#group_{$group}";
 		}
 
-		$friend_nm_esc = htmlspecialchars_uni($classname::get_instance()->get_friendly_name());
+		$friend_nm_esc = htmlspecialchars_uni($helperobj->get_friendly_name());
 		$title = $lang->sprintf($lang->lkt_preview_helper_tpl_chg_pg_title, $friend_nm_esc);
 		$page->output_header($title);
 
@@ -3870,4 +3870,14 @@ function lkt_hookin__admin_style_templates_edit_template_commit() {
 		$page->output_footer();
 		exit;
 	}
+}
+
+function lkt_mk_tpl_nm_frm_classnm($classname) {
+	$prefix = 'linkhelper';
+	$name = strtolower($classname);
+	if (my_substr($name, 0, strlen($prefix)) == $prefix) {
+		$name = my_substr($name, strlen($prefix));
+	}
+
+	return 'linktools_linkpreview_'.$name;
 }

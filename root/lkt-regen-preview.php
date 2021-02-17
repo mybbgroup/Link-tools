@@ -70,7 +70,7 @@ foreach ($terms as $url => $term_url) {
 	} else if ($res['result'] === LKT_PV_TOO_SOON) {
 		$regen_msg .= $lang->sprintf($lang->lkt_err_regen_url_too_soon , lkt_preview_regen_min_wait_secs, htmlspecialchars_uni($url));
 	} else {
-		if ($res['result'] === LKT_PV_GOT_HELPER_PROVIS || $res['helper']::needs_content_for() & LinkHelper::NC_FOR_GEN_PV) {
+		if ($res['result'] === LKT_PV_GOT_HELPER_PROVIS || $res['helper']::get_instance()->needs_content_for() & LinkHelper::NC_FOR_GEN_PV) {
 			curl_setopt($ch, CURLOPT_URL, $term_url);
 			$content = curl_exec($ch);
 			if ($content

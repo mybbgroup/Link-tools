@@ -34,18 +34,18 @@ abstract class LinkHelper {
 	 * The regex against which by default the link after normalisation via
 	 * lkt_normalise_url() is tested to determine whether or not it is
 	 * supported by this Helper. This is the preferred regex, since
-	 * matching non-normalised links may result in multiple helpers being
+	 * matching non-normalised links may result in different helpers being
 	 * prioritised highest for URLs which are all the same in the sense of
 	 * normalising to the same normalised URL.
 	 */
-	static protected $supported_norm_links_regex;
+	protected $supported_norm_links_regex;
 
 	/**
 	 * The alternative regex against which a link is tested to determine
 	 * whether or not it is supported by this Helper if the regex above for
 	 * normalised URLs is not set.
 	 */
-	static protected $supported_links_regex;
+	protected $supported_links_regex;
 
 	/**
 	 * This Helper's priority as a candidate to generate the preview for
@@ -54,7 +54,7 @@ abstract class LinkHelper {
 	 *
 	 * A signed integer (negative values are valid) defaulting to zero.
 	 */
-	static protected $priority = 0;
+	protected $priority = 0;
 
 	/**
 	 * This Helper's version, used to determine whether a link preview
@@ -67,7 +67,7 @@ abstract class LinkHelper {
 	 * For that reason, this property's value should be increased whenever
 	 * the $template property is modified.
 	 */
-	static protected $version;
+	protected $version;
 
 	/**
 	 * A friendly name for this helper (localisation not supported), to be
@@ -124,15 +124,16 @@ abstract class LinkHelper {
 	 */
 	const NC_FOR_BOTH        = self::NC_FOR_SUPPORT | self::NC_FOR_GEN_PV;
 
-	static protected $needs_content_for;
+	protected $needs_content_for;
 
 	/**
 	 * Whether the preview, once generated, should be cached in the DB.
 	 * Generally, Helpers which set $needs_content_for to NC_NEVER or to
 	 * NC_NEVER_AND_FINAL will probably want to set this false, so as to
-	 * save space in the DB.
+	 * save space in the DB - assuming they can regenerate the preview
+	 * quickly on-the-fly without otherwise needing external resources.
 	 */
-	static protected $cache_preview = true;
+	protected $should_cache_preview = true;
 
 	/**
 	 * Block instantiations of this class using the "new" keyword.
@@ -168,12 +169,10 @@ abstract class LinkHelper {
 	 *
 	 * @return boolean True if supported; false if not supported.
 	 */
-	static public function supports_link($link) {
-		$class = static::class;
-
-		return $class::$supported_norm_links_regex
-		         ? preg_match($class::$supported_norm_links_regex, lkt_normalise_url($link))
-		         : preg_match($class::$supported_links_regex     ,                   $link );
+	public function supports_link($link) {
+		return $this->supported_norm_links_regex
+		         ? preg_match($this->supported_norm_links_regex, lkt_normalise_url($link))
+		         : preg_match($this->supported_links_regex     ,                   $link );
 	}
 
 	/**
@@ -186,10 +185,8 @@ abstract class LinkHelper {
 	 *
 	 * @return boolean True if supported; false if not supported.
 	 */
-	static public function supports_page($link, $content_type, $content) {
-		$class = static::class;
-
-		return $class::supports_link($link);
+	public function supports_page($link, $content_type, $content) {
+		return $this->supports_link($link);
 	}
 
 	/**
@@ -197,19 +194,17 @@ abstract class LinkHelper {
 	 *
 	 * @return integer This helper's $needs_content_for property.
 	 */
-	static public function needs_content_for() {
-		$class = static::class;
-		return $class::$needs_content_for;
+	public function needs_content_for() {
+		return $this->needs_content_for;
 	}
 
 	/**
-	 * Gets this helper's $cache_preview property.
+	 * Gets this helper's $should_cache_preview property.
 	 *
-	 * @return boolean This helper's $cache_preview property.
+	 * @return boolean This helper's $should_cache_preview property.
 	 */
-	static public function get_cache_preview() {
-		$class = static::class;
-		return $class::$cache_preview;
+	public function get_should_cache_preview() {
+		return $this->should_cache_preview;
 	}
 
 	/**
@@ -217,9 +212,8 @@ abstract class LinkHelper {
 	 *
 	 * @return integer This helper's priority.
 	 */
-	static public function get_priority() {
-		$class = static::class;
-		return $class::$priority;
+	public function get_priority() {
+		return $this->priority;
 	}
 
 	/**
@@ -227,9 +221,8 @@ abstract class LinkHelper {
 	 *
 	 * @return string Version number, e.g., "1.3.0".
 	 */
-	static public function get_version() {
-		$class = static::class;
-		return $class::$version;
+	public function get_version() {
+		return $this->version;
 	}
 
 	/**
@@ -252,16 +245,6 @@ abstract class LinkHelper {
 		return strip_tags($html);
 	}
 
-	static public function mk_tpl_nm_frm_classnm($classname) {
-		$prefix = 'linkhelper';
-		$name = strtolower($classname);
-		if (my_substr($name, 0, strlen($prefix)) == $prefix) {
-			$name = my_substr($name, strlen($prefix));
-		}
-
-		return 'linktools_linkpreview_'.$name;
-	}
-
 	/**
 	 * Gets the name of the template this helper uses for its output.
 	 *
@@ -270,7 +253,7 @@ abstract class LinkHelper {
 	 */
 	public function get_template_name($ret_empty_if_default = false) {
 		if ($this->template) {
-			return self::mk_tpl_nm_frm_classnm(get_class($this));
+			return lkt_mk_tpl_nm_frm_classnm(get_class($this));
 		} else if ($ret_empty_if_default) {
 			return '';
 		} else	return 'linktools_linkpreview_default';

@@ -28,12 +28,12 @@ class LinkHelperYouTubeVideo extends LinkHelper {
 	 * Support only YouTube video links (as detected after URL
 	 * normalisation for the terminating link).
 	 */
-	static protected $supported_norm_links_regex = '(^http\\(s\\)://youtube\\.com/watch\\?)';
+	protected $supported_norm_links_regex = '(^http\\(s\\)://youtube\\.com/watch\\?)';
 
 	/**
 	 * Set a neutral priority for this Helper (priorities may be negative).
 	 */
-	static protected $priority = 0;
+	protected $priority = 0;
 
 	/**
 	 * A change in this version number signals that link previews generated
@@ -42,7 +42,7 @@ class LinkHelperYouTubeVideo extends LinkHelper {
 	 * template has changed or because the variables supplied to it have
 	 * changed.
 	 */
-	static protected $version = '1.0.0';
+	protected $version = '1.0.0';
 
 	/**
 	 * A friendly name for this helper (localisation not supported), to be
@@ -60,7 +60,7 @@ class LinkHelperYouTubeVideo extends LinkHelper {
 	 * Helpers for which content would need to be downloaded to determine
 	 * their support/preview should be ignored.
 	 */
-	static protected $needs_content_for = LinkHelper::NC_NEVER_AND_FINAL;
+	protected $needs_content_for = LinkHelper::NC_NEVER_AND_FINAL;
 
 	/**
 	 * Because this Helper does not need to query a link's web server in
@@ -68,7 +68,7 @@ class LinkHelperYouTubeVideo extends LinkHelper {
 	 * preview, once generated, in the database - we can simply regenerate
 	 * it each time we need it.
 	 */
-	static protected $cache_preview = false;
+	protected $should_cache_preview = false;
 
 	/**
 	 * The contents of this template are stored to the auto-generated (from

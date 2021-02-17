@@ -42,7 +42,7 @@ if ($mybb->get_input('do_update')) {
 					'dateline' => TIME_NOW
 				);
 				$db->insert_query('templates', $fields);
-				$inst_helpers[$present_helper]['tpl_installed'] = $present_helper::get_version();
+				$inst_helpers[$present_helper]['tpl_installed'] = $helperobj->get_version();
 				$just_installed[$present_helper] = true;
 			}
 		}
@@ -51,7 +51,7 @@ if ($mybb->get_input('do_update')) {
 		foreach ($inst_helpers as $inst_helper => $arr) {
 			$input_arr = $mybb->get_input($inst_helper, MyBB::INPUT_ARRAY);
 			if (!$just_installed[$inst_helper] && is_array($input_arr) && $input_arr[0] != $inst_helper) {
-				$tpl_nm = LinkHelper::mk_tpl_nm_frm_classnm($inst_helper);
+				$tpl_nm = lkt_mk_tpl_nm_frm_classnm($inst_helper);
 				$db->delete_query('templates', "title = '$tpl_nm'");
 				$inst_helpers[$inst_helper]['tpl_installed'] = '';
 			}
