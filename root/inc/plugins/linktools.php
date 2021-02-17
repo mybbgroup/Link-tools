@@ -120,7 +120,7 @@ function lkt_hookin__global_start() {
 define('C_LKT', str_replace('.php', '', basename(__FILE__)));
 
 function linktools_info() {
-	global $lang, $db, $mybb, $plugins_cache, $cache, $admin_session;
+	global $lang, $db, $mybb, $plugins_cache, $cache, $admin_session, $config;
 
 	if (!isset($lang->linktools)) {
 		$lang->load(C_LKT);
@@ -175,7 +175,7 @@ function linktools_info() {
 		} else {
 			$desc .= 'warning.png)">'.$lang->sprintf($lang->lkt_x_of_y_posts_unextracted, number_format($cnt_posts_unextracted), number_format($cnt_posts_tot));
 			if ($cnt_posts_unextracted > 0) {
-				$desc .= $lang->sprintf($lang->lkt_to_extract_links_click_here, $cnt_posts_unextracted, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
+				$desc .= $lang->sprintf($lang->lkt_to_extract_links_click_here, $cnt_posts_unextracted, '<form method="post" action="'.$mybb->settings['bburl'].'/'.$config['admin_dir'].'/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_links" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
 			}
 		}
 		$desc .= '</li>'.PHP_EOL;
@@ -194,7 +194,7 @@ function linktools_info() {
 				if ($cnt_given_up) $desc .= $lang->sprintf($lang->lkt_given_up_on_x_links, number_format($cnt_given_up));
 			}
 			if ($cnt_eligible > 0) {
-				$desc .= $lang->sprintf($lang->lkt_to_resolve_links_click_here, number_format($cnt_eligible), '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
+				$desc .= $lang->sprintf($lang->lkt_to_resolve_links_click_here, number_format($cnt_eligible), '<form method="post" action="'.$mybb->settings['bburl'].'/'.$config['admin_dir'].'/index.php?module=tools-recount_rebuild" style="display: inline;"><input type="hidden" name="page" value="2" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_rebuild_terms" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;"/></form>');
 			} else {
 				$desc .= $lang->lkt_no_links_eligible_for_resolution;
 			}
@@ -224,7 +224,7 @@ function linktools_info() {
 
 		if ($inst_hlp_tpl_miss_cnt) {
 			$lang_helper_or_helpers = $inst_hlp_tpl_miss_cnt == 1 ? $lang->lkt_one_helper : $lang->sprintf($lang->lkt_helpers, $inst_hlp_tpl_miss_cnt);
-			$desc .= '	<li style="list-style-image: url(styles/default/images/icons/warning.png); color: red;">'.$lang->sprintf($lang->lkt_need_inst_helpers, $lang_helper_or_helpers, '<form method="post" action="'.$mybb->settings['bburl'].'/admin/index.php?module=config-linkhelpers" style="display: inline;"><input type="hidden" name="installall" value="1" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_update" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;" /></form>').'</li>';
+			$desc .= '	<li style="list-style-image: url(styles/default/images/icons/warning.png); color: red;">'.$lang->sprintf($lang->lkt_need_inst_helpers, $lang_helper_or_helpers, '<form method="post" action="'.$mybb->settings['bburl'].'/'.$config['admin_dir'].'/index.php?module=config-linkhelpers" style="display: inline;"><input type="hidden" name="installall" value="1" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_update" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;" /></form>').'</li>';
 		}
 
 		$desc .= '</ul>'.PHP_EOL;
