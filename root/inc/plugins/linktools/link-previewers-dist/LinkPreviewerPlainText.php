@@ -23,7 +23,7 @@ if (!defined('IN_MYBB')) {
 	die('Direct access to this file is not allowed.');
 }
 
-class LinkHelperPlainText extends LinkHelper {
+class LinkPreviewerPlainText extends LinkPreviewer {
 	/**
 	 * Provisionally support all links (subject to the page to which a
 	 * link refers having a content-type of text/html).
@@ -31,7 +31,7 @@ class LinkHelperPlainText extends LinkHelper {
 	protected $supported_norm_links_regex = '(^)';
 
 	/**
-	 * Set this Helper's priority to the mid-range (priorities may be
+	 * Set this Previewer's priority to the mid-range (priorities may be
 	 * negative).
 	 */
 	protected $priority = 0;
@@ -49,13 +49,13 @@ class LinkHelperPlainText extends LinkHelper {
 	protected $version = '1.0.0';
 
 	/**
-	 * This Helper needs the page's content and/or content-type both to
+	 * This Previewer needs the page's content and/or content-type both to
 	 * determine whether it supports the page as well as to generate a
 	 * preview of the page.
 	 */
-	protected $needs_content_for = LinkHelper::NC_FOR_BOTH;
+	protected $needs_content_for = LinkPreviewer::NC_FOR_BOTH;
 
-	protected $friendly_name = 'Plain text helper';
+	protected $friendly_name = 'Plain text previewer';
 
 	protected $template = '<div class="lkt-link-preview">
 	<a href="$link_safe">

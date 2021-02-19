@@ -66,11 +66,11 @@ foreach ($terms as $url => $term_url) {
 	if ($regen_msg) $regen_msg .= '<br />'.PHP_EOL;
 	$res = lkt_url_has_needs_preview($term_url, true);
 	if ($res['result'] === LKT_PV_NOT_REQUIRED) {
-		$regen_msg .= $lang->sprintf($lang->lkt_err_regen_url_no_helper, htmlspecialchars_uni($url));
+		$regen_msg .= $lang->sprintf($lang->lkt_err_regen_url_no_previewer, htmlspecialchars_uni($url));
 	} else if ($res['result'] === LKT_PV_TOO_SOON) {
 		$regen_msg .= $lang->sprintf($lang->lkt_err_regen_url_too_soon , lkt_preview_regen_min_wait_secs, htmlspecialchars_uni($url));
 	} else {
-		if ($res['result'] === LKT_PV_GOT_HELPER_PROVIS || $res['helper']::get_instance()->needs_content_for() & LinkHelper::NC_FOR_GEN_PV) {
+		if ($res['result'] === LKT_PV_GOT_PREVIEWER_PROVIS || $res['previewer']::get_instance()->needs_content_for() & LinkPreviewer::NC_FOR_GEN_PV) {
 			curl_setopt($ch, CURLOPT_URL, $term_url);
 			$content = curl_exec($ch);
 			if ($content
@@ -85,7 +85,7 @@ foreach ($terms as $url => $term_url) {
 				$charset = lkt_get_charset($headers, $html);
 			}
 		} else	$html = $content_type = $charset = '';
-		$preview = lkt_get_gen_link_preview($term_url, $html, $content_type, $charset, $res['result'] === LKT_PV_GOT_HELPER_PROVIS ? '' : $res['helper'], $res['has_db_entry']);
+		$preview = lkt_get_gen_link_preview($term_url, $html, $content_type, $charset, $res['result'] === LKT_PV_GOT_PREVIEWER_PROVIS ? '' : $res['previewer'], $res['has_db_entry']);
 		if ($preview === false) {
 			$regen_msg .= $lang->sprintf($lang->lkt_err_regen_no_preview_returned, htmlspecialchars_uni($url));
 		} else	$regen_msg .= $lang->sprintf($lang->lkt_success_regen_url, htmlspecialchars_uni($url));

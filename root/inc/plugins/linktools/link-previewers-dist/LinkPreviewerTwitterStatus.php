@@ -23,7 +23,7 @@ if (!defined('IN_MYBB')) {
 	die('Direct access to this file is not allowed.');
 }
 
-class LinkHelperTwitterStatus extends LinkHelper {
+class LinkPreviewerTwitterStatus extends LinkPreviewer {
 	/**
 	 * Support only Twitter status links (as detected after URL
 	 * normalisation).
@@ -31,7 +31,7 @@ class LinkHelperTwitterStatus extends LinkHelper {
 	protected $supported_norm_links_regex = '(^http\\(s\\)://twitter.com/.*/status/\\d+$)';
 
 	/**
-	 * Set a neutral priority for this Helper (priorities may be negative).
+	 * Set a neutral priority for this Previewer (priorities may be negative).
 	 */
 	protected $priority = 0;
 
@@ -45,25 +45,25 @@ class LinkHelperTwitterStatus extends LinkHelper {
 	protected $version = '1.0.0';
 
 	/**
-	 * A friendly name for this helper (localisation not supported), to be
-	 * shown in the ACP Config's Link Helpers module at:
-	 * admin/index.php?module=config-linkhelpers
+	 * A friendly name for this previewer (localisation not supported), to
+	 * be shown in the ACP Config's Link Previewers module at:
+	 * admin/index.php?module=config-linkpreviewers
 	 */
 	protected $friendly_name = 'Twitter status';
 
 	/**
-	 * This Helper does not need the page's content and/or content-type at
-	 * all: neither to determine whether it supports the page nor to
+	 * This Previewer does not need the page's content and/or content-type
+	 * at all: neither to determine whether it supports the page nor to
 	 * generate a preview of the page (all it needs is the page's URL). In
-	 * addition, if it is the highest-priority Helper among those which do
-	 * not require content, it should be treated as the final Helper; other
-	 * Helpers for which content would need to be downloaded to determine
-	 * their support/preview should be ignored.
+	 * addition, if it is the highest-priority Previewer among those which
+	 * do not require content, it should be treated as the final Previewer;
+	 * other Previewers for which content would need to be downloaded to
+	 * determine their support/preview should be ignored.
 	 */
-	protected $needs_content_for = LinkHelper::NC_NEVER_AND_FINAL;
+	protected $needs_content_for = LinkPreviewer::NC_NEVER_AND_FINAL;
 
 	/**
-	 * Because this Helper does not need to query a link's web server in
+	 * Because this Previewer does not need to query a link's web server in
 	 * order to generate a preview, there is no value in caching the
 	 * preview, once generated, in the database - we can simply regenerate
 	 * it each time we need it.

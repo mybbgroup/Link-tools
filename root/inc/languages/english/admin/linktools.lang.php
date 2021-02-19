@@ -68,11 +68,11 @@ $l['lkt_link_preview_disable_self_dom_desc' ] = 'Disable link previews for links
 $l['lkt_link_preview_expiry_period_title'   ] = 'Link preview expiry period';
 $l['lkt_link_preview_expiry_period_desc'    ] = 'The number of days after which a link preview should be expired (and regenerated on demand). Zero indicates "Never expire".';
 
-$l['lkt_link_preview_expire_on_new_helper_title'] = 'Expire link previews on helper change?';
-$l['lkt_link_preview_expire_on_new_helper_desc' ] = 'Whether or not a link preview should be expired (and regenerated on-demand) when the helper which originally generated it is changed, or when a new, higher priority helper applies to the link. Choose "Yes" for expiry and "No" to leave such link previews unexpired. Note that this setting does not affect link helpers which are selected and prioritised based on the page\'s content or content type, since their selection requires a query of a link\'s web server, defeating the purpose of using the cache where possible.';
+$l['lkt_link_preview_expire_on_new_previewer_title'] = 'Expire link previews on previewer change?';
+$l['lkt_link_preview_expire_on_new_previewer_desc' ] = 'Whether or not a link preview should be expired (and regenerated on-demand) when the previewer which originally generated it is changed, or when a new, higher priority previewer applies to the link. Choose "Yes" for expiry and "No" to leave such link previews unexpired. Note that this setting does not affect link previewers which are selected and prioritised based on the page\'s content or content type, since their selection requires a query of a link\'s web server, defeating the purpose of using the cache where possible.';
 
 $l['lkt_link_preview_on_fly_title'] = 'On-the-fly link preview (re)generation domains';
-$l['lkt_link_preview_on_fly_desc' ] = 'When viewing a thread with links without a valid cached preview in the database, for which domains should a link preview be (re)generated on the fly? Does not apply to initial on-the-fly generation of link previews (which are then cached in the database) during posting, which cannot be disabled except via disabling link previews for the relevant link helper types / domains entirely.';
+$l['lkt_link_preview_on_fly_desc' ] = 'When viewing a thread with links without a valid cached preview in the database, for which domains should a link preview be (re)generated on the fly? Does not apply to initial on-the-fly generation of link previews (which are then cached in the database) during posting, which cannot be disabled except via disabling link previews for the relevant link previewer types / domains entirely.';
 $l['lkt_link_preview_on_fly_always' ] = 'All domains';
 $l['lkt_link_preview_on_fly_never' ] = 'No domains';
 $l['lkt_link_preview_on_fly_whitelist'] = 'Only for the following domains (whitelist)';
@@ -89,27 +89,27 @@ $l['lkt_link_preview_rebuild_scope_only_invalid'] = 'Only links with missing/inv
 $l['lkt_link_preview_not_in_quotes_title'] = 'Exclude quoted links from preview?';
 $l['lkt_link_preview_not_in_quotes_desc' ] = 'Set to "Yes" to prevent previews from being generated for links within MyBB quote tags.';
 
-$l['lkt_linkhelpers'] = 'Link Helpers';
+$l['lkt_linkpreviewers'    ] = 'Link Previewers';
 $l['lkt_template_installed'] = 'Template installed?';
-$l['lkt_helper_enabled'    ] = 'Enabled?';
-$l['lkt_helper_name'       ] = 'Helper name';
-$l['lkt_update'            ] = 'Update Link Helpers';
-$l['lkt_missing_hlp_name'] = '"{1}" (Class name; helper file missing so friendly name unknown)';
+$l['lkt_previewer_enabled' ] = 'Enabled?';
+$l['lkt_previewer_name'    ] = 'Previewer name';
+$l['lkt_update'            ] = 'Update Link Previewers';
+$l['lkt_missing_hlp_name'  ] = '"{1}" (Class name; previewer file missing so friendly name unknown)';
 
 // One or the other of these two strings...
-$l['lkt_helpers'          ] = '{1} link helpers';
-$l['lkt_one_helper'       ] = '1 link helper';
+$l['lkt_previewers'        ] = '{1} link previewers';
+$l['lkt_one_previewer'     ] = '1 link previewer';
 // ...will replace {1} in this string:
-$l['lkt_need_inst_helpers'] = 'Necessary templates need to be installed for {1}. Click {2}here{3} to install them.';
+$l['lkt_need_inst_previewers'] = 'Necessary templates need to be installed for {1}. Click {2}here{3} to install them.';
 
-$l['lkt_preview_helper_tpl_chg_pg_title'] = 'Invalidate link preview cache for "{1}"?';
-$l['lkt_preview_helper_tpl_chg_pg_heading'] = 'Invalidate link preview cache for <em>{1}</em>?';
-$l['lkt_invalidate_helper_msg'] = 'You have just successfully edited the template for the Link Helper <em>{1}</em>. This Helper generates link previews and caches them. Unless you invalidate the already-cached link previews for this Helper, your changes to this template will not affect them unless/until they naturally expire, and will only affect the previews it generates from here on. Click below if you would like to invalidate this Helper\'s preview cache so that your changes take effect for its already-cached previews. Note though that for invalidated link previews to then be rebuilt, you will need to either:<ul><li>Ensure that the Link Tools plugin\'s <em>On-the-fly link preview (re)generation domains</em> <a href="index.php?module=config-settings&action=change&amp;gid={2}">setting</a> is set to a value which ensures that this Helper\'s previews are regenerated on the fly, or,</li><li>Rebuild the link preview cache at <em><a href="index.php?module=tools-recount_rebuild">Tools &amp; Maintenance</a></em> » <em>Rebuild Link Previews for Link Tools</em>.</li></ul>';
+$l['lkt_preview_previewer_tpl_chg_pg_title'] = 'Invalidate link preview cache for "{1}"?';
+$l['lkt_preview_previewer_tpl_chg_pg_heading'] = 'Invalidate link preview cache for <em>{1}</em>?';
+$l['lkt_invalidate_previewer_msg'] = 'You have just successfully edited the template for the Link Previewer <em>{1}</em>. This Previewer generates link previews and caches them. Unless you invalidate the already-cached link previews for this Previewer, your changes to this template will not affect them unless/until they naturally expire, and will only affect the previews it generates from here on. Click below if you would like to invalidate this Previewer\'s preview cache so that your changes take effect for its already-cached previews. Note though that for invalidated link previews to then be rebuilt, you will need to either:<ul><li>Ensure that the Link Tools plugin\'s <em>On-the-fly link preview (re)generation domains</em> <a href="index.php?module=config-settings&action=change&amp;gid={2}">setting</a> is set to a value which ensures that this Previewer\'s previews are regenerated on the fly, or,</li><li>Rebuild the link preview cache at <em><a href="index.php?module=tools-recount_rebuild">Tools &amp; Maintenance</a></em> » <em>Rebuild Link Previews for Link Tools</em>.</li></ul>';
 
 $l['lkt_inval_pv_cache_for'] = 'Invalidate the link preview cache for "{1}"';
 
-$l['lkt_linkhelpers_cache_invalidation'    ] = 'Link Preview Cache Invalidation';
-$l['lkt_linkhelpers_cache_invalidation_msg'] = 'Invalidate Cached Link Previews for the Helper:';
-$l['lkt_all'                    ] = '[All]';
-$l['lkt_linkhelpers_invalidated'] = 'The link preview caches of following Helpers were invalidated: {1}';
-$l['lkt_go_back_link_txt'       ] = '« Go back to where you were';
+$l['lkt_linkpreviewers_cache_invalidation'    ] = 'Link Preview Cache Invalidation';
+$l['lkt_linkpreviewers_cache_invalidation_msg'] = 'Invalidate Cached Link Previews for the Previewer:';
+$l['lkt_all'                       ] = '[All]';
+$l['lkt_linkpreviewers_invalidated'] = 'The link preview caches of the following Previewers were invalidated: {1}';
+$l['lkt_go_back_link_txt'          ] = '« Go back to where you were';

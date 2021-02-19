@@ -39,8 +39,8 @@ const lkt_urls_limit_for_get_and_store_terms = 2000;
 // (other major browsers have higher limits).
 const lkt_max_url_len = 2083;
 
-const lkt_max_helper_class_name_len = 100;
-const lkt_max_helper_class_vers_len =  15;
+const lkt_max_previewer_class_name_len = 100;
+const lkt_max_previewer_class_vers_len =  15;
 
 const lkt_use_head_method          = true; // Overridden by the below two being true though, so effectively false.
 const lkt_check_for_html_redirects = true;
@@ -205,29 +205,29 @@ function linktools_info() {
 		$desc .= '	</li>'.PHP_EOL;
 
 		$lrs_plugins = $cache->read('lrs_plugins');
-		$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
-				? $lrs_plugins[C_LKT]['installed_link_helpers']
-				: array();
+		$inst_previewers = !empty($lrs_plugins[C_LKT]['installed_link_previewers'])
+				    ? $lrs_plugins[C_LKT]['installed_link_previewers']
+				    : array();
 
-		$present_helpers = array();
-		foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
-			$present_helpers = array_merge($present_helpers, $classnames);
+		$present_previewers = array();
+		foreach (lkt_get_linkpreviewer_classnames() as $type => $classnames) {
+			$present_previewers = array_merge($present_previewers, $classnames);
 		}
-		$present_helpers = array_diff(array_unique($present_helpers), array('LinkHelperDefault'));
+		$present_previewers = array_diff(array_unique($present_previewers), array('LinkPreviewerDefault'));
 
 		$inst_hlp_tpl_miss_cnt = 0;
-		foreach ($present_helpers as $present_helper) {
-			if (empty($inst_helpers[$present_helper]['tpl_installed'])) {
-				$helperobj = $present_helper::get_instance();
-				if ($helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
+		foreach ($present_previewers as $present_previewer) {
+			if (empty($inst_previewers[$present_previewer]['tpl_installed'])) {
+				$previewerobj = $present_previewer::get_instance();
+				if ($previewerobj->get_template_name(/*$ret_empty_if_default*/true)) {
 					$inst_hlp_tpl_miss_cnt++;
 				}
 			}
 		}
 
 		if ($inst_hlp_tpl_miss_cnt) {
-			$lang_helper_or_helpers = $inst_hlp_tpl_miss_cnt == 1 ? $lang->lkt_one_helper : $lang->sprintf($lang->lkt_helpers, $inst_hlp_tpl_miss_cnt);
-			$desc .= '	<li style="list-style-image: url(styles/default/images/icons/warning.png); color: red;">'.$lang->sprintf($lang->lkt_need_inst_helpers, $lang_helper_or_helpers, '<form method="post" action="'.$mybb->settings['bburl'].'/'.$config['admin_dir'].'/index.php?module=config-linkhelpers" style="display: inline;"><input type="hidden" name="installall" value="1" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_update" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;" /></form>').'</li>';
+			$lang_previewer_or_previewers = $inst_hlp_tpl_miss_cnt == 1 ? $lang->lkt_one_previewer : $lang->sprintf($lang->lkt_previewers, $inst_hlp_tpl_miss_cnt);
+			$desc .= '	<li style="list-style-image: url(styles/default/images/icons/warning.png); color: red;">'.$lang->sprintf($lang->lkt_need_inst_previewers, $lang_previewer_or_previewers, '<form method="post" action="'.$mybb->settings['bburl'].'/'.$config['admin_dir'].'/index.php?module=config-linkpreviewers" style="display: inline;"><input type="hidden" name="installall" value="1" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_update" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;" /></form>').'</li>';
 		}
 
 		$desc .= '</ul>'.PHP_EOL;
@@ -244,7 +244,7 @@ function linktools_install() {
 }
 
 function lkt_install_or_upgrade($from_version, $to_version) {
-	global $db;
+	global $db, $cache;
 
 	if (!$db->table_exists('urls')) {
 		// utf8_bin collation was chosen for the varchar columns
@@ -279,8 +279,8 @@ CREATE TABLE '.TABLE_PREFIX.'url_previews (
   preview      text             NOT NULL DEFAULT \'\',
   dateline     int(10) unsigned NOT NULL DEFAULT 0,
   valid        tinyint(1)       NOT NULL DEFAULT 1,
-  helper_class_name varchar('.lkt_max_helper_class_name_len.') NOT NULL DEFAULT \'\',
-  helper_class_vers varchar('.lkt_max_helper_class_vers_len.') NOT NULL DEFAULT \'\',
+  previewer_class_name varchar('.lkt_max_previewer_class_name_len.') NOT NULL DEFAULT \'\',
+  previewer_class_vers varchar('.lkt_max_previewer_class_vers_len.') NOT NULL DEFAULT \'\',
   KEY         url_term (url_term(166))
 )'.$db->build_create_table_collation().';');
 	}
@@ -294,9 +294,18 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 )'.$db->build_create_table_collation().';');
 	}
 
-	if ($db->table_exists('url_previews') && $db->field_exists('url_norm', 'url_previews') && !$db->field_exists('url_term', 'url_previews')) {
-		$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE url_norm url_term varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL');
-		$db->delete_query('url_previews', "url_term like 'http(s)://%'");
+	if ($db->table_exists('url_previews')) {
+		if ($db->field_exists('url_norm', 'url_previews') && !$db->field_exists('url_term', 'url_previews')) {
+			$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE url_norm url_term varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL');
+			$db->delete_query('url_previews', "url_term like 'http(s)://%'");
+		}
+		if ($db->field_exists('helper_class_name', 'url_previews') && !$db->field_exists('previewer_class_name', 'url_previews')) {
+			$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE helper_class_name previewer_class_name varchar('.lkt_max_previewer_class_name_len.') NOT NULL DEFAULT \'\'');
+			$db->query('UPDATE '.TABLE_PREFIX."url_previews SET previewer_class_name = concat('LinkPreviewer', substr(previewer_class_name, 11)) WHERE previewer_class_name LIKE 'LinkHelper%'");
+		}
+		if ($db->field_exists('helper_class_vers', 'url_previews') && !$db->field_exists('previewer_class_vers', 'url_previews')) {
+			$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE helper_class_vers previewer_class_vers varchar('.lkt_max_previewer_class_vers_len.') NOT NULL DEFAULT \'\'');
+		}
 	}
 
 	if (!$db->field_exists('got_preview', 'urls')) {
@@ -315,6 +324,18 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 		$db->query('ALTER TABLE '.TABLE_PREFIX.'users ADD `lkt_warn_about_links` tinyint(1) NOT NULL default \'1\'');
 	}
 
+	// Convert "Helper" to "Previewer" in the cache as required.
+	$lrs_plugins = $cache->read('lrs_plugins');
+	if (!empty($lrs_plugins[C_LKT]['installed_link_helpers']) && empty($lrs_plugins[C_LKT]['installed_link_previewers'])) {
+		$lrs_plugins[C_LKT]['installed_link_previewers'] = array();
+		foreach ($lrs_plugins[C_LKT]['installed_link_helpers'] as $classname => $value) {
+			$classname_new = 'LinkPreviewer'.substr($classname, strlen('LinkHelper'));
+			$lrs_plugins[C_LKT]['installed_link_previewers'][$classname_new] = $value;
+		}
+		unset($lrs_plugins[C_LKT]['installed_link_helpers']);
+		$cache->update('lrs_plugins', $lrs_plugins);
+	}
+
 	// These five functions are compatible with upgrading -
 	// they either check for existing database entries before
 	// inserting new ones, or they delete existing entries then
@@ -325,7 +346,7 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 	lkt_create_settingsgroup();
 	lkt_create_settings();
 	if ($from_version < (int)'10100') {
-		lkt_enable_all_helpers();
+		lkt_enable_all_previewers();
 	}
 }
 
@@ -449,46 +470,46 @@ function linktools_deactivate() {
 }
 
 /**
- * Enables all helpers present in the filesystem and inserts their templates as necessary.
+ * Enables all previewers present in the filesystem and inserts their templates as necessary.
  */
-function lkt_enable_all_helpers() {
+function lkt_enable_all_previewers() {
 	global $cache, $db;
 
 	$lrs_plugins = $cache->read('lrs_plugins');
-	$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
-			? $lrs_plugins[C_LKT]['installed_link_helpers']
-			: array();
-	$present_helpers = array();
-	foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
-		$present_helpers = array_merge($present_helpers, $classnames);
+	$inst_previewers = !empty($lrs_plugins[C_LKT]['installed_link_previewers'])
+			    ? $lrs_plugins[C_LKT]['installed_link_previewers']
+			    : array();
+	$present_previewers = array();
+	foreach (lkt_get_linkpreviewer_classnames() as $type => $classnames) {
+		$present_previewers = array_merge($present_previewers, $classnames);
 	}
 
-	foreach ($present_helpers as $present_helper) {
-		if (!is_array($inst_helpers[$present_helper])) {
-			$inst_helpers[$present_helper] = array(
+	foreach ($present_previewers as $present_previewer) {
+		if (!is_array($inst_previewers[$present_previewer])) {
+			$inst_previewers[$present_previewer] = array(
 				'enabled' => true,
 			);
 		}
-		if (empty($inst_helpers[$present_helper]['enabled'])) {
-			$inst_helpers[$present_helper]['enabled'] = true;
-			if (empty($inst_helpers[$present_helper]['tpl_installed'])) {
-				$helperobj = $present_helper::get_instance();
-				if ($tplname = $helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
+		if (empty($inst_previewers[$present_previewer]['enabled'])) {
+			$inst_previewers[$present_previewer]['enabled'] = true;
+			if (empty($inst_previewers[$present_previewer]['tpl_installed'])) {
+				$previewerobj = $present_previewer::get_instance();
+				if ($tplname = $previewerobj->get_template_name(/*$ret_empty_if_default*/true)) {
 					$fields = array(
 						'title'    => $db->escape_string($tplname),
-						'template' => $db->escape_string($helperobj->get_template_raw()),
+						'template' => $db->escape_string($previewerobj->get_template_raw()),
 						'sid'      => '-2',
 						'version'  => '1',
 						'dateline' => TIME_NOW
 					);
 					$db->insert_query('templates', $fields);
-					$inst_helpers[$present_helper]['tpl_installed'] = $helperobj->get_version();
+					$inst_previewers[$present_previewer]['tpl_installed'] = $previewerobj->get_version();
 				}
 			}
 		}
 	}
 
-	$lrs_plugins[C_LKT]['installed_link_helpers'] = $inst_helpers;
+	$lrs_plugins[C_LKT]['installed_link_previewers'] = $inst_previewers;
 	$cache->update('lrs_plugins', $lrs_plugins);
 }
 
@@ -641,23 +662,23 @@ function lkt_toggle_hidden_posts() {
 	);
 
 	// Remove any existing Master templates for this plugin except for
-	// those for installed link helpers no longer present in the filesystem.
-	require_once __DIR__.'/linktools/LinkHelperBase.php';
-	$helper_conds = '';
+	// those for installed link previewers no longer present in the filesystem.
+	require_once __DIR__.'/linktools/LinkPreviewerBase.php';
+	$previewer_conds = '';
 	$lrs_plugins = $cache->read('lrs_plugins');
-	$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
-	                  ? $lrs_plugins[C_LKT]['installed_link_helpers']
-	                  : array();
-	$present_helpers = array();
-	foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
-		$present_helpers = array_merge($present_helpers, $classnames);
+	$inst_previewers = !empty($lrs_plugins[C_LKT]['installed_link_previewers'])
+	                    ? $lrs_plugins[C_LKT]['installed_link_previewers']
+	                    : array();
+	$present_previewers = array();
+	foreach (lkt_get_linkpreviewer_classnames() as $type => $classnames) {
+		$present_previewers = array_merge($present_previewers, $classnames);
 	}
-	$inst_but_missing = array_diff(array_keys($inst_helpers), $present_helpers);
-	$tplnames = array_map(function($helper) {return lkt_mk_tpl_nm_frm_classnm($helper);}, $inst_but_missing);
+	$inst_but_missing = array_diff(array_keys($inst_previewers), $present_previewers);
+	$tplnames = array_map(function($previewer) {return lkt_mk_tpl_nm_frm_classnm($previewer);}, $inst_but_missing);
 	if ($tplnames) {
-		$helper_conds = " AND title NOT IN ('".implode("','", $tplnames)."')";
+		$previewer_conds = " AND title NOT IN ('".implode("','", $tplnames)."')";
 	}
-	$db->delete_query('templates', "sid=-2 AND title LIKE 'linktools%'{$helper_conds}");
+	$db->delete_query('templates', "sid=-2 AND title LIKE 'linktools%'{$previewer_conds}");
 
 	foreach ($templates as $template_title => $template_data) {
 		// Now, flag any of this plugin's templates that have been modified in the plugin since
@@ -681,30 +702,30 @@ function lkt_toggle_hidden_posts() {
 		$db->insert_query('templates', $insert_templates);
 	}
 
-	// And now do the same for installed Link Helper templates.
-	foreach (array_intersect($present_helpers, array_keys($inst_helpers)) as $helper) {
-		$from_version   = $inst_helpers[$helper]['tpl_installed'];
-		$helperobj      = $helper::get_instance();
-		$latest_version = $helperobj->get_version();
-		if ($tplname = $helperobj->get_template_name(/*$ret_empty_if_default*/true)) {
+	// And now do the same for installed Link Previewer templates.
+	foreach (array_intersect($present_previewers, array_keys($inst_previewers)) as $previewer) {
+		$from_version   = $inst_previewers[$previewer]['tpl_installed'];
+		$previewerobj   = $previewer::get_instance();
+		$latest_version = $previewerobj->get_version();
+		if ($tplname = $previewerobj->get_template_name(/*$ret_empty_if_default*/true)) {
 			if ($latest_version > $from_version) {
 				$db->update_query('templates', array('version' => 0), "title='".$db->escape_string($tplname)."' AND sid <> -2");
 			}
 
 			$fields = array(
 				'title'    => $db->escape_string($tplname),
-				'template' => $db->escape_string($helperobj->get_template_raw()),
+				'template' => $db->escape_string($previewerobj->get_template_raw()),
 				'sid'      => '-2',
 				'version'  => '1',
 				'dateline' => TIME_NOW
 			);
 			$db->insert_query('templates', $fields);
 
-			$inst_helpers[$helper]['tpl_installed'] = $latest_version;
+			$inst_previewers[$previewer]['tpl_installed'] = $latest_version;
 		}
 	}
 
-	$lrs_plugins[C_LKT]['installed_link_helpers'] = $inst_helpers;
+	$lrs_plugins[C_LKT]['installed_link_previewers'] = $inst_previewers;
 	$cache->update('lrs_plugins', $lrs_plugins);
 	$lrs_plugins = $cache->read('lrs_plugins');
 }
@@ -951,9 +972,9 @@ function lkt_create_settings() {
 			'optionscode' => 'numeric',
 			'value'       => '7',
 		),
-		'link_preview_expire_on_new_helper' => array(
-			'title'       => $lang->lkt_link_preview_expire_on_new_helper_title,
-			'description' => $lang->lkt_link_preview_expire_on_new_helper_desc,
+		'link_preview_expire_on_new_previewer' => array(
+			'title'       => $lang->lkt_link_preview_expire_on_new_previewer_title,
+			'description' => $lang->lkt_link_preview_expire_on_new_previewer_desc,
 			'optionscode' => 'yesno',
 			'value'       => '1',
 		),
@@ -1716,27 +1737,27 @@ function lkt_get_url_term_redirs_auto($urls) {
 	return $redirs;
 }
 
-function lkt_get_linkhelper_classnames() {
-	static $LinkHelperClassNames = false;
+function lkt_get_linkpreviewer_classnames() {
+	static $LinkPreviewerClassNames = false;
 
-	require_once __DIR__.'/linktools/LinkHelperBase.php';
+	require_once __DIR__.'/linktools/LinkPreviewerBase.php';
 
-	if (!$LinkHelperClassNames) {
-		$LinkHelperClassNames = array('3p' => array(), 'dist' => array());
-		foreach (array('link-helpers-3rd-party', 'link-helpers-dist') as $subdir) {
+	if (!$LinkPreviewerClassNames) {
+		$LinkPreviewerClassNames = array('3p' => array(), 'dist' => array());
+		foreach (array('link-previewers-3rd-party', 'link-previewers-dist') as $subdir) {
 			foreach (new DirectoryIterator(__DIR__.'/linktools/'.$subdir) as $file) {
 				if ($file->isDot() || strtolower($file->getExtension()) != 'php') {
 					continue;
 				}
 				$filepath = __DIR__.'/linktools/'.$subdir.'/'.$file->getFilename();
-				$helper_classname = $file->getBasename('.php');
+				$previewer_classname = $file->getBasename('.php');
 				require_once $filepath;
-				$LinkHelperClassNames[$subdir == 'link-helpers-3rd-party' ? '3p' : 'dist'][] = $helper_classname;
+				$LinkPreviewerClassNames[$subdir == 'link-previewers-3rd-party' ? '3p' : 'dist'][] = $previewer_classname;
 			}
 		}
 	}
 
-	return $LinkHelperClassNames;
+	return $LinkPreviewerClassNames;
 }
 
 /**
@@ -1754,22 +1775,22 @@ function lkt_get_linkhelper_classnames() {
  *                               contains that preview, indexed by 'preview'.
  *          LKT_PV_TOO_SOON    : $manual_regen was set true but it is too soon
  *                               since the last regen to perform another one.
- *          LKT_PV_GOT_HELPER  : a preview is required but not cached, in which
- *                               case the returned array also contains the name
- *                               of the prioritised Link Helper class which
- *                               should be used to generate the preview, indexed
- *                               by 'helper'.
- *          LKT_PV_GOT_HELPER_PROVIS: as above, however, the Helper is
+ *          LKT_PV_GOT_PREVIEWER: a preview is required but not cached, in which
+ *                                case the returned array also contains the name
+ *                                of the prioritised Link Previewer class which
+ *                                should be used to generate the preview,
+ *                                indexed by 'previewer'.
+ *          LKT_PV_GOT_PREVIEWER_PROVIS: as above, however, the Previewer is
  *                                    provisional; whether it becomes final
  *                                    depends on its support for the page's yet-
  *                                    to-be-downloaded content and/or its
  *                                    content-type.
  */
-define('LKT_PV_NOT_REQUIRED'     , 1);
-define('LKT_PV_FOUND'            , 2);
-define('LKT_PV_TOO_SOON'         , 3);
-define('LKT_PV_GOT_HELPER'       , 4);
-define('LKT_PV_GOT_HELPER_PROVIS', 5);
+define('LKT_PV_NOT_REQUIRED'        , 1);
+define('LKT_PV_FOUND'               , 2);
+define('LKT_PV_TOO_SOON'            , 3);
+define('LKT_PV_GOT_PREVIEWER'       , 4);
+define('LKT_PV_GOT_PREVIEWER_PROVIS', 5);
 function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_type = false, $content = false) {
 	global $db, $mybb, $cache;
 
@@ -1842,45 +1863,45 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 		}
 	}
 
-	// Next, get all LinkHelper classes.
-	$LinkHelperClassNames = lkt_get_linkhelper_classnames();
+	// Next, get all LinkPreviewer classes.
+	$LinkPreviewerClassNames = lkt_get_linkpreviewer_classnames();
 
-	// Load all installed helpers.
+	// Load all installed Previewers.
 	$lrs_plugins = $cache->read('lrs_plugins');
-	$inst_helpers = !empty($lrs_plugins[C_LKT]['installed_link_helpers'])
-	                  ? $lrs_plugins[C_LKT]['installed_link_helpers']
-	                  : array();
+	$inst_previewers = !empty($lrs_plugins[C_LKT]['installed_link_previewers'])
+	                    ? $lrs_plugins[C_LKT]['installed_link_previewers']
+	                    : array();
 
-	// Now, get the highest-prioritised LinkHelper class for this link type.
-	$max_priority_provis              = $max_priority     = PHP_INT_MIN;
-	$priority_helper_classname_provis = $priority_helper_classname = '';
+	// Now, get the highest-prioritised LinkPreviewer class for this link type.
+	$max_priority_provis                 = $max_priority        = PHP_INT_MIN;
+	$priority_previewer_classname_provis = $priority_previewer_classname = '';
 	$types = array('3p', 'dist');
 	$have_content = ($content_type !== false && $content !== false);
-	foreach ($types as $helper_type) {
-		foreach ($LinkHelperClassNames[$helper_type] as $helper_class_name) {
-			if (!empty($inst_helpers[$helper_class_name]['enabled'])) {
-				$helperobj = $helper_class_name::get_instance();
+	foreach ($types as $previewer_type) {
+		foreach ($LinkPreviewerClassNames[$previewer_type] as $previewer_class_name) {
+			if (!empty($inst_previewers[$previewer_class_name]['enabled'])) {
+				$previewerobj = $previewer_class_name::get_instance();
 				if ($have_content) {
-					$supported = $helperobj->supports_page($term_url, $content_type, $content);
-					if ($supported && $helperobj->get_priority() >= $max_priority) {
-						$max_priority = $helperobj->get_priority();
-						$priority_helper_classname = $helper_class_name;
+					$supported = $previewerobj->supports_page($term_url, $content_type, $content);
+					if ($supported && $previewerobj->get_priority() >= $max_priority) {
+						$max_priority = $previewerobj->get_priority();
+						$priority_previewer_classname = $previewer_class_name;
 					}
 				} else {
-					$supported = $helperobj->supports_link($term_url);
+					$supported = $previewerobj->supports_link($term_url);
 					if ($supported) {
 						// We use >= in these tests because the default
-						// link helper has a priority which equals the
+						// link previewer has a priority which equals the
 						// initial value of $max_priority set above
 						// (PHP_INT_MIN).
-						if ($helperobj->needs_content_for() & LinkHelper::NC_FOR_SUPPORT) {
-							if ($helperobj->get_priority() >= $max_priority_provis) {
-								$max_priority_provis = $helperobj->get_priority();
-								$priority_helper_classname_provis = $helper_class_name;
+						if ($previewerobj->needs_content_for() & LinkPreviewer::NC_FOR_SUPPORT) {
+							if ($previewerobj->get_priority() >= $max_priority_provis) {
+								$max_priority_provis = $previewerobj->get_priority();
+								$priority_previewer_classname_provis = $previewer_class_name;
 							}
-						} else if ($helperobj->get_priority() >= $max_priority) {
-							$max_priority = $helperobj->get_priority();
-							$priority_helper_classname = $helper_class_name;
+						} else if ($previewerobj->get_priority() >= $max_priority) {
+							$max_priority = $previewerobj->get_priority();
+							$priority_previewer_classname = $previewer_class_name;
 						}
 					}
 				}
@@ -1893,12 +1914,12 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 	   &&
 	   (($max_priority_provis > $max_priority
 	     ||
-	     $priority_helper_classname_provis === 'LinkHelperDefault'
+	     $priority_previewer_classname_provis === 'LinkPreviewerDefault'
 	    )
 	    &&
-	    !($priority_helper_classname
+	    !($priority_previewer_classname
 	      &&
-	      $priority_helper_classname::get_instance()->needs_content_for() === LinkHelper::NC_NEVER_AND_FINAL
+	      $priority_previewer_classname::get_instance()->needs_content_for() === LinkPreviewer::NC_NEVER_AND_FINAL
 	     )
 	   );
 
@@ -1906,10 +1927,10 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 
 	// Now, check whether the preview already exists, is valid, has not
 	// yet expired, and is not invalid due to having been generated by a
-	// no-longer-prioritised Helper or an earlier version of the
-	// still-prioritised Helper (when the relevant plugin setting is
+	// no-longer-prioritised Previewer or an earlier version of the
+	// still-prioritised Previewer (when the relevant plugin setting is
 	// enabled).
-	$query = $db->simple_select('url_previews', 'valid, dateline, helper_class_name, helper_class_vers, preview', "url_term = '".$db->escape_string($term_url)."'");
+	$query = $db->simple_select('url_previews', 'valid, dateline, previewer_class_name, previewer_class_vers, preview', "url_term = '".$db->escape_string($term_url)."'");
 	$row = $db->fetch_array($query);
 	$has_db_entry = $row ? true : false;
 	if ($manual_regen === 'force_regen') {
@@ -1923,14 +1944,14 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 		} else {
 			$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
 			$regen = (!$row['valid'] || $expiry_period && $expiry_period * 24*60*60 < TIME_NOW - $row['dateline']);
-			if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_helper']) {
-				$org_helper = $row['helper_class_name'];
-				// The "Expire link previews on helper change" setting does not
-				// apply to Helpers which depend on content or content type,
-				// because the finalisation of those Helpers requires a query
+			if (!$regen && $mybb->settings[C_LKT.'_link_preview_expire_on_new_previewer']) {
+				$org_previewer = $row['previewer_class_name'];
+				// The "Expire link previews on previewer change" setting does not
+				// apply to Previewers which depend on content or content type,
+				// because the finalisation of those Previewers requires a query
 				// of the link's web server, defeating the purpose of using
 				// the cache where possible.
-				$regen = (!$is_provisional && ($org_helper != $priority_helper_classname || $org_helper::get_instance()->get_version() != $row['helper_class_vers']));
+				$regen = (!$is_provisional && ($org_previewer != $priority_previewer_classname || $org_previewer::get_instance()->get_version() != $row['previewer_class_vers']));
 			}
 			if (!$regen) {
 				$preview = $row['preview'];
@@ -1945,8 +1966,8 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 	// Earlier returns possible.
 	return $regen
 	         ? ($is_provisional
-	            ? array('result' => LKT_PV_GOT_HELPER_PROVIS, 'has_db_entry' => $has_db_entry, 'helper'  => $priority_helper_classname_provis)
-	            : array('result' => LKT_PV_GOT_HELPER       , 'has_db_entry' => $has_db_entry, 'helper'  => $priority_helper_classname)
+	            ? array('result' => LKT_PV_GOT_PREVIEWER_PROVIS, 'has_db_entry' => $has_db_entry, 'previewer'  => $priority_previewer_classname_provis)
+	            : array('result' => LKT_PV_GOT_PREVIEWER       , 'has_db_entry' => $has_db_entry, 'previewer'  => $priority_previewer_classname       )
 	           )
 	         : array('result' => LKT_PV_FOUND, 'has_db_entry' => $has_db_entry, 'preview' => $preview);
 }
@@ -1971,21 +1992,21 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 		$res = lkt_url_has_needs_preview($term_url, $force_regen ? 'force_regen' : false);
 		if ($res['result'] === LKT_PV_FOUND) {
 			$previews[$term_url] = $res['preview'];
-		} else if ($res['result'] === LKT_PV_GOT_HELPER_PROVIS && $res['helper']) {
+		} else if ($res['result'] === LKT_PV_GOT_PREVIEWER_PROVIS && $res['previewer']) {
 			$lh_data[$term_url] = array(
-				'lh_classname' => $res['helper'      ],
+				'lh_classname' => $res['previewer'   ],
 				'lh_provis'    =>                 true,
 				'has_db_entry' => $res['has_db_entry']
 			);
-		} else if ($res['result'] === LKT_PV_GOT_HELPER && $res['helper']) {
-			if ($res['helper']::get_instance()->needs_content_for() & LinkHelper::NC_FOR_GEN_PV) {
+		} else if ($res['result'] === LKT_PV_GOT_PREVIEWER && $res['previewer']) {
+			if ($res['previewer']::get_instance()->needs_content_for() & LinkPreviewer::NC_FOR_GEN_PV) {
 				$lh_data[$term_url] = array(
-					'lh_classname' => $res['helper'      ],
+					'lh_classname' => $res['previewer'   ],
 					'lh_provis'    =>                false,
 					'has_db_entry' => $res['has_db_entry']
 				);
 			} else {
-				$previews[$term_url] = lkt_get_gen_link_preview($term_url, '', '', '', $res['helper'], $res['has_db_entry']);
+				$previews[$term_url] = lkt_get_gen_link_preview($term_url, '', '', '', $res['previewer'], $res['has_db_entry']);
 			}
 		}
 	}
@@ -2092,8 +2113,8 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 									$previews[$url] = $res['preview'];
 									$have_preview = true;
 								}
-								if ($res['result'] === LKT_PV_GOT_HELPER) {
-									$lh_data[$url]['lh_classname'] = $res['helper'];
+								if ($res['result'] === LKT_PV_GOT_PREVIEWER) {
+									$lh_data[$url]['lh_classname'] = $res['previewer'];
 								}
 							}
 							if (!$have_preview) {
@@ -2201,12 +2222,12 @@ function lkt_get_header($headers, $header_name) {
 
 /**
  * Get the preview for a link, first (re)generating it and storing to the DB if
- * appropriate/necessary. If a Link Helper class name is provided, it is assumed
- * the check for whether a link needs to be (re)generated has already been
- * performed, and resulted in a need for (re)generation via the Link Helper with
- * the provided class name. If, additionally, $has_db_entry is set true, then it
- * is assumed that a database entry for the link already exists, and so an
- * update query is performed rather than an insert query.
+ * appropriate/necessary. If a Link Previewer class name is provided, it is
+ * assumed the check for whether a link needs to be (re)generated has already
+ * been performed, and resulted in a need for (re)generation via the Link
+ * Previewer with the provided class name. If, additionally, $has_db_entry is
+ * set true, then it is assumed that a database entry for the link already
+ * exists, and so an update query is performed rather than an insert query.
  */
 function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = '', $lh_classname = false, $has_db_entry = null) {
 	global $db;
@@ -2215,16 +2236,16 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 
 	if (!$lh_classname) {
 		$res = lkt_url_has_needs_preview($term_url, false, $content_type, $html);
-	} else	$res = array('result' => LKT_PV_GOT_HELPER, 'helper' => $lh_classname, 'has_db_entry' => $has_db_entry);
+	} else	$res = array('result' => LKT_PV_GOT_PREVIEWER, 'previewer' => $lh_classname, 'has_db_entry' => $has_db_entry);
 
 	if ($res['result'] == LKT_PV_NOT_REQUIRED) {
 		return false;
-	} else if (in_array($res['result'], array(LKT_PV_GOT_HELPER, LKT_PV_GOT_HELPER_PROVIS)) && $res['helper']) {
+	} else if (in_array($res['result'], array(LKT_PV_GOT_PREVIEWER, LKT_PV_GOT_PREVIEWER_PROVIS)) && $res['previewer']) {
 		// (Re)generate the preview and return it.
 		$has_db_entry = $res['has_db_entry'];
-		$priority_helper_classname = $res['helper'];
-		$helperobj            = $priority_helper_classname::get_instance();
-		$should_cache_preview = $helperobj->get_should_cache_preview();
+		$priority_previewer_classname = $res['previewer'];
+		$previewerobj                 = $priority_previewer_classname::get_instance();
+		$should_cache_preview         = $previewerobj->get_should_cache_preview();
 
 		// Handle different character sets by converting them to UTF8.
 		if ($charset != 'utf-8') {
@@ -2232,13 +2253,13 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 			$html = @mb_convert_encoding($html, 'utf-8', $from);
 		}
 
-		$preview = $helperobj->get_preview($term_url, $html, $content_type);
+		$preview = $previewerobj->get_preview($term_url, $html, $content_type);
 		if ($should_cache_preview) {
 			$fields = array(
 				'valid' => '1',
 				'dateline' => TIME_NOW,
-				'helper_class_name' => $db->escape_string($priority_helper_classname),
-				'helper_class_vers' => $db->escape_string($helperobj->get_version()),
+				'previewer_class_name' => $db->escape_string($priority_previewer_classname),
+				'previewer_class_vers' => $db->escape_string($previewerobj->get_version()),
 				'preview' => $db->escape_string($preview),
 			);
 			if ($has_db_entry) {
@@ -2250,8 +2271,8 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 				// constraint because the DB's maximum allowable key
 				// length is so short that we often enough end up with
 				// duplicate keys for different values.
-				$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, helper_class_name, helper_class_vers, preview, url_term)
-	SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['helper_class_name'].'\', \''.$fields['helper_class_vers'].'\', \''.$fields['preview'].'\', \''.$fields['url_term'].'\'
+				$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, previewer_class_name, previewer_class_vers, preview, url_term)
+	SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['previewer_class_name'].'\', \''.$fields['previewer_class_vers'].'\', \''.$fields['preview'].'\', \''.$fields['url_term'].'\'
 	FROM '.TABLE_PREFIX.'url_previews WHERE url_term=\''.$fields['url_term'].'\'
 	HAVING COUNT(*) = 0');
 			}
@@ -3745,16 +3766,16 @@ function lkt_hookin__admin_config_menu(&$sub_menu) {
 	$lang->load(C_LKT);
 	$key = max(array_keys($sub_menu)) + 10;
 	$sub_menu[$key] = array(
-		'id'    => 'linkhelpers'                        ,
-		'title' => $lang->lkt_linkhelpers               ,
-		'link'  => 'index.php?module=config-linkhelpers',
+		'id'    => 'linkpreviewers'                        ,
+		'title' => $lang->lkt_linkpreviewers               ,
+		'link'  => 'index.php?module=config-linkpreviewers',
 	);
 }
 
 function lkt_hookin__admin_config_action_handler(&$actions) {
-	$actions['linkhelpers'] = array(
-		'active' => 'linkhelpers'    ,
-		'file'   => 'linkhelpers.php',
+	$actions['linkpreviewers'] = array(
+		'active' => 'linkpreviewers'    ,
+		'file'   => 'linkpreviewers.php',
 	);
 }
 
@@ -3764,16 +3785,16 @@ function lkt_hookin__admin_tools_menu(&$sub_menu) {
 	$lang->load(C_LKT);
 	$key = max(array_keys($sub_menu)) + 10;
 	$sub_menu[$key] = array(
-		'id'    => 'linkhelpers'                            ,
-		'title' => $lang->lkt_linkhelpers_cache_invalidation,
-		'link'  => 'index.php?module=tools-linkhelpers'     ,
+		'id'    => 'linkpreviewers'                            ,
+		'title' => $lang->lkt_linkpreviewers_cache_invalidation,
+		'link'  => 'index.php?module=tools-linkpreviewers'     ,
 	);
 }
 
 function lkt_hookin__admin_tools_action_handler(&$actions) {
-	$actions['linkhelpers'] = array(
-		'active' => 'linkhelpers'    ,
-		'file'   => 'linkhelpers.php',
+	$actions['linkpreviewers'] = array(
+		'active' => 'linkpreviewers'    ,
+		'file'   => 'linkpreviewers.php',
 	);
 
 	return $actions;
@@ -3824,21 +3845,21 @@ function lkt_hookin__editpost_do_editpost_end() {
 function lkt_hookin__admin_style_templates_edit_template_commit() {
 	global $mybb;
 
-	$helper = false;
+	$previewer = false;
 	$prefix = 'linktools_linkpreview_';
 	if (substr($mybb->input['title'], 0, strlen($prefix)) == $prefix) {
 		$hlp_lc = substr($mybb->input['title'], strlen($prefix));
-		foreach (lkt_get_linkhelper_classnames() as $type => $classnames) {
+		foreach (lkt_get_linkpreviewer_classnames() as $type => $classnames) {
 			foreach ($classnames as $classname) {
-				if ('linkhelper'.$hlp_lc == strtolower($classname)) {
-					$helper = $classname;
+				if ('linkpreviewer'.$hlp_lc == strtolower($classname)) {
+					$previewer = $classname;
 					break;
 				}
 			}
 		}
 	}
 
-	if ($helper && ($helperobj = $helper::get_instance()) && $helperobj->get_should_cache_preview()) {
+	if ($previewer && ($previewerobj = $previewer::get_instance()) && $previewerobj->get_should_cache_preview()) {
 		global $db, $page, $lang, $templates, $expand_str2;
 
 		if ($mybb->input['continue']) {
@@ -3851,20 +3872,20 @@ function lkt_hookin__admin_style_templates_edit_template_commit() {
 			} else	$url_return = 'index.php?module=style-templates&sid='.$mybb->get_input('sid', MyBB::INPUT_INT).$expand_str2."#group_{$group}";
 		}
 
-		$friend_nm_esc = htmlspecialchars_uni($helperobj->get_friendly_name());
-		$title = $lang->sprintf($lang->lkt_preview_helper_tpl_chg_pg_title, $friend_nm_esc);
+		$friend_nm_esc = htmlspecialchars_uni($previewerobj->get_friendly_name());
+		$title = $lang->sprintf($lang->lkt_preview_previewer_tpl_chg_pg_title, $friend_nm_esc);
 		$page->output_header($title);
 
 		$gid = $db->fetch_field($db->simple_select('settinggroups', 'gid', "name='linktools_settings'"), 'gid');
-		$invalidate_helper_msg = $lang->sprintf($lang->lkt_invalidate_helper_msg, $friend_nm_esc, $gid);
+		$invalidate_previewer_msg = $lang->sprintf($lang->lkt_invalidate_previewer_msg, $friend_nm_esc, $gid);
 
 		$table = new Table;
-		$table->construct_cell($invalidate_helper_msg);
+		$table->construct_cell($invalidate_previewer_msg);
 		$table->construct_row();
-		$form = new Form('index.php?module=tools-linkhelpers&amp;action=do_invalidation&amp;helper='.htmlspecialchars_uni($hlp_lc).'&amp;url_return='.urlencode($url_return), 'post');
+		$form = new Form('index.php?module=tools-linkpreviewers&amp;action=do_invalidation&amp;previewer='.htmlspecialchars_uni($hlp_lc).'&amp;url_return='.urlencode($url_return), 'post');
 		$table->construct_cell($form->generate_submit_button($lang->sprintf($lang->lkt_inval_pv_cache_for, $friend_nm_esc), array('name' => 'do_invalidation')), array('class' => 'align_center'));
 		$table->construct_row();
-		$heading = $lang->sprintf($lang->lkt_preview_helper_tpl_chg_pg_heading, $friend_nm_esc);
+		$heading = $lang->sprintf($lang->lkt_preview_previewer_tpl_chg_pg_heading, $friend_nm_esc);
 		$table->output($heading);
 
 		$page->output_footer();
@@ -3873,7 +3894,7 @@ function lkt_hookin__admin_style_templates_edit_template_commit() {
 }
 
 function lkt_mk_tpl_nm_frm_classnm($classname) {
-	$prefix = 'linkhelper';
+	$prefix = 'linkpreviewer';
 	$name = strtolower($classname);
 	if (my_substr($name, 0, strlen($prefix)) == $prefix) {
 		$name = my_substr($name, strlen($prefix));
