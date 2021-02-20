@@ -1049,8 +1049,8 @@ function lkt_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = 
 			}
 			$url_match = array('pos' => $match[$indexes_to_use[0]][1], 'url' => trim($url));
 			lkt_test_add_url($url_match, $urls);
+			$text = substr($text, 0, $match[0][1]).str_repeat('*', strlen($match[0][0])).substr($text, $match[0][1] + strlen($match[0][0]));
 		}
-		$text = preg_replace($re, ' ', $text);
 	}
 }
 
@@ -1096,17 +1096,17 @@ function lkt_extract_bare_urls(&$text, &$urls) {
 
 	foreach (array(
 		"#\[([^\]]+)(?:=[^\]]+)?\](http|https|ftp|news|irc|ircs|irc6){1}(://)([^\/\"\s\<\[\.]+\.([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?)\[/\\1\]#ius",
-		"#([\s\(\)\[\>])(http|https|ftp|news|irc|ircs|irc6){1}(://)([^\/\"\s\<\[\.]+\.([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?([\w\/\)]))#ius",
+		"#(\[*\]|[\s\(\)\[\>])(http|https|ftp|news|irc|ircs|irc6){1}(://)([^\/\"\s\<\[\.]+\.([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?([\w\/\)]))#ius",
 		"#\[([^\]]+)(?:=[^\]]+)?\](www|ftp)(\.)(([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?)\[/\\1\]#ius",
-		"#([\s\(\)\[\>])(www|ftp)(\.)(([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?([\w\/\)]))#ius"
+		"#(\[*\]|[\s\(\)\[\>])(www|ftp)(\.)(([^\/\"\s\<\[\.]+\.)*[\w]+(:[0-9]+)?(/([^\"\s<\[]|\[\])*)?([\w\/\)]))#ius"
 	) as $re) {
-		if (preg_match_all($re, $text, $matches, PREG_SET_ORDER|PREG_OFFSET_CAPTURE)) {
+		if (preg_match_all($re, $text_new, $matches, PREG_SET_ORDER|PREG_OFFSET_CAPTURE)) {
 			foreach ($matches as $match) {
 				$url = $match[2][0].$match[3][0].lkt_strip_unmatched_closing_parens($match[4][0]);
 				$url_match = array('pos' => $match[2][1], 'url' => trim($url));
 				lkt_test_add_url($url_match, $urls);
 				// Blank out the matched URLs.
-				$text_new = substr($text_new, 0, $match[2][1]).str_repeat(' ', strlen($url)).substr($text_new, $match[2][1] + strlen($url));
+				$text_new = substr($text_new, 0, $match[2][1]).str_repeat('$', strlen($url)).substr($text_new, $match[2][1] + strlen($url));
 			}
 		}
 	}
@@ -2107,19 +2107,25 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 							$html = substr($content, $header_size);
 							$charset = lkt_get_charset($headers, $html);
 							$have_preview = false;
-							if ($lh_data[$url]['lh_provis']) {
-								$res = lkt_url_has_needs_preview($url, $force_regen ? 'force_regen' : false, $content_type, $content);
-								if ($res['result'] === LKT_PV_FOUND) {
-									$previews[$url] = $res['preview'];
-									$have_preview = true;
-								}
-								if ($res['result'] === LKT_PV_GOT_PREVIEWER) {
-									$lh_data[$url]['lh_classname'] = $res['previewer'];
-								}
+						} else {
+							$headers = '';
+							$content_type = 'text/html';
+							$html = '';
+							$charset = '';
+							$have_preview = false;
+						}
+						if ($lh_data[$url]['lh_provis']) {
+							$res = lkt_url_has_needs_preview($url, $force_regen ? 'force_regen' : false, $content_type, $content);
+							if ($res['result'] === LKT_PV_FOUND) {
+								$previews[$url] = $res['preview'];
+								$have_preview = true;
 							}
-							if (!$have_preview) {
-								$previews[$url] = lkt_get_gen_link_preview($url, $html, $content_type, $charset, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
+							if ($res['result'] === LKT_PV_GOT_PREVIEWER) {
+								$lh_data[$url]['lh_classname'] = $res['previewer'];
 							}
+						}
+						if (!$have_preview) {
+							$previews[$url] = lkt_get_gen_link_preview($url, $html, $content_type, $charset, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
 						}
 						curl_multi_remove_handle($mh, $ch);
 					}
@@ -3199,7 +3205,7 @@ function lkt_hookin__newthread_start() {
 	$lkt_previously_dismissed = json_encode($mybb->get_input('lkt_dismissed') ? json_decode($mybb->get_input('lkt_dismissed'), true) : array(), JSON_PRETTY_PRINT);
 
 	$linktools_js = <<<EOF
-<script type="text/javascript" src="{$mybb->settings['bburl']}/jscripts/linktools.js"></script>
+<script type="text/javascript" src="{$mybb->settings['bburl']}/jscripts/linktools.js?1.1.0"></script>
 <script type="text/javascript">
 var lkt_setting_warn_about_links  = {$mybb->user['lkt_warn_about_links']};
 var lkt_setting_dlw_forced        = {$mybb->settings['linktools_force_dlw']};

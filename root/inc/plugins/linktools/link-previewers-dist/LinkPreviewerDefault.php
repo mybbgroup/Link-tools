@@ -46,7 +46,7 @@ class LinkPreviewerDefault extends LinkPreviewer {
 	 * relevant Link Tools setting is enabled) and that the template in the
 	 * database needs to be updated.
 	 */
-	protected $version = '1.0.0';
+	protected $version = '1.0.1';
 
 	/**
 	 * This Previewer needs the page's content and/or content-type both to
@@ -128,6 +128,9 @@ class LinkPreviewerDefault extends LinkPreviewer {
 			$img_url = $mybb->settings['bburl'].'/images/image-placeholder-icon.png';
 		}
 
+		if (my_substr($link, 0, 4) != 'http' && my_substr($link, 0, 2) != '//') {
+			$link = 'https://'.$link;
+		}
 		$link_safe = htmlspecialchars_uni($this->make_safe($link));
 		$title_safe = $this->make_safe($title);
 		if ($need_ellipsis_title) $title_safe .= '&hellip;';
