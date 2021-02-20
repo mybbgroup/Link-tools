@@ -1,7 +1,7 @@
 <?php
 
 $l['lkt_name'             ] = 'Link Tools';
-$l['lkt_desc'             ] = 'Keeps track of links (URLs) in posts and then provides two link services: (1) seamless link searching and (2) warning a member if a link in a thread they are about to start has already been shared to the forum.';
+$l['lkt_desc'             ] = 'Keeps track of links (URLs) in posts and then provides three link services: (1) link previews, (2) seamless link searching, and (3) warning a member if a link in a thread they are about to start has already been shared to the forum.';
 $l['lkt_successful_upgrade_msg_for_info'  ] = 'Successfully upgraded to version {1}.';
 $l['lkt_successful_upgrade_msg'           ] = 'The {1} plugin has been activated successfully and upgraded to version {2}.';
 $l['lkt_needdbupgrade1'                   ] = 'Database changes required. Click <a href="index.php?module=config-plugins&amp;action=lkt_dbupgrade1">here</a> to make them.';
