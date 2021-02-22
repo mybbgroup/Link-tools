@@ -46,7 +46,7 @@ class LinkPreviewerDefault extends LinkPreviewer {
 	 * relevant Link Tools setting is enabled) and that the template in the
 	 * database needs to be updated.
 	 */
-	protected $version = '1.0.1';
+	protected $version = '2.0.0';
 
 	/**
 	 * This Previewer needs the page's content and/or content-type both to
@@ -58,10 +58,10 @@ class LinkPreviewerDefault extends LinkPreviewer {
 	protected $friendly_name = 'Default previewer (for HTML only)';
 
 	protected $template = '<div class="lkt-link-preview">
-	<a href="$link_safe">
-		<img src="$img_url" />
-		$title_safe<br />
-		<span style="font-size: small;">$description_safe</span>
+	<a href="{$link_safe}">
+		<img src="{$pv_data[\'img_url_safe\']}" />
+		{$pv_data[\'title_safe\']}<br />
+		<span style="font-size: small;">{$pv_data[\'description_safe\']}</span>
 	</a>
 </div>';
 
@@ -73,13 +73,36 @@ class LinkPreviewerDefault extends LinkPreviewer {
 	}
 
 	/**
-	 * The heart of the class.
+	 * Get (after constructing it) the data required to generate the
+	 * preview. This is one of the two primary functions called by
+	 * consumers of this class.
+	 *
+	 * The data returned by this method is (for descendants of this class
+	 * which support caching) cached, and in any case is supplied to the
+	 * get_preview() method when the final preview needs to be generated.
+	 *
+	 * For a non-caching descendant class, an empty array should be
+	 * returned.
+	 *
+	 * @param $link         The link for which the preview data should be
+	 *                      generated. Is checked for validity (support).
+	 * @param $content      The contents of the page at $link. May be empty
+	 *                      if ($needs_content_for & NC_FOR_GEN_PV) is false
+	 *                      for this Previewer.
+	 * @param $content_type The content type returned for the contents of
+	 *                      the previous variable ($content_type). May be
+	 *                      empty if ($needs_content_for & NC_FOR_GEN_PV) is
+	 *                      false for this Previewer.
+	 *
+	 * @return Array The data required to generate the preview based on its
+	 *               template, as an array of data items indexed by string
+	 *               keys.
 	 */
-	protected function get_preview_contents($link, $content, $content_type) {
+	public function get_preview_data($link, $content, $content_type) {
 		global $mybb;
 
 		if ($content_type != 'text/html') {
-			return '';
+			return array();
 		}
 
 		$max_title_chars = 80;
@@ -128,18 +151,12 @@ class LinkPreviewerDefault extends LinkPreviewer {
 			$img_url = $mybb->settings['bburl'].'/images/image-placeholder-icon.png';
 		}
 
-		if (my_substr($link, 0, 4) != 'http' && my_substr($link, 0, 2) != '//') {
-			$link = 'https://'.$link;
-		}
-		$link_safe = htmlspecialchars_uni($this->make_safe($link));
 		$title_safe = $this->make_safe($title);
 		if ($need_ellipsis_title) $title_safe .= '&hellip;';
 		$description_safe = $this->make_safe($description);
 		if ($need_ellipsis_desc) $description_safe .= '&hellip;';
 		$img_url_safe = $this->make_safe($img_url);
 
-		eval('$preview_contents = "'.$this->get_template_for_eval().'";');
-
-		return $preview_contents;
+		return array('title_safe' => $title_safe, 'description_safe' => $description_safe, 'img_url_safe' => $img_url_safe);
 	}
 }

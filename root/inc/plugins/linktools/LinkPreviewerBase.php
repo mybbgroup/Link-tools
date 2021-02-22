@@ -288,49 +288,72 @@ abstract class LinkPreviewer {
 	}
 
 	/**
-	 * Get the preview's valid HTML. This is the primary function called
-	 * by consumers of this class.
+	 * Get (after constructing it) the data required to generate the
+	 * preview. This is one of the two primary functions called by
+	 * consumers of this class.
 	 *
-	 * @param $link         The link for which the preview should be
+	 * The data returned by this method is (for descendants of this class
+	 * which support caching) cached, and in any case is supplied to the
+	 * get_preview() method when the final preview needs to be generated.
+	 *
+	 * For a non-caching descendant class, an empty array should be
+	 * returned.
+	 *
+	 * @param $link         The link for which the preview data should be
 	 *                      generated. Is checked for validity (support).
 	 * @param $content      The contents of the page at $link. May be empty
-	 *                      if $needs_content_for & NC_FOR_GEN_PV is false for
-	 *                      this Previewer.
-	 * @param $content_type The content type returned for the contents of
-	 *                      the previous variable ($content_type). May be
-	 *                      empty if $needs_content_for & NC_FOR_GEN_PV is false
+	 *                      if ($needs_content_for & NC_FOR_GEN_PV) is false
 	 *                      for this Previewer.
-	 *
-	 * @return Mixed The preview as a string of HTML or false if $link is
-	 *               not supported.
-	 */
-	public function get_preview($link, $content, $content_type) {
-		$class = static::class;
-		if (!$class::supports_link($link)) {
-			return false;
-		}
-
-		return $this->get_preview_contents($link, $content, $content_type);
-	}
-
-	/**
-	 * The heart of the class, which should be implemented in a descendant
-	 * class. Parses the HTML of the link to generate the inner preview,
-	 * which (unless this functionality is overridden in a descendant class)
-	 * is then wrapped by the caller in a container.
-	 *
-	 * @param $link         The link for which the preview should be
-	 *                      generated. Should have been pre-checked for
-	 *                      validity (support).
-	 * @param $content      The contents of the page at $link. May be empty
-	 *                      if ($needs_content_for & NC_FOR_GEN_PV) is false for
-	 *                      this Previewer.
 	 * @param $content_type The content type returned for the contents of
 	 *                      the previous variable ($content_type). May be
 	 *                      empty if ($needs_content_for & NC_FOR_GEN_PV) is
 	 *                      false for this Previewer.
 	 *
+	 * @return Array The data required to generate the preview based on its
+	 *               template, as an array of data items indexed by string
+	 *               keys.
+	 */
+	abstract public function get_preview_data($link, $content, $content_type);
+
+	/**
+	 * Get the preview's valid HTML. This is one of the two primary
+	 * functions called by consumers of this class, the other of which is
+	 * get_preview_data().
+	 *
+	 * @param $link    The link for which the preview should be generated.
+	 *                 Is checked for validity (support).
+	 * @param $pv_data The data returned by get_preview_data().
+	 *
+	 * @return Mixed The preview as a string of HTML, or false if $link is
+	 *               not supported.
+	 */
+	public function get_preview($link, $pv_data) {
+		$class = static::class;
+		if (!$class::supports_link($link)) {
+			return false;
+		}
+
+		return $this->get_preview_contents($link, $pv_data);
+	}
+
+	/**
+	 * The main rendering method of the class, operating on data generated
+	 * by get_preview_data().
+	 *
+	 * @param $link    The link for which the preview should be generated.
+	 *                 Should have been pre-checked for
+	 *                 validity (support).
+	 * @param $pv_data The data returned by get_preview_data().
+	 *
 	 * @return string The preview as valid HTML.
 	 */
-	abstract protected function get_preview_contents($link, $content, $content_type);
+	protected function get_preview_contents($link, $pv_data) {
+		if (my_substr($link, 0, 4) != 'http' && my_substr($link, 0, 2) != '//') {
+			$link = 'https://'.$link;
+		}
+		$link_safe = htmlspecialchars_uni($this->make_safe($link));
+		eval('$preview_contents = "'.$this->get_template_for_eval().'";');
+
+		return $preview_contents;
+	}
 }

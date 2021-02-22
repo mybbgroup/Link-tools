@@ -46,7 +46,7 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 	 * relevant Link Tools setting is enabled) and that the template in the
 	 * database needs to be updated.
 	 */
-	protected $version = '1.0.0';
+	protected $version = '2.0.0';
 
 	/**
 	 * This Previewer needs the page's content and/or content-type both to
@@ -60,7 +60,7 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 	protected $template = '<div class="lkt-link-preview">
 	<a href="$link_safe">
 		$link_basename_safe<br />
-		<span style="font-size: small;">$description_safe</span>
+		<span style="font-size: small;">{$pv_data[\'description_safe\']}</span>
 	</a>
 </div>';
 
@@ -72,9 +72,9 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 	}
 
 	/**
-	 * The heart of the class.
+	 * One of the two hearts of the class.
 	 */
-	protected function get_preview_contents($link, $content, $content_type) {
+	public function get_preview_data($link, $content, $content_type) {
 		global $mybb;
 
 		if ($content_type != 'text/plain') {
@@ -91,6 +91,13 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 		$description_safe = htmlspecialchars_uni($description);
 		if ($need_ellipsis_desc) $description_safe .= '&hellip;';
 
+		return array('description_safe' => $description_safe);
+	}
+
+	/**
+	 * The other of the two hearts of the class.
+	 */
+	protected function get_preview_contents($link, $pv_data) {
 		$link_safe = htmlspecialchars_uni($link);
 		$link_basename = basename($link);
 		$need_ellipsis_basename = my_strlen($link_basename) > $max_chars;

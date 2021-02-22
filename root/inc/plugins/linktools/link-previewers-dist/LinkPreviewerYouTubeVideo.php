@@ -81,10 +81,18 @@ class LinkPreviewerYouTubeVideo extends LinkPreviewer {
 	protected $template = '<div style="margin-top: 7px;"><iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/{$youtube_id}?start={$start}" frameborder="0" allowfullscreen></iframe></div>';
 
 	/**
-	 * The heart of the class. Generates the HTML for the link preview.
-	 * Does not need (ignores) $content and $content_type.
+	 * For this non-caching Previewer, we simply return an empty array here.
+	 * No data is necessary to render the final template other than the
+	 * link itself, which is available at rendering time anyway.
 	 */
-	protected function get_preview_contents($link, $content, $content_type) {
+	public function get_preview_data($link, $content, $content_type) {
+		return array();
+	}
+
+	/**
+	 * The heart of the class. Generates the HTML for the link preview.
+	 */
+	protected function get_preview_contents($link, $pv_data) {
 		$youtube_id = '';
 		$start = '';
 		$parsed_url = lkt_parse_url($link);

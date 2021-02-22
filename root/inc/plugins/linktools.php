@@ -135,10 +135,10 @@ function linktools_info() {
 		'website'       => 'https://mybb.group/Thread-Link-Tools',
 		'author'        => 'Laird as a member of the unofficial MyBB Group',
 		'authorsite'    => 'https://mybb.group/User-Laird',
-		'version'       => '1.1.0',
+		'version'       => '1.2.0-prerelease',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
-		'version_code'  => '10100',
+		'version_code'  => '10200',
 		'guid'          => '',
 		'codename'      => C_LKT,
 		'compatibility' => '18*'
@@ -276,7 +276,7 @@ CREATE TABLE '.TABLE_PREFIX.'urls (
 		$db->query('
 CREATE TABLE '.TABLE_PREFIX.'url_previews (
   url_term     varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  preview      text             NOT NULL DEFAULT \'\',
+  preview_data text             NOT NULL DEFAULT \'\',
   dateline     int(10) unsigned NOT NULL DEFAULT 0,
   valid        tinyint(1)       NOT NULL DEFAULT 1,
   previewer_class_name varchar('.lkt_max_previewer_class_name_len.') NOT NULL DEFAULT \'\',
@@ -305,6 +305,10 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 		}
 		if ($db->field_exists('helper_class_vers', 'url_previews') && !$db->field_exists('previewer_class_vers', 'url_previews')) {
 			$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE helper_class_vers previewer_class_vers varchar('.lkt_max_previewer_class_vers_len.') NOT NULL DEFAULT \'\'');
+		}
+		if ($db->field_exists('preview', 'url_previews') && !$db->field_exists('preview_data', 'url_previews')) {
+			$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE preview preview_data text NULL DEFAULT \'\'');
+			$db->delete_query('url_previews', "'1'");
 		}
 	}
 
@@ -1770,27 +1774,30 @@ function lkt_get_linkpreviewer_classnames() {
  *         the preview for this URL has a database entry. The value for the
  *         'result' key has the following meanings:
  *          LKT_PV_NOT_REQUIRED: a preview is not required for the supplied URL.
- *          LKT_PV_FOUND       : a valid preview was retrieved for the supplied
- *                               URL, in which case the returned array also
- *                               contains that preview, indexed by 'preview'.
+ *          LKT_PV_DATA_FOUND  : valid preview data was retrieved for the
+ *                               supplied URL, in which case the returned array
+ *                               also contains that preview data, indexed by
+ *                               'preview_data', and the LinkPreviewer class
+ *                               which can generate the preview from that data,
+ *                               indexed as 'previewer'.
  *          LKT_PV_TOO_SOON    : $manual_regen was set true but it is too soon
  *                               since the last regen to perform another one.
- *          LKT_PV_GOT_PREVIEWER: a preview is required but not cached, in which
- *                                case the returned array also contains the name
- *                                of the prioritised Link Previewer class which
- *                                should be used to generate the preview,
- *                                indexed by 'previewer'.
- *          LKT_PV_GOT_PREVIEWER_PROVIS: as above, however, the Previewer is
- *                                    provisional; whether it becomes final
- *                                    depends on its support for the page's yet-
- *                                    to-be-downloaded content and/or its
- *                                    content-type.
+ *          LKT_PV_GOT_PREVIEWER: a preview is required but its data is not
+ *                                cached, in which case the returned array also
+ *                                contains the name of the prioritised Link
+ *                                Previewer class which should be used to
+ *                                generate the preview, indexed by 'previewer'.
+ *                                The returned array also contains a 'provis'
+ *                                key indexing a boolean value to indicate
+ *                                whether the Previewer is provisional, in which
+ *                                case whether it becomes final depends on its
+ *                                support for the page's yet-to-be-downloaded
+ *                                content and/or its content-type.
  */
 define('LKT_PV_NOT_REQUIRED'        , 1);
-define('LKT_PV_FOUND'               , 2);
+define('LKT_PV_DATA_FOUND'          , 2);
 define('LKT_PV_TOO_SOON'            , 3);
 define('LKT_PV_GOT_PREVIEWER'       , 4);
-define('LKT_PV_GOT_PREVIEWER_PROVIS', 5);
 function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_type = false, $content = false) {
 	global $db, $mybb, $cache;
 
@@ -1925,12 +1932,12 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 
 	$regen = false;
 
-	// Now, check whether the preview already exists, is valid, has not
+	// Now, check whether the preview data already exists, is valid, has not
 	// yet expired, and is not invalid due to having been generated by a
 	// no-longer-prioritised Previewer or an earlier version of the
 	// still-prioritised Previewer (when the relevant plugin setting is
 	// enabled).
-	$query = $db->simple_select('url_previews', 'valid, dateline, previewer_class_name, previewer_class_vers, preview', "url_term = '".$db->escape_string($term_url)."'");
+	$query = $db->simple_select('url_previews', 'valid, dateline, previewer_class_name, previewer_class_vers, preview_data', "url_term = '".$db->escape_string($term_url)."'");
 	$row = $db->fetch_array($query);
 	$has_db_entry = $row ? true : false;
 	if ($manual_regen === 'force_regen') {
@@ -1954,22 +1961,25 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 				$regen = (!$is_provisional && ($org_previewer != $priority_previewer_classname || $org_previewer::get_instance()->get_version() != $row['previewer_class_vers']));
 			}
 			if (!$regen) {
-				$preview = $row['preview'];
+				$preview_data = unserialize($row['preview_data']);
 			}
 			if ($regen && !$on_the_fly) {
 				$regen = false;
-				$preview = $row['preview'];
+				$preview_data = unserialize($row['preview_data']);
 			}
 		}
 	} else	$regen = $on_the_fly;
 
+	$ret = array('provis' => $is_provisional, 'has_db_entry' => $has_db_entry, 'previewer'  => $is_provisional ? $priority_previewer_classname_provis : $priority_previewer_classname);
+	if ($regen) {
+		$ret['result']       = LKT_PV_GOT_PREVIEWER;
+	} else {
+		$ret['result']       = LKT_PV_DATA_FOUND;
+		$ret['preview_data'] = $preview_data;
+		$ret['previewer']    = $row['previewer_class_name'];
+	}
 	// Earlier returns possible.
-	return $regen
-	         ? ($is_provisional
-	            ? array('result' => LKT_PV_GOT_PREVIEWER_PROVIS, 'has_db_entry' => $has_db_entry, 'previewer'  => $priority_previewer_classname_provis)
-	            : array('result' => LKT_PV_GOT_PREVIEWER       , 'has_db_entry' => $has_db_entry, 'previewer'  => $priority_previewer_classname       )
-	           )
-	         : array('result' => LKT_PV_FOUND, 'has_db_entry' => $has_db_entry, 'preview' => $preview);
+	return $ret;
 }
 
 /**
@@ -1990,25 +2000,26 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 		// query is made here on each iteration of the loop, which is
 		// inefficient.
 		$res = lkt_url_has_needs_preview($term_url, $force_regen ? 'force_regen' : false);
-		if ($res['result'] === LKT_PV_FOUND) {
-			$previews[$term_url] = $res['preview'];
-		} else if ($res['result'] === LKT_PV_GOT_PREVIEWER_PROVIS && $res['previewer']) {
-			$lh_data[$term_url] = array(
-				'lh_classname' => $res['previewer'   ],
-				'lh_provis'    =>                 true,
-				'has_db_entry' => $res['has_db_entry']
-			);
+		if ($res['result'] === LKT_PV_DATA_FOUND) {
+			$previewerobj = $res['previewer']::get_instance();
+			$previews[$term_url] = $previewerobj->get_preview($term_url, $res['preview_data']);
 		} else if ($res['result'] === LKT_PV_GOT_PREVIEWER && $res['previewer']) {
-			if ($res['previewer']::get_instance()->needs_content_for() & LinkPreviewer::NC_FOR_GEN_PV) {
+			if ($res['provis']) {
 				$lh_data[$term_url] = array(
 					'lh_classname' => $res['previewer'   ],
-					'lh_provis'    =>                false,
+					'lh_provis'    =>                true ,
 					'has_db_entry' => $res['has_db_entry']
 				);
 			} else {
-				$previews[$term_url] = lkt_get_gen_link_preview($term_url, '', '', '', $res['previewer'], $res['has_db_entry']);
+				if ($res['previewer']::get_instance()->needs_content_for() & LinkPreviewer::NC_FOR_GEN_PV) {
+					$lh_data[$term_url] = array(
+						'lh_classname' => $res['previewer'   ],
+						'lh_provis'    =>                false,
+						'has_db_entry' => $res['has_db_entry']
+					);
+				} else	$previews[$term_url] = lkt_get_gen_link_preview($term_url, '', '', '', $res['previewer'], $res['has_db_entry']);
 			}
-		}
+		} else	$previews[$term_url] = '';
 	}
 	if ($lh_data) {
 		$server_urls = array();
@@ -2116,8 +2127,9 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 						}
 						if ($lh_data[$url]['lh_provis']) {
 							$res = lkt_url_has_needs_preview($url, $force_regen ? 'force_regen' : false, $content_type, $content);
-							if ($res['result'] === LKT_PV_FOUND) {
-								$previews[$url] = $res['preview'];
+							if ($res['result'] === LKT_PV_DATA_FOUND) {
+								$previewerobj = $res['previewer']::get_instance();
+								$previews[$url] = $previewerobj->get_preview($term_url, $res['preview_data']);
 								$have_preview = true;
 							}
 							if ($res['result'] === LKT_PV_GOT_PREVIEWER) {
@@ -2227,31 +2239,31 @@ function lkt_get_header($headers, $header_name) {
 }
 
 /**
- * Get the preview for a link, first (re)generating it and storing to the DB if
- * appropriate/necessary. If a Link Previewer class name is provided, it is
- * assumed the check for whether a link needs to be (re)generated has already
- * been performed, and resulted in a need for (re)generation via the Link
- * Previewer with the provided class name. If, additionally, $has_db_entry is
- * set true, then it is assumed that a database entry for the link already
- * exists, and so an update query is performed rather than an insert query.
+ * Get the preview for a link, first generating its data and storing that to the
+ * DB if appropriate/necessary. If a Link Previewer class name is provided, then
+ * it is assumed the check for whether the link's preview data needs to be
+ * (re)generated has already been performed, and resulted in a need for
+ * (re)generation via the Link Previewer with the provided class name. If,
+ * additionally, $has_db_entry is set true, then it is assumed that a database
+ * entry for the link's data already exists, and so an update query is performed
+ * rather than an insert query.
  */
-function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = '', $lh_classname = false, $has_db_entry = null) {
+function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = '', $lh_classname = false, $has_db_entry = null, $force_regen = false) {
 	global $db;
 
 	$preview = '';
 
 	if (!$lh_classname) {
-		$res = lkt_url_has_needs_preview($term_url, false, $content_type, $html);
+		$res = lkt_url_has_needs_preview($term_url, $force_regen, $content_type, $html);
 	} else	$res = array('result' => LKT_PV_GOT_PREVIEWER, 'previewer' => $lh_classname, 'has_db_entry' => $has_db_entry);
 
 	if ($res['result'] == LKT_PV_NOT_REQUIRED) {
 		return false;
-	} else if (in_array($res['result'], array(LKT_PV_GOT_PREVIEWER, LKT_PV_GOT_PREVIEWER_PROVIS)) && $res['previewer']) {
-		// (Re)generate the preview and return it.
-		$has_db_entry = $res['has_db_entry'];
-		$priority_previewer_classname = $res['previewer'];
-		$previewerobj                 = $priority_previewer_classname::get_instance();
-		$should_cache_preview         = $previewerobj->get_should_cache_preview();
+	} else if ($res['result'] == LKT_PV_GOT_PREVIEWER && $res['previewer']) {
+		// We need to (re)generate the preview data.
+		$has_db_entry         = $res['has_db_entry'];
+		$previewerobj         = $res['previewer']::get_instance();
+		$should_cache_preview = $previewerobj->get_should_cache_preview();
 
 		// Handle different character sets by converting them to UTF8.
 		if ($charset != 'utf-8') {
@@ -2259,14 +2271,14 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 			$html = @mb_convert_encoding($html, 'utf-8', $from);
 		}
 
-		$preview = $previewerobj->get_preview($term_url, $html, $content_type);
+		$preview_data = $previewerobj->get_preview_data($term_url, $html, $content_type);
 		if ($should_cache_preview) {
 			$fields = array(
-				'valid' => '1',
-				'dateline' => TIME_NOW,
-				'previewer_class_name' => $db->escape_string($priority_previewer_classname),
+				'valid'                => '1',
+				'dateline'             => TIME_NOW,
+				'previewer_class_name' => $db->escape_string($res['previewer']),
 				'previewer_class_vers' => $db->escape_string($previewerobj->get_version()),
-				'preview' => $db->escape_string($preview),
+				'preview_data'         => $db->escape_string(serialize($preview_data)),
 			);
 			if ($has_db_entry) {
 				$db->update_query('url_previews', $fields, "url_term = '".$db->escape_string($term_url)."'");
@@ -2277,15 +2289,21 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 				// constraint because the DB's maximum allowable key
 				// length is so short that we often enough end up with
 				// duplicate keys for different values.
-				$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, previewer_class_name, previewer_class_vers, preview, url_term)
-	SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['previewer_class_name'].'\', \''.$fields['previewer_class_vers'].'\', \''.$fields['preview'].'\', \''.$fields['url_term'].'\'
+				$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, previewer_class_name, previewer_class_vers, preview_data, url_term)
+	SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['previewer_class_name'].'\', \''.$fields['previewer_class_vers'].'\', \''.$fields['preview_data'].'\', \''.$fields['url_term'].'\'
 	FROM '.TABLE_PREFIX.'url_previews WHERE url_term=\''.$fields['url_term'].'\'
 	HAVING COUNT(*) = 0');
 			}
+		} else {
+			$previewobj = $res['previewer']::get_instance();
+			$preview_data = $previewobj->get_preview_data($term_url, $html, $content_type);
 		}
-	} else if ($res['result'] == LKT_PV_FOUND) {
-		$preview = $res['preview'];
+	} else /*if ($res['result'] == LKT_PV_DATA_FOUND)*/ {
+		$previewerobj = $res['previewer']::get_instance();
+		$preview_data = $res['preview_data'];
 	}
+
+	$preview = $previewerobj->get_preview($term_url, $preview_data);
 
 	return $preview;
 }
