@@ -98,7 +98,7 @@ $plugins->add_hook('admin_tools_menu'                       , 'lkt_hookin__admin
 $plugins->add_hook('admin_tools_action_handler'             , 'lkt_hookin__admin_tools_action_handler'             );
 $plugins->add_hook('editpost_action_start'                  , 'lkt_hookin__editpost_action_start'                  );
 $plugins->add_hook('editpost_do_editpost_end'               , 'lkt_hookin__editpost_do_editpost_end'               );
-$plugins->add_hook('admin_style_templates_edit_template_commit', 'lkt_hookin__admin_style_templates_edit_template_commit');
+//$plugins->add_hook('admin_style_templates_edit_template_commit', 'lkt_hookin__admin_style_templates_edit_template_commit');
 
 function lkt_hookin__global_start() {
 	if (defined('THIS_SCRIPT')) {
