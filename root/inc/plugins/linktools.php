@@ -1973,10 +1973,12 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 	$ret = array('provis' => $is_provisional, 'has_db_entry' => $has_db_entry, 'previewer'  => $is_provisional ? $priority_previewer_classname_provis : $priority_previewer_classname);
 	if ($regen) {
 		$ret['result']       = LKT_PV_GOT_PREVIEWER;
-	} else {
+	} else if ($inst_previewers[$row['previewer_class_name']]['enabled']) {
 		$ret['result']       = LKT_PV_DATA_FOUND;
 		$ret['preview_data'] = $preview_data;
 		$ret['previewer']    = $row['previewer_class_name'];
+	} else {
+		$ret['result']       = LKT_PV_NOT_REQUIRED;
 	}
 	// Earlier returns possible.
 	return $ret;
@@ -2298,12 +2300,14 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 			$previewobj = $res['previewer']::get_instance();
 			$preview_data = $previewobj->get_preview_data($term_url, $html, $content_type);
 		}
-	} else /*if ($res['result'] == LKT_PV_DATA_FOUND)*/ {
+	} else if ($res['result'] == LKT_PV_DATA_FOUND) {
 		$previewerobj = $res['previewer']::get_instance();
 		$preview_data = $res['preview_data'];
 	}
 
-	$preview = $previewerobj->get_preview($term_url, $preview_data);
+	if ($previewerobj) {
+		$preview = $previewerobj->get_preview($term_url, $preview_data);
+	} else	$preview = '';
 
 	return $preview;
 }
