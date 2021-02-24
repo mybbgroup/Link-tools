@@ -349,9 +349,7 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 	lkt_insert_templates($from_version);
 	lkt_create_settingsgroup();
 	lkt_create_settings();
-	if ($from_version < (int)'10100') {
-		lkt_enable_all_previewers();
-	}
+	lkt_enable_new_previewers();
 }
 
 function linktools_uninstall() {
@@ -474,9 +472,9 @@ function linktools_deactivate() {
 }
 
 /**
- * Enables all previewers present in the filesystem and inserts their templates as necessary.
+ * Enables new (uninstalled) previewers present in the filesystem and inserts their templates as necessary.
  */
-function lkt_enable_all_previewers() {
+function lkt_enable_new_previewers() {
 	global $cache, $db;
 
 	$lrs_plugins = $cache->read('lrs_plugins');
@@ -489,26 +487,19 @@ function lkt_enable_all_previewers() {
 	}
 
 	foreach ($present_previewers as $present_previewer) {
-		if (!is_array($inst_previewers[$present_previewer])) {
-			$inst_previewers[$present_previewer] = array(
-				'enabled' => true,
-			);
-		}
-		if (empty($inst_previewers[$present_previewer]['enabled'])) {
-			$inst_previewers[$present_previewer]['enabled'] = true;
-			if (empty($inst_previewers[$present_previewer]['tpl_installed'])) {
-				$previewerobj = $present_previewer::get_instance();
-				if ($tplname = $previewerobj->get_template_name(/*$ret_empty_if_default*/true)) {
-					$fields = array(
-						'title'    => $db->escape_string($tplname),
-						'template' => $db->escape_string($previewerobj->get_template_raw()),
-						'sid'      => '-2',
-						'version'  => '1',
-						'dateline' => TIME_NOW
-					);
-					$db->insert_query('templates', $fields);
-					$inst_previewers[$present_previewer]['tpl_installed'] = $previewerobj->get_version();
-				}
+		if (empty($inst_previewers[$present_previewer])) {
+			$inst_previewers[$present_previewer] = array('enabled' => true);
+			$previewerobj = $present_previewer::get_instance();
+			if ($tplname = $previewerobj->get_template_name(/*$ret_empty_if_default*/true)) {
+				$fields = array(
+					'title'    => $db->escape_string($tplname),
+					'template' => $db->escape_string($previewerobj->get_template_raw()),
+					'sid'      => '-2',
+					'version'  => '1',
+					'dateline' => TIME_NOW
+				);
+				$db->insert_query('templates', $fields);
+				$inst_previewers[$present_previewer]['tpl_installed'] = $previewerobj->get_version();
 			}
 		}
 	}
