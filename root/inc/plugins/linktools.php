@@ -1800,19 +1800,28 @@ define('LKT_PV_GOT_PREVIEWER'       , 4);
 function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_type = false, $content = false) {
 	global $db, $mybb, $cache;
 
+	static $cached_returns = array();
+
+	if (!empty($cached_returns[$term_url]) && $cached_returns[$term_url]['args'] == array($manual_regen, $content_type, $content)) {
+		return $cached_returns[$term_url]['return'];
+	}
+
 	$has_db_entry = null;
 
 	if (!in_array(lkt_get_scheme($term_url), array('http', 'https', ''))) {
-		return array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
+		$ret = array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
+		goto lkt_url_has_needs_preview_end;
 	}
 
 	// First, check settings to determine whether we need a preview for this type of URL.
 	if ($mybb->settings[C_LKT.'_link_preview_disable_self_dom'] && lkt_get_norm_server_from_url($term_url) == lkt_get_norm_server_from_url($mybb->settings['bburl'])) {
-		return array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
+		$ret = array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
+		goto lkt_url_has_needs_preview_end;
 	}
 	switch ($mybb->settings[C_LKT.'_link_preview_type']) {
 		case 'none':
-			return array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
+			$ret = array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
+			goto lkt_url_has_needs_preview_end;
 		case 'whitelist':
 		case 'blacklist':
 			$list = preg_split('/\r\n|\n|\r/', $mybb->settings[C_LKT.'_link_preview_dom_list']);
@@ -1830,7 +1839,8 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 				}
 			}
 			if ($ret === false) {
-				return array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
+				$ret = array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
+				goto lkt_url_has_needs_preview_end;
 			}
 			break;
 		case 'all':
@@ -1945,7 +1955,8 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 		if ($manual_regen) {
 			$min_wait = lkt_preview_regen_min_wait_secs;
 			if (TIME_NOW <= $row['dateline'] + $min_wait) {
-				return array('result' => LKT_PV_TOO_SOON, 'has_db_entry' => $has_db_entry);
+				$ret = array('result' => LKT_PV_TOO_SOON, 'has_db_entry' => $has_db_entry);
+				goto lkt_url_has_needs_preview_end;
 			} else	$regen = true;
 		} else {
 			$expiry_period = $mybb->settings[C_LKT.'_link_preview_expiry_period'];
@@ -1976,10 +1987,11 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 		$ret['result']       = LKT_PV_DATA_FOUND;
 		$ret['preview_data'] = $preview_data;
 		$ret['previewer']    = $row['previewer_class_name'];
-	} else {
-		$ret['result']       = LKT_PV_NOT_REQUIRED;
-	}
-	// Earlier returns possible.
+	} else	$ret['result']       = LKT_PV_NOT_REQUIRED;
+
+lkt_url_has_needs_preview_end:
+	$cached_returns[$term_url] = array('args' => array($manual_regen, $content_type, $content), 'return' => $ret);
+	// Early return possible.
 	return $ret;
 }
 
@@ -3717,24 +3729,33 @@ function lkt_get_preview_regen_container($post, $urls) {
 	$lang->load(C_LKT);
 
 	$urls = array_values($urls);
-	if (count($urls) == 1) {
-		$link_url  = $mybb->settings['bburl'].'/lkt-regen-preview.php?url='.urlencode($urls[0]).'&amp;return_pid='.$post['pid'];
-		$link_text = $lang->lkt_regen_link_preview;
-		eval('$links = "'.$templates->get('linktools_preview_regen_link', 1, 0).'";');
-		$prefix = '';
-	} else {
-		$link_url = $mybb->settings['bburl'].'/lkt-regen-preview.php?pid='.$post['pid'].'&amp;return_pid='.$post['pid'];
-		$link_text = $lang->lkt_all;
-		eval('$links = "'.$templates->get('linktools_preview_regen_link', 1, 0).'";');
-		foreach ($urls as $i => $url) {
-			$links .= $lang->comma;
-			$link_url = $mybb->settings['bburl'].'/lkt-regen-preview.php?url='.urlencode($url).'&amp;return_pid='.$post['pid'];
-			$link_text = (string)($i+1);
-			eval('$links .= "'.$templates->get('linktools_preview_regen_link', 1, 0).'";');
+	$term_urls = lkt_retrieve_terms($urls);
+	$pvregenurls = array();
+	foreach ($term_urls as $i => $term_url) {
+		if (lkt_url_has_needs_preview($term_url)['result'] != LKT_PV_NOT_REQUIRED) {
+			$pvregenurls[] = $urls[$i];
 		}
-		$prefix = $lang->lkt_regen_link_previews;
 	}
-	eval('$ret = "'.$templates->get('linktools_preview_regen_container', 1, 0).'";');
+	if ($pvregenurls) {
+		if (count($pvregenurls) == 1) {
+			$link_url  = $mybb->settings['bburl'].'/lkt-regen-preview.php?url='.urlencode($pvregenurls[0]).'&amp;return_pid='.$post['pid'];
+			$link_text = $lang->lkt_regen_link_preview;
+			eval('$links = "'.$templates->get('linktools_preview_regen_link', 1, 0).'";');
+			$prefix = '';
+		} else {
+			$link_url = $mybb->settings['bburl'].'/lkt-regen-preview.php?pid='.$post['pid'].'&amp;return_pid='.$post['pid'];
+			$link_text = $lang->lkt_all;
+			eval('$links = "'.$templates->get('linktools_preview_regen_link', 1, 0).'";');
+			foreach ($pvregenurls as $i => $url) {
+				$links .= $lang->comma;
+				$link_url = $mybb->settings['bburl'].'/lkt-regen-preview.php?url='.urlencode($url).'&amp;return_pid='.$post['pid'];
+				$link_text = (string)($i+1);
+				eval('$links .= "'.$templates->get('linktools_preview_regen_link', 1, 0).'";');
+			}
+			$prefix = $lang->lkt_regen_link_previews;
+		}
+		eval('$ret = "'.$templates->get('linktools_preview_regen_container', 1, 0).'";');
+	} else	$ret = '';
 
 	return $ret;
 }
