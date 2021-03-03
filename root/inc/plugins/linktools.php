@@ -77,7 +77,8 @@ $plugins->add_hook('newthread_start'                        , 'lkt_hookin__newth
 $plugins->add_hook('datahandler_post_insert_post_end'       , 'lkt_hookin__datahandler_post_insert_post_end'       );
 $plugins->add_hook('datahandler_post_insert_thread_end'     , 'lkt_hookin__datahandler_post_insert_thread_end'     );
 $plugins->add_hook('datahandler_post_update'                , 'lkt_hookin__datahandler_post_update'                );
-$plugins->add_hook('datahandler_post_update_end'            , 'lkt_hookin__datahandler_post_update_end'            );
+$plugins->add_hook('datahandler_post_update_end'            , 'lkt_hookin__datahandler_post_update_or_merge_end'   );
+$plugins->add_hook('datahandler_post_insert_merge'          , 'lkt_hookin__datahandler_post_update_or_merge_end'   );
 $plugins->add_hook('class_moderation_delete_post'           , 'lkt_hookin__class_moderation_delete_post'           );
 $plugins->add_hook('class_moderation_delete_thread_start'   , 'lkt_hookin__common__class_moderation_delete_thread' );
 $plugins->add_hook('class_moderation_delete_thread'         , 'lkt_hookin__common__class_moderation_delete_thread' );
@@ -2686,7 +2687,7 @@ function lkt_hookin__datahandler_post_update($posthandler) {
 	$db->update_query('posts', array('lkt_got_urls' => 0), "pid={$posthandler->pid}");
 }
 
-function lkt_hookin__datahandler_post_update_end($posthandler) {
+function lkt_hookin__datahandler_post_update_or_merge_end($posthandler) {
 	global $db;
 
 	$db->delete_query('post_urls', "pid={$posthandler->pid}");
