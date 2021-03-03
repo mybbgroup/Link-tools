@@ -2123,8 +2123,8 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 						if ($content
 						    &&
 						    ($header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE)) !== false
-						     &&
-						     ($response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE)) !== false
+						    &&
+						    ($response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE)) !== false
 						   ) {
 							$headers = substr($content, 0, $header_size);
 							$content_type = lkt_get_content_type_from_hdrs($headers);
