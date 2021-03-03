@@ -3732,9 +3732,9 @@ function lkt_get_preview_regen_container($post, $urls) {
 	$urls = array_values($urls);
 	$term_urls = lkt_retrieve_terms($urls);
 	$pvregenurls = array();
-	foreach ($term_urls as $i => $term_url) {
+	foreach ($term_urls as $url => $term_url) {
 		if (lkt_url_has_needs_preview($term_url)['result'] != LKT_PV_NOT_REQUIRED) {
-			$pvregenurls[] = $urls[$i];
+			$pvregenurls[] = $url;
 		}
 	}
 	if ($pvregenurls) {
