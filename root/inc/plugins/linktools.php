@@ -3268,7 +3268,7 @@ var lkt_undismiss_all_warns       = '{$lkt_undismiss_all_warns}';
 var lkt_title_warn_about_links    = '{$lkt_title_warn_about_links}';
 var lkt_warn_about_links          = '{$lkt_warn_about_links}';
 var lkt_previously_dismissed      = {$lkt_previously_dismissed};
-</script>';
+</script>
 EOF;
 }
 
