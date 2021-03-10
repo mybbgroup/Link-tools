@@ -105,3 +105,7 @@ Optionally, you may then want to configure settings (by navigating in the ACP to
    As for step one but clicking "Activate" rather than "Deactivate".
 
 This will maintain any settings and template changes that you've made, although if you've made template changes, you may after upgrading need to navigate in the ACP to "Templates & Style" -> "Templates" -> "Find Updated Templates" to properly integrate/update this plugin's templates.
+
+## Debugging
+
+If, after installing/upgrading this plugin, link previews do not appear, then you can try some basic debugging of the required [curl](https://www.php.net/manual/en/book.curl.php) PHP library using the supplied `lkt-curl-functionality-checker.php` script. Simply copy this script into your web root and then browse to it. It will output the plain-text results of its tests. In particular, if you are presented with a pattern of PASS-PASS-FAIL-PASS-FAIL, then it is likely that following the steps of [this Stack Overflow answer](https://stackoverflow.com/a/43492865) will resolve your problems.
