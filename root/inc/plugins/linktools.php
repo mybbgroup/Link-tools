@@ -1541,7 +1541,7 @@ function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 	}
 
 	if (($mh = curl_multi_init()) === false) {
-		return false;
+		return array(array_combine($urls, array_fill(0, count($urls), false)), array());
 	}
 
 	foreach ($urls as $url) {
@@ -2074,12 +2074,17 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 				$curl_handles = array();
 
 				if (($mh = curl_multi_init()) === false) {
-					return false;
+					$ret = array();
+					foreach ($term_urls as $url => $term_url) {
+						$ret[$url] = '';
+					}
+					return $ret;
 				}
 
 				foreach ($qry_urls as $url) {
 					if (($ch = curl_init()) === false) {
-						return false;
+						$previews[$url] = '';
+						continue;
 					}
 
 					// Strip from any # in the URL onwards because URLs with fragments
@@ -2095,10 +2100,12 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 						CURLOPT_USERAGENT      => lkt_curl_useragent,
 					))) {
 						curl_close($ch);
-						return false;
+						$previews[$url] = '';
+						continue;
 					}
 					if (curl_multi_add_handle($mh, $ch) !== CURLM_OK/*==0*/) {
-						return false;
+						$previews[$url] = '';
+						continue;
 					}
 					$curl_handles[$url] = $ch;
 				}
