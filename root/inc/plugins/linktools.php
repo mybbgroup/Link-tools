@@ -64,8 +64,8 @@ const lkt_term_tries_secs = array(
 
 const lkt_preview_regen_min_wait_secs = 30;
 
-global $g_lkt_links;
-$g_lkt_links = false;
+global $g_lkt_previews;
+$g_lkt_previews = false;
 
 /**
  * @todo Eliminate broken urls in [url] and [video] tags - don't store them in the DB.
@@ -1051,7 +1051,7 @@ function lkt_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = 
 			foreach ($indexes_to_use as $i) {
 				$url .= $match[$i][0];
 			}
-			$url_match = array('pos' => $match[$indexes_to_use[0]][1], 'url' => trim($url));
+			$url_match = array('endpos' => $match[$indexes_to_use[0]][1] + strlen($match[0][0]) - 1, 'url' => trim($url));
 			lkt_test_add_url($url_match, $urls);
 			$text = substr($text, 0, $match[0][1]).str_repeat('*', strlen($match[0][0])).substr($text, $match[0][1] + strlen($match[0][0]));
 		}
@@ -1107,7 +1107,7 @@ function lkt_extract_bare_urls(&$text, &$urls) {
 		if (preg_match_all($re, $text_new, $matches, PREG_SET_ORDER|PREG_OFFSET_CAPTURE)) {
 			foreach ($matches as $match) {
 				$url = $match[2][0].$match[3][0].lkt_strip_unmatched_closing_parens($match[4][0]);
-				$url_match = array('pos' => $match[2][1], 'url' => trim($url));
+				$url_match = array('endpos' => $match[2][1] + strlen($url) - 1, 'url' => trim($url));
 				lkt_test_add_url($url_match, $urls);
 				// Blank out the matched URLs.
 				$text_new = substr($text_new, 0, $match[2][1]).str_repeat('$', strlen($url)).substr($text_new, $match[2][1] + strlen($url));
@@ -1128,19 +1128,21 @@ function lkt_test_add_url($url_match, &$urls) {
 
 # Should be kept in sync with the extract_urls() method of the DLW object in ../jscripts/linktools.js
 function lkt_extract_urls($text, $exclude_videos = false) {
+	$fn_blank_out = function ($matches) {return str_repeat(' ', strlen($matches[0]));};
+
 	$urls = array();
 
-	# First, strip out all [img] tags.
-	# [img] tag regexes from postParser::parse_mycode() in ../inc/class_parser.php.
-	$text = preg_replace("#\[img\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", ' ', $text);
-	$text = preg_replace("#\[img=([1-9][0-9]*)x([1-9][0-9]*)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", ' ', $text);
-	$text = preg_replace("#\[img align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", ' ', $text);
-	$text = preg_replace("#\[img=([1-9][0-9]*)x([1-9][0-9]*) align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", ' ', $text);
+	# First, blank out all [img] tags.
+	# [img] tag regexes from postParser::parse_mycode() in ../class_parser.php.
+	$text = preg_replace_callback("#\[img\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", $fn_blank_out, $text);
+	$text = preg_replace_callback("#\[img=([1-9][0-9]*)x([1-9][0-9]*)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", $fn_blank_out, $text);
+	$text = preg_replace_callback("#\[img align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", $fn_blank_out, $text);
+	$text = preg_replace_callback("#\[img=([1-9][0-9]*)x([1-9][0-9]*) align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", $fn_blank_out, $text);
 
-	# Next, strip out all [video] tags if required.
+	# Next, blank out all [video] tags if required.
 	if ($exclude_videos) {
 		# [video] tag regex from postParser::parse_mycode() in ../class_parser.php.
-		$text = preg_replace("#\[video=(.*?)\](.*?)\[/video\]#i", ' ', $text);
+		$text = preg_replace_callback("#\[video=(.*?)\](.*?)\[/video\]#i", $fn_blank_out, $text);
 	}
 
 	# [url] tag regexes from postParser::cache_mycode() in ../class_parser.php.
@@ -1154,16 +1156,17 @@ function lkt_extract_urls($text, $exclude_videos = false) {
 
 	lkt_extract_bare_urls($text, $urls);
 
-	usort($urls, function($a, $b) {return $a['pos'] == $b['pos'] ? 0 : ($a['pos'] < $b['pos'] ? -1 : 1);});
+	usort($urls, function($a, $b) {return $a['endpos'] == $b['endpos'] ? 0 : ($a['endpos'] < $b['endpos'] ? -1 : 1);});
 
-	$urls_ret = array();
+	$endposns = $urls_ret = array();
 	foreach ($urls as $url_match) {
 		if (!in_array($url_match['url'], $urls_ret)) {
 			$urls_ret[] = $url_match['url'];
+			$endposns[] = $url_match['endpos'];
 		}
 	}
 
-	return $urls_ret;
+	return array($urls_ret, $endposns);
 }
 
 function lkt_get_url_search_sql($urls, $already_normalised = false, $extra_conditions = '') {
@@ -1263,7 +1266,7 @@ function lkt_get_posts_for_urls($urls, $post_edit_times = array()) {
 			unset($matching_posts[$row['pid']]['matching_url']);
 			unset($matching_posts[$row['pid']]['queried_norm_url']);
 			$matching_posts[$row['pid']]['message'] = $parser->parse_message($row['message'], $parse_opts);
-			$matching_posts[$row['pid']]['all_urls'] = lkt_extract_urls($row['message']);
+			list($matching_posts[$row['pid']]['all_urls']) = lkt_extract_urls($row['message']);
 			// The raw URLs (i.e., not normalised) present in this post that were a match for
 			// the raw URLs (again, not normalised) for which we are querying, in that
 			// both terminate (i.e., after following all redirects) in the same normalised URL.
@@ -1273,7 +1276,7 @@ function lkt_get_posts_for_urls($urls, $post_edit_times = array()) {
 			// both terminate in the same normalised URL).
 			$matching_posts[$row['pid']]['matching_urls'] = [];
 			$stripped = lkt_strip_nestable_mybb_tag($row['message'], 'quote');
-			$urls_quotes_stripped = lkt_extract_urls($stripped);
+			list($urls_quotes_stripped) = lkt_extract_urls($stripped);
 			$matching_posts[$row['pid']]['are_all_matching_urls_in_quotes'] = (array_intersect($urls, $urls_quotes_stripped) == array());
 			if ($matching_posts[$row['pid']]['are_all_matching_urls_in_quotes']) {
 				$all_matching_urls_in_quotes_flag = true;
@@ -1378,7 +1381,7 @@ function lkt_handle_new_post($posthandler) {
 }
 
 function lkt_get_and_add_urls_of_post($message, $pid = null) {
-	lkt_get_and_add_urls(lkt_extract_urls($message), $pid);
+	lkt_get_and_add_urls(lkt_extract_urls($message)[0], $pid);
 }
 
 function lkt_get_and_add_urls($urls, $pid = null) {
@@ -2715,7 +2718,7 @@ function lkt_extract_and_store_urls_for_posts($num_posts) {
 
 	$post_urls = $urls_all = [];
 	while (($post = $db->fetch_array($res))) {
-		$urls = lkt_extract_urls($post['message']);
+		list($urls) = lkt_extract_urls($post['message']);
 		$post_urls[$post['pid']] = $urls;
 		$urls_all = array_merge($urls_all, $urls);
 	}
@@ -3119,7 +3122,7 @@ function lkt_hookin__datahandler_post_insert_thread($posthandler) {
 		$lang->load(C_LKT);
 	}
 
-	$urls = lkt_extract_urls($posthandler->data['message']);
+	list($urls) = lkt_extract_urls($posthandler->data['message']);
 	if (!$urls) {
 		return;
 	}
@@ -3338,7 +3341,7 @@ function lkt_get_post_output($post, $forum_names) {
 	return $ret;
 }
 
-function lkt_strip_nestable_mybb_tag($message, $tagname) {
+function lkt_strip_nestable_mybb_tag($message, $tagname, $blank_out = false) {
 	$lkt_validate_start_tag_ending = function ($message, $pos) {
 		if ($pos >= strlen($message)) {
 			return false;
@@ -3390,7 +3393,12 @@ function lkt_strip_nestable_mybb_tag($message, $tagname) {
 				if ($open_count == 0) break;
 			}
 		}
-		$message = substr($message, 0, $pos).substr($message, $pos_c + strlen('</'.$tagname.'>'));
+		$msg_org = $message;
+		$message = substr($msg_org, 0, $pos);
+		if ($blank_out) {
+			$message .= str_repeat(' ', $pos_c - $pos + strlen('[/'.$tagname.']'));
+		}
+		$message .= substr($msg_org, $pos_c + strlen('[/'.$tagname.']'));
 		$pos = 0;
 	}
 
@@ -3703,7 +3711,7 @@ function lkt_hookin__xmlhttp() {
 	} else if ($mybb->input['action'] == 'lkt_get_post_regen_cont') {
 		$post = get_post($mybb->get_input('pid', MyBB::INPUT_INT));
 		if ($post) {
-			$urls = lkt_extract_urls($post['message']);
+			list($urls) = lkt_extract_urls($post['message']);
 			if ($urls) {
 				echo lkt_get_preview_regen_container($post, $urls);
 			}
@@ -3769,50 +3777,81 @@ function lkt_get_preview_regen_container($post, $urls) {
 }
 
 function lkt_hookin__postbit($post) {
-	global $g_lkt_links;
+	global $g_lkt_previews, $g_lkt_links;
 
-	if ($g_lkt_links && empty($post['lkt_linkpreviewoff'])) {
-		foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($g_lkt_links)) as $preview) {
-			$post['message'] .= $preview;
-		}
+	if ($g_lkt_previews && empty($post['lkt_linkpreviewoff'])) {
+		$post['message'] = str_replace(array_keys($g_lkt_previews), array_values($g_lkt_previews), $post['message']);
 		$post['updatepreview'] = lkt_get_preview_regen_container($post, $g_lkt_links);
 	}
 
-	$g_lkt_links = false;
+	$g_lkt_previews = false;
 
 	return $post;
 }
 
 function lkt_hookin__xmlhttp_update_post() {
-	global $g_lkt_links, $post;
+	global $g_lkt_previews, $post;
 
-	if ($g_lkt_links && empty($post['lkt_linkpreviewoff'])) {
-		foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($g_lkt_links)) as $preview) {
-			$post['message'] .= $preview;
-		}
+	if ($g_lkt_previews && empty($post['lkt_linkpreviewoff'])) {
+		$post['message'] = str_replace(array_keys($g_lkt_previews), array_values($g_lkt_previews), $post['message']);
 	}
 
-	$g_lkt_links = false;
+	$g_lkt_previews = false;
 }
 
 function lkt_hookin__parse_message_start($message) {
-	global $g_lkt_links, $mybb;
+	global $g_lkt_previews, $g_lkt_links, $mybb;
 
-	// We check for $g_lkt_links being false because this hook is
+	if (THIS_SCRIPT != 'showthread.php') {
+		return $message;
+	}
+
+	// We check for $g_lkt_previews being false because this hook is
 	// called for any signature of the post after the post itself.
-	// That's why we set $g_lkt_links to false in
+	// That's why we set $g_lkt_previews to false in
 	// lkt_hookin__postbit(). False indicates this is the first call
 	// for this post, i.e., the post message itself rather than its
 	// signature.
-	if ($g_lkt_links === false) {
+	if ($g_lkt_previews === false) {
 		$msg = $message;
 		if ($mybb->settings[C_LKT.'_link_preview_not_in_quotes']) {
-			$msg = lkt_strip_nestable_mybb_tag($msg, 'quote');
+			$msg = lkt_strip_nestable_mybb_tag($msg, 'quote', true);
 		}
 
-		$g_lkt_links = lkt_extract_urls($msg, /*$exclude_videos = */true);
+		$links = lkt_extract_urls($msg, /*$exclude_videos = */true);
+		$g_lkt_links = $links[0];
+
+		$g_lkt_previews = $insertions = array();
+
+		$i = 0;
+		foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($links[0])) as $preview) {
+			$endpos = $links[1][$i];
+			while ($endpos < strlen($msg) && $msg[$endpos++] != "\n") ;
+			$insertions[$i] = array('inspos' => $endpos, 'preview' => $preview);
+			$i++;
+		}
+		$curr = 0;
+		$segments = array();
+		foreach ($insertions as $i => $insertion) {
+			$segments[] = substr($message, $curr, $insertions[$i]['inspos'] - $curr);
+			$uniqid = '';
+			for ($j = 0; $j < 20; $j++) {
+				$uniqid = uniqid('lkpv_', true);
+				if (strpos($message, $uniqid) === false && empty($g_lkt_previews[$uniqid])) {
+					break;
+				} else	$uniqid = '';
+			}
+			if ($uniqid) {
+				$g_lkt_previews[$uniqid] = $insertions[$i]['preview'];
+				$segments[] = $uniqid;
+			}
+			$curr = $insertions[$i]['inspos'];
+		}
+		$segments[] = substr($message, $curr, strlen($message));
+		$message = implode('', $segments);
 	}
 
+	// Early return possible
 	return $message;
 }
 

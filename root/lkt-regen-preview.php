@@ -38,7 +38,7 @@ if ($pid = $mybb->get_input('pid', MyBB::INPUT_INT)) {
 	if (!($message = $db->fetch_field($query, 'message'))) {
 		error($lang->lkt_err_regen_no_post_or_msg);
 	} else {
-		$urls = lkt_extract_urls($message, /*$exclude_videos = */true);
+		list($urls) = lkt_extract_urls($message, /*$exclude_videos = */true);
 		$terms = lkt_retrieve_terms($urls);
 	}
 } else if ($url = $mybb->get_input('url')) {
