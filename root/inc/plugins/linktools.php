@@ -120,7 +120,7 @@ function lkt_hookin__global_start() {
 		if (THIS_SCRIPT == 'newthread.php') {
 			if (isset($templatelist)) $templatelist .= ',';
 			$templatelist .= 'linktools_div,linktools_op_post_div,linktools_non_op_post_div,linktools_matching_url_item,linktools_matching_post,linktools_review_buttons,linktools_toggle_button,linktools_review_page,linktools_matching_posts_warning_div';
-		} else if (THIS_SCRIPT == 'showthread.php') {
+		} else if (THIS_SCRIPT == 'showthread.php' || THIS_SCRIPT == 'xmlhttp.php') {
 			if (isset($templatelist)) $templatelist .= ',';
 			$templatelist .= 'linktools_preview_regen_link,linktools_preview_regen_container';
 		} else if (THIS_SCRIPT == 'lkt-regen-preview.php') {
