@@ -64,6 +64,14 @@ const lkt_term_tries_secs = array(
 
 const lkt_preview_regen_min_wait_secs = 30;
 
+# [img] tag regexes from postParser::parse_mycode() in ../class_parser.php.
+const lkt_img_regexes = array(
+	"#\[img\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is",
+	"#\[img=([1-9][0-9]*)x([1-9][0-9]*)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is",
+	"#\[img align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is",
+	"#\[img=([1-9][0-9]*)x([1-9][0-9]*) align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is"
+);
+
 global $g_lkt_previews;
 $g_lkt_previews = false;
 
@@ -140,10 +148,10 @@ function linktools_info() {
 		'website'       => 'https://mybb.group/Thread-Link-Tools',
 		'author'        => 'Laird as a member of the unofficial MyBB Group',
 		'authorsite'    => 'https://mybb.group/User-Laird',
-		'version'       => '1.2.0',
+		'version'       => '1.3.0-prerelease',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
-		'version_code'  => '10200',
+		'version_code'  => '10300',
 		'guid'          => '',
 		'codename'      => C_LKT,
 		'compatibility' => '18*'
@@ -1006,6 +1014,12 @@ function lkt_create_settings() {
 			'optionscode' => 'yesno',
 			'value'       => '1',
 		),
+		'link_preview_skip_if_contains_img' => array(
+			'title'       => $lang->lkt_link_preview_skip_if_contains_img_title,
+			'description' => $lang->lkt_link_preview_skip_if_contains_img_desc,
+			'optionscode' => 'yesno',
+			'value'       => '1',
+		),
 	);
 
 	// (Re)create the settings, retaining the old values where they exist.
@@ -1044,15 +1058,26 @@ function lkt_has_valid_scheme($url) {
 }
 
 # Should be kept in sync with the extract_url_from_mycode_tag() method of the DLW object in ../jscripts/linktools.js
-function lkt_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = array(1)) {
+function lkt_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = array(1), $skip_if_contains_img = false) {
 	if (preg_match_all($re, $text, $matches, PREG_SET_ORDER|PREG_OFFSET_CAPTURE)) {
 		foreach ($matches as $match) {
 			$url = '';
-			foreach ($indexes_to_use as $i) {
-				$url .= $match[$i][0];
+			$contains_img = false;
+			if ($skip_if_contains_img) {
+				foreach (lkt_img_regexes as $re) {
+					if (preg_match($re, $match[0][0])) {
+						$contains_img = true;
+						break;
+					}
+				}
 			}
-			$url_match = array('endpos' => $match[$indexes_to_use[0]][1] + strlen($match[0][0]) - 1, 'url' => trim($url));
-			lkt_test_add_url($url_match, $urls);
+			if (!$contains_img) {
+				foreach ($indexes_to_use as $i) {
+					$url .= $match[$i][0];
+				}
+				$url_match = array('endpos' => $match[$indexes_to_use[0]][1] + strlen($match[0][0]) - 1, 'url' => trim($url));
+				lkt_test_add_url($url_match, $urls);
+			}
 			$text = substr($text, 0, $match[0][1]).str_repeat('*', strlen($match[0][0])).substr($text, $match[0][1] + strlen($match[0][0]));
 		}
 	}
@@ -1128,31 +1153,33 @@ function lkt_test_add_url($url_match, &$urls) {
 
 # Should be kept in sync with the extract_urls() method of the DLW object in ../jscripts/linktools.js
 function lkt_extract_urls($text, $exclude_videos = false) {
+	global $mybb;
+
 	$fn_blank_out = function ($matches) {return str_repeat(' ', strlen($matches[0]));};
 
 	$urls = array();
 
-	# First, blank out all [img] tags.
-	# [img] tag regexes from postParser::parse_mycode() in ../class_parser.php.
-	$text = preg_replace_callback("#\[img\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", $fn_blank_out, $text);
-	$text = preg_replace_callback("#\[img=([1-9][0-9]*)x([1-9][0-9]*)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", $fn_blank_out, $text);
-	$text = preg_replace_callback("#\[img align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", $fn_blank_out, $text);
-	$text = preg_replace_callback("#\[img=([1-9][0-9]*)x([1-9][0-9]*) align=(left|right)\](\r\n?|\n?)(https?://([^<>\"']+?))\[/img\]#is", $fn_blank_out, $text);
+	$skip_if_contains_img = $mybb->settings[C_LKT.'_link_preview_skip_if_contains_img'] ? true : false;
 
-	# Next, blank out all [video] tags if required.
+	# [url] tag regexes from postParser::cache_mycode() in ../class_parser.php.
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\[/url\]#si", array(1, 2), $skip_if_contains_img);
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript:)[^\r\n\"<]+?)\[/url\]#i", array(1), $skip_if_contains_img);
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1, 2), $skip_if_contains_img);
+	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript:)[^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1), $skip_if_contains_img);
+
+	# Blank out all [video] tags if required.
 	if ($exclude_videos) {
 		# [video] tag regex from postParser::parse_mycode() in ../class_parser.php.
 		$text = preg_replace_callback("#\[video=(.*?)\](.*?)\[/video\]#i", $fn_blank_out, $text);
 	}
 
-	# [url] tag regexes from postParser::cache_mycode() in ../class_parser.php.
-	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\[/url\]#si", array(1, 2));
-	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url\]((?!javascript:)[^\r\n\"<]+?)\[/url\]#i", array(1));
-	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript)[a-z]+?://)([^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1, 2));
-	lkt_extract_url_from_mycode_tag($text, $urls, "#\[url=((?!javascript:)[^\r\n\"<]+?)\](.+?)\[/url\]#si", array(1));
-
 	# [video] tag regex from postParser::parse_mycode() in ../class_parser.php.
 	lkt_extract_url_from_mycode_tag($text, $urls, "#\[video=(.*?)\](.*?)\[/video\]#i", array(2));
+
+	# Blank out all [img] tags so their enclosing urls aren't matched by lkt_extract_bare_urls() below.
+	foreach (lkt_img_regexes as $re) {
+		$text = preg_replace_callback($re, $fn_blank_out, $text);
+	}
 
 	lkt_extract_bare_urls($text, $urls);
 

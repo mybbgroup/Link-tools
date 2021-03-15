@@ -89,6 +89,9 @@ $l['lkt_link_preview_rebuild_scope_only_invalid'] = 'Only links with missing/inv
 $l['lkt_link_preview_not_in_quotes_title'] = 'Exclude quoted links from preview?';
 $l['lkt_link_preview_not_in_quotes_desc' ] = 'Set to "Yes" to prevent previews from being generated for links within MyBB quote tags.';
 
+$l['lkt_link_preview_skip_if_contains_img_title'] = 'Exclude [url] tags enclosing [img] tags from preview?';
+$l['lkt_link_preview_skip_if_contains_img_desc'] = 'Set to "Yes" to prevent previews from being generated for links for [url] tags that enclose [img] tags (if, for example, in these cases an enclosed image serves as a sufficient preview for your purposes).';
+
 $l['lkt_linkpreviewers'    ] = 'Link Previewers';
 $l['lkt_template_installed'] = 'Template installed?';
 $l['lkt_previewer_enabled' ] = 'Enabled?';
