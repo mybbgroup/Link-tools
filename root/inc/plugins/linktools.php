@@ -3829,7 +3829,7 @@ function lkt_hookin__xmlhttp_update_post() {
 function lkt_hookin__parse_message_start($message) {
 	global $g_lkt_previews, $g_lkt_links, $mybb;
 
-	if (THIS_SCRIPT != 'showthread.php') {
+	if (!(THIS_SCRIPT == 'showthread.php' || THIS_SCRIPT == 'xmlhttp.php' && $mybb->input['action'] === 'edit_post' && $mybb->input['do'] == 'update_post')) {
 		return $message;
 	}
 
