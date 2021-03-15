@@ -750,6 +750,9 @@ function lkt_get_linkpreview_css() {
 	margin-top: 20px;
 	max-width: 550px;
 	min-height: 35px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .lkt-link-preview a {
