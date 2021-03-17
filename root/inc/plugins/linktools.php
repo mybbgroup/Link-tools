@@ -3872,6 +3872,12 @@ function lkt_hookin__parse_message_start($message) {
 				} else	$uniqid = '';
 			}
 			if ($uniqid) {
+				if ($insertions[$i]['inspos'] == strlen($message) && ($message[$insertions[$i]['inspos']-1] != "\n")) {
+					// Prevent our replacement token from
+					// being appended to any bare URL which
+					// ends the post.
+					$uniqid = "\n".$uniqid;
+				}
 				$g_lkt_previews[$uniqid] = $insertions[$i]['preview'];
 				$segments[] = $uniqid;
 			}
