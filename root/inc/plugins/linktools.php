@@ -1078,7 +1078,7 @@ function lkt_extract_url_from_mycode_tag(&$text, &$urls, $re, $indexes_to_use = 
 				foreach ($indexes_to_use as $i) {
 					$url .= $match[$i][0];
 				}
-				$url_match = array('endpos' => $match[$indexes_to_use[0]][1] + strlen($match[0][0]) - 1, 'url' => trim($url));
+				$url_match = array('endpos' => $match[0][1] + strlen($match[0][0]) - 1, 'url' => trim($url));
 				lkt_test_add_url($url_match, $urls);
 			}
 			$text = substr($text, 0, $match[0][1]).str_repeat('*', strlen($match[0][0])).substr($text, $match[0][1] + strlen($match[0][0]));
