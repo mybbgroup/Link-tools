@@ -3863,6 +3863,9 @@ function lkt_hookin__parse_message_start($message) {
 		$curr = 0;
 		$segments = array();
 		foreach ($insertions as $i => $insertion) {
+			if (empty($insertions[$i]['preview'])) {
+				continue;
+			}
 			$segments[] = substr($message, $curr, $insertions[$i]['inspos'] - $curr);
 			$uniqid = '';
 			for ($j = 0; $j < 20; $j++) {
@@ -3872,14 +3875,15 @@ function lkt_hookin__parse_message_start($message) {
 				} else	$uniqid = '';
 			}
 			if ($uniqid) {
-				if ($insertions[$i]['inspos'] == strlen($message) && ($message[$insertions[$i]['inspos']-1] != "\n")) {
+				$inspos = $insertions[$i]['inspos'];
+				if ($inspos == strlen($message) && ($message[$inspos-1] != "\n")) {
 					// Prevent our replacement token from
 					// being appended to any bare URL which
 					// ends the post.
 					$uniqid = "\n".$uniqid;
 				}
 				$g_lkt_previews[$uniqid] = $insertions[$i]['preview'];
-				$segments[] = $uniqid;
+				$segments[] = $uniqid.($inspos < strlen($message) - 1 && !in_array($message[$inspos], array("\r", "\n")) ? "\n" : '');
 			}
 			$curr = $insertions[$i]['inspos'];
 		}
