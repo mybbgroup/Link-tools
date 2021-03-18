@@ -3834,7 +3834,14 @@ function lkt_hookin__xmlhttp_update_post() {
 function lkt_hookin__parse_message_start($message) {
 	global $g_lkt_previews, $g_lkt_links, $mybb;
 
-	if (!(THIS_SCRIPT == 'showthread.php' || THIS_SCRIPT == 'xmlhttp.php' && $mybb->input['action'] === 'edit_post' && $mybb->input['do'] == 'update_post')) {
+	if (!(THIS_SCRIPT == 'showthread.php'
+	      ||
+	      THIS_SCRIPT == 'xmlhttp.php' && $mybb->input['action'] === 'edit_post' && $mybb->input['do'] == 'update_post')
+	      ||
+	      THIS_SCRIPT == 'newreply' && $mybb->input['action'] == 'do_newreply' && $mybb->request_method == 'post'
+	   ) {
+		echo 'Returning';
+		exit;
 		return $message;
 	}
 
