@@ -2017,10 +2017,12 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 	$ret = array('provis' => $is_provisional, 'has_db_entry' => $has_db_entry, 'previewer'  => $is_provisional ? $priority_previewer_classname_provis : $priority_previewer_classname);
 	if ($regen) {
 		$ret['result']       = LKT_PV_GOT_PREVIEWER;
-	} else if ($inst_previewers[$row['previewer_class_name']]['enabled']) {
+	} else if ($row && $inst_previewers[$row['previewer_class_name']]['enabled']) {
 		$ret['result']       = LKT_PV_DATA_FOUND;
 		$ret['preview_data'] = $preview_data;
 		$ret['previewer']    = $row['previewer_class_name'];
+	} else if (!empty($ret['previewer'])) {
+		$ret['result']       = LKT_PV_GOT_PREVIEWER;
 	} else	$ret['result']       = LKT_PV_NOT_REQUIRED;
 
 lkt_url_has_needs_preview_end:
