@@ -3840,8 +3840,6 @@ function lkt_hookin__parse_message_start($message) {
 	      ||
 	      THIS_SCRIPT == 'newreply' && $mybb->input['action'] == 'do_newreply' && $mybb->request_method == 'post'
 	   ) {
-		echo 'Returning';
-		exit;
 		return $message;
 	}
 
