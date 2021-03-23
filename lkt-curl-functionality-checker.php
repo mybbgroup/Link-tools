@@ -1,6 +1,35 @@
 <?php
 
+/**
+ * Configure additional cURL options below as required for your host.
+ * Typically, these will be proxy-related. The example provided was supposed
+ * to work for GoDaddy, however, on testing, it seems not to work there.
+ * Feel free to uncomment it anyway or to create an alternative array of options
+ * as necessary.
+ *
+ * If you find that such additional cURL options as these _are_ necessary, then
+ * after copying the files for Link Tools into your MyBB installation, you
+ * should create the file inc/plugins/linktools/extra-curl-opts.php, which
+ * should simply return an array of options as below (see the example file in
+ * the same directory).
+ */
+// $extra_opts = array(
+// 	CURLOPT_PROXYTYPE => CURLPROXY_HTTP                       ,
+// 	CURLOPT_PROXY  => 'http://proxy.shr.secureserver.net:3128',
+// 	CURLOPT_SSL_VERIFYPEER => false                           ,
+// );
+
+
 header('Content-Type: text/plain');
+
+echo 'Checking whether the curl extension is loaded...';
+if (extension_loaded('curl')) {
+	echo 'PASS'.PHP_EOL.PHP_EOL;
+} else {
+	echo 'FAIL'.PHP_EOL.PHP_EOL;
+	echo get_limited_func_str(true);
+	exit;
+}
 
 echo 'Checking for the existence of the curl_init() function...';
 if (function_exists('curl_init')) {
@@ -13,18 +42,26 @@ if (function_exists('curl_init')) {
 
 $test_results = array();
 
-echo 'Checking for the successful functioning of single-page, HTTP (non-HTTPS) curl downloads...';
-
-if (($ch = curl_init()) === false) {
-	do_failure($ch, 'The curl_init() function returned false.');
-} else if (!curl_setopt_array($ch, array(
-	CURLOPT_URL            => 'http://example.com/',
+$base_opts = array(
 	CURLOPT_RETURNTRANSFER => true,
 	CURLOPT_HEADER         => true,
 	CURLOPT_NOBODY         => false,
 	CURLOPT_TIMEOUT        => 10,
 	CURLOPT_USERAGENT      => 'The MyBB Link Tools plugin',
-))) {
+);
+
+if (!empty($extra_opts)) foreach ($extra_opts as $k => $v) {
+	$base_opts[$k] = $v;
+}
+
+echo 'Checking for the successful functioning of single-page, HTTP (non-HTTPS) curl downloads...';
+
+$opts = $base_opts;
+$opts[CURLOPT_URL] = 'http://example.com/';
+
+if (($ch = curl_init()) === false) {
+	do_failure($ch, 'The curl_init() function returned false.');
+} else if (!curl_setopt_array($ch, $opts)) {
 	do_failure($ch, 'The curl_setopt_array() function returned false.');
 } else if (($content = curl_exec($ch)) === false) {
 	do_failure($ch, 'The curl_exec() function returned false.');
@@ -73,7 +110,7 @@ $urls = array(
 	'http://example.net/',
 );
 
-if (do_curl_multi_test($urls)) {
+if (do_curl_multi_test($urls, $base_opts)) {
 	$test_results[] = true;
 	echo 'PASS'.PHP_EOL.PHP_EOL;
 }
@@ -88,7 +125,7 @@ $urls = array(
 	'https://example.net/',
 );
 
-if (do_curl_multi_test($urls)) {
+if (do_curl_multi_test($urls, $base_opts)) {
 	$test_results[] = true;
 	echo 'PASS'.PHP_EOL.PHP_EOL;
 }
@@ -97,7 +134,7 @@ if (in_array(false, $test_results)) {
 	echo 'At least one of the tests failed. '.get_limited_func_str();
 } else	echo 'All tests passed. All of the curl functionality required by Link Tools appears to be present.'.PHP_EOL;
 
-function do_curl_multi_test($urls) {
+function do_curl_multi_test($urls, $base_opts) {
 	if (($mh = curl_multi_init()) === false) {
 		do_failure($ch, 'The curl_multi_init() function returned false.');
 		return false;
@@ -109,14 +146,10 @@ function do_curl_multi_test($urls) {
 			do_failure($ch, 'The curl_init() function returned false.');
 			return false;
 		} else {
-			if (!curl_setopt_array($ch, array(
-				CURLOPT_URL            => $url,
-				CURLOPT_RETURNTRANSFER => true,
-				CURLOPT_HEADER         => true,
-				CURLOPT_NOBODY         => false,
-				CURLOPT_TIMEOUT        => 10,
-				CURLOPT_USERAGENT      => 'The MyBB Link Tools plugin',
-			))) {
+			$opts = $base_opts;
+			$opts[CURLOPT_URL] = $url;
+
+			if (!curl_setopt_array($ch, $opts)) {
 				do_failure($ch, 'The curl_setopt_array() function returned false (for URL <'.$url.'>).');
 				return false;
 			}

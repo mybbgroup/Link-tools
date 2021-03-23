@@ -1593,14 +1593,18 @@ function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 		// web server environments from which cURL is called.
 		list($url_trim_nohash) = explode('#', trim($url), 2);
 
-		if (!curl_setopt_array($ch, array(
+		$opts = array(
 			CURLOPT_URL            => $url_trim_nohash,
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_HEADER         => true,
 			CURLOPT_NOBODY         => $use_head_method,
 			CURLOPT_TIMEOUT        => lkt_curl_timeout,
 			CURLOPT_USERAGENT      => 'The MyBB Link Tools plugin',
-		))) {
+		);
+		foreach (lkt_get_extra_curl_opts() as $k => $v) {
+			$opts[$k] = $v;
+		}
+		if (!curl_setopt_array($ch, $opts)) {
 			curl_close($ch);
 			$redirs[$url] = null;
 			continue;
@@ -2127,13 +2131,17 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 					// web server environments from which cURL is called.
 					list($url_trim_nohash) = explode('#', trim($url), 2);
 
-					if (!curl_setopt_array($ch, array(
+					$opts = array(
 						CURLOPT_URL            => $url_trim_nohash,
 						CURLOPT_RETURNTRANSFER => true,
 						CURLOPT_HEADER         => true,
 						CURLOPT_TIMEOUT        => lkt_curl_timeout,
 						CURLOPT_USERAGENT      => lkt_curl_useragent,
-					))) {
+					);
+					foreach (lkt_get_extra_curl_opts() as $k => $v) {
+						$opts[$k] = $v;
+					}
+					if (!curl_setopt_array($ch, $opts)) {
 						curl_close($ch);
 						$previews[$url] = '';
 						continue;
@@ -4075,4 +4083,14 @@ function lkt_mk_tpl_nm_frm_classnm($classname) {
 	}
 
 	return 'linktools_linkpreview_'.$name;
+}
+
+function lkt_get_extra_curl_opts() {
+	$fname = __DIR__.'/linktools/extra-curl-opts.php';
+	if (is_readable($fname)) {
+		$extra_opts = include $fname;
+	}
+	if (!empty($extra_opts) && is_array($extra_opts)) {
+		return $extra_opts;
+	} else	return array();
 }
