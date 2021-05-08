@@ -22,12 +22,12 @@
 
 header('Content-Type: text/plain');
 
-echo 'Checking whether the curl extension is loaded...';
+echo 'Checking whether the cURL extension is loaded...';
 if (extension_loaded('curl')) {
 	echo 'PASS'.PHP_EOL.PHP_EOL;
 } else {
 	echo 'FAIL'.PHP_EOL.PHP_EOL;
-	echo get_limited_func_str(true);
+	echo get_limited_func_str(true).PHP_EOL;
 	exit;
 }
 
@@ -36,7 +36,7 @@ if (function_exists('curl_init')) {
 	echo 'PASS'.PHP_EOL.PHP_EOL;
 } else {
 	echo 'FAIL'.PHP_EOL.PHP_EOL;
-	echo get_limited_func_str(true);
+	echo get_limited_func_str(true).PHP_EOL;
 	exit;
 }
 
@@ -54,7 +54,7 @@ if (!empty($extra_opts)) foreach ($extra_opts as $k => $v) {
 	$base_opts[$k] = $v;
 }
 
-echo 'Checking for the successful functioning of single-page, HTTP (non-HTTPS) curl downloads...';
+echo 'Checking for the successful functioning of single-page, HTTP (non-secure) cURL downloads...';
 
 $opts = $base_opts;
 $opts[CURLOPT_URL] = 'http://example.com/';
@@ -80,7 +80,7 @@ if ($test_results[count($test_results) - 1]) {
 // Be considerate of others' servers: don't hit example.com again without waiting for 3 seconds.
 sleep(3);
 
-echo 'Checking for the successful functioning of single-page, HTTPS curl downloads...';
+echo 'Checking for the successful functioning of single-page, HTTPS (secure) cURL downloads...';
 
 if (!curl_setopt($ch, CURLOPT_URL, 'https://example.com/')) {
 	do_failure($ch, 'The curl_setopt() function returned false.');
@@ -103,7 +103,7 @@ curl_close($ch);
 // Be considerate of others' servers: don't hit example.com again without waiting for 3 seconds.
 sleep(3);
 
-echo 'Checking for the successful functioning of multi-page, HTTP (non-HTTPS) curl downloads...';
+echo 'Checking for the successful functioning of multi-page, HTTP (non-secure) cURL downloads...';
 
 $urls = array(
 	'http://example.com/',
@@ -118,7 +118,7 @@ if (do_curl_multi_test($urls, $base_opts)) {
 // Be considerate of others' servers: don't hit example.com and example.net again without waiting for 3 seconds.
 sleep(3);
 
-echo 'Checking for the successful functioning of multi-page, HTTPS curl downloads...';
+echo 'Checking for the successful functioning of multi-page, HTTPS (secure) cURL downloads...';
 
 $urls = array(
 	'https://example.com/',
@@ -132,7 +132,10 @@ if (do_curl_multi_test($urls, $base_opts)) {
 
 if (in_array(false, $test_results)) {
 	echo 'At least one of the tests failed. '.get_limited_func_str();
-} else	echo 'All tests passed. All of the curl functionality required by Link Tools appears to be present.'.PHP_EOL;
+	if ($test_results == array(true, false, true, false)) {
+		echo PHP_EOL.'Due to the pattern of results, it is likely that following the steps of this Stack Overflow answer will resolve the problem: <https://stackoverflow.com/a/43492865>.'.PHP_EOL;
+	}
+} else	echo 'All tests passed. All of the cURL functionality required by Link Tools appears to be present.'.PHP_EOL;
 
 function do_curl_multi_test($urls, $base_opts) {
 	if (($mh = curl_multi_init()) === false) {
@@ -206,5 +209,5 @@ function do_failure($ch, $err_msgs) {
 }
 
 function get_limited_func_str($for_not_installed = false) {
-	return 'Link Tools functionality will be limited because the Client URL Library (curl) does not appear to be '.($for_not_installed ? 'installed' : 'functioning correctly').'. For more details on this library, please see here: <https://www.php.net/manual/en/book.curl.php>.';
+	return 'Link Tools functionality will be limited because the Client URL Library (cURL) does not appear to be '.($for_not_installed ? 'installed' : 'functioning correctly').'. For more details on this library, please see here: <https://www.php.net/manual/en/book.curl.php>.'.PHP_EOL;
 }
