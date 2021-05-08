@@ -8,7 +8,6 @@ $('document').ready(function() {
 			// Use traditional 'for loops' for IE 11
 			for(const mutation of mutationsList) {
 				if (mutation.type === 'childList') {
-					console.log('Post '+pid+' was edited in page.');
 					$.get('xmlhttp.php?action=lkt_get_post_regen_cont&pid=' + pid + '&my_post_key=' + my_post_key, function(data) {
 						$('#lkt_regen_cont_'+pid).replaceWith(data);
 					})
