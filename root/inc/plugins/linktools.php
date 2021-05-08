@@ -763,7 +763,7 @@ function lkt_get_linkpreview_css() {
 .lkt-link-preview img {
 	float: left;
 	width: 35px;
-	height: 35px;
+	height: 35px !important; /*The !important is necessary here because the MyBBFancyBox plugin sets img height to auto*/
 	margin-right: 5px;
 	object-fit: cover;
 }
