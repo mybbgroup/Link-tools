@@ -28,7 +28,7 @@ class LinkPreviewerTwitterStatus extends LinkPreviewer {
 	 * Support only Twitter status links (as detected after URL
 	 * normalisation).
 	 */
-	protected $supported_norm_links_regex = '(^http\\(s\\)://twitter.com/.*/status/\\d+$)';
+	protected $supported_norm_links_regex = '(^http\\(s\\)://twitter.com/.*/status/\\d+(\\?.*)?$)';
 
 	/**
 	 * Set a neutral priority for this Previewer (priorities may be negative).
@@ -42,7 +42,7 @@ class LinkPreviewerTwitterStatus extends LinkPreviewer {
 	 * template has changed or because the variables supplied to it have
 	 * changed.
 	 */
-	protected $version = '1.0.0';
+	protected $version = '1.0.1';
 
 	/**
 	 * A friendly name for this previewer (localisation not supported), to
