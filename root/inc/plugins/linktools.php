@@ -148,10 +148,10 @@ function linktools_info() {
 		'website'       => 'https://mybb.group/Thread-Link-Tools',
 		'author'        => 'Laird as a member of the unofficial MyBB Group',
 		'authorsite'    => 'https://mybb.group/User-Laird',
-		'version'       => '1.3.0',
+		'version'       => '1.3.1',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
-		'version_code'  => '10300',
+		'version_code'  => '10301',
 		'guid'          => '',
 		'codename'      => C_LKT,
 		'compatibility' => '18*'
