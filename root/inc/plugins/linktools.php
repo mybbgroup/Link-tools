@@ -2744,6 +2744,12 @@ function lkt_hookin__datahandler_post_update_or_merge_end($posthandler) {
 	if (isset($posthandler->data['message'])) {
 		lkt_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
 	}
+
+	global $g_lkt_previews, $g_lkt_links, $mybb, $message, $post;
+
+	if (THIS_SCRIPT == 'xmlhttp.php' && $mybb->input['action'] === 'edit_post' && $mybb->input['do'] == 'update_post' && empty($post['lkt_linkpreviewoff'])) {
+		$message = lkt_insert_preview_placeholders($message);
+	}
 }
 
 function lkt_extract_and_store_urls_for_posts($num_posts) {
@@ -3846,8 +3852,6 @@ function lkt_hookin__parse_message_start($message) {
 	    ||
 	    !(THIS_SCRIPT == 'showthread.php'
 	      ||
-	      THIS_SCRIPT == 'xmlhttp.php' && $mybb->input['action'] === 'edit_post' && $mybb->input['do'] == 'update_post'
-	      ||
 	      THIS_SCRIPT == 'newreply.php' && $mybb->input['action'] == 'do_newreply' && $mybb->request_method == 'post'
 	     )
 	   ) {
@@ -3860,56 +3864,64 @@ function lkt_hookin__parse_message_start($message) {
 	// lkt_hookin__postbit(). False indicates this is the first call
 	// for this post, i.e., the post message itself rather than its
 	// signature.
-	if ($g_lkt_previews === false) {
-		$msg = $message;
-		if ($mybb->settings[C_LKT.'_link_preview_not_in_quotes']) {
-			$msg = lkt_strip_nestable_mybb_tag($msg, 'quote', true);
-		}
-
-		$links = lkt_extract_urls($msg, /*$exclude_videos = */true);
-		$g_lkt_links = $links[0];
-
-		$g_lkt_previews = $insertions = array();
-
-		$i = 0;
-		foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($links[0])) as $preview) {
-			$endpos = $links[1][$i];
-			while ($endpos < strlen($msg) && $msg[$endpos++] != "\n") ;
-			$insertions[$i] = array('inspos' => $endpos, 'preview' => $preview);
-			$i++;
-		}
-		$curr = 0;
-		$segments = array();
-		foreach ($insertions as $i => $insertion) {
-			if (empty($insertions[$i]['preview'])) {
-				continue;
-			}
-			$segments[] = substr($message, $curr, $insertions[$i]['inspos'] - $curr);
-			$uniqid = '';
-			for ($j = 0; $j < 20; $j++) {
-				$uniqid = uniqid('lkpv_', true);
-				if (strpos($message, $uniqid) === false && empty($g_lkt_previews[$uniqid])) {
-					break;
-				} else	$uniqid = '';
-			}
-			if ($uniqid) {
-				$inspos = $insertions[$i]['inspos'];
-				if ($inspos == strlen($message) && ($message[$inspos-1] != "\n")) {
-					// Prevent our replacement token from
-					// being appended to any bare URL which
-					// ends the post.
-					$uniqid = "\n".$uniqid;
-				}
-				$g_lkt_previews[$uniqid] = $insertions[$i]['preview'];
-				$segments[] = $uniqid.($inspos < strlen($message) - 1 && !in_array($message[$inspos], array("\r", "\n")) ? "\n" : '');
-			}
-			$curr = $insertions[$i]['inspos'];
-		}
-		$segments[] = substr($message, $curr, strlen($message));
-		$message = implode('', $segments);
+	if ($g_lkt_previews === false && empty($post['lkt_linkpreviewoff'])) {
+		$message = lkt_insert_preview_placeholders($message);
 	}
 
 	// Early return possible
+	return $message;
+}
+
+function lkt_insert_preview_placeholders($message) {
+	global $g_lkt_previews, $g_lkt_links, $mybb, $post;
+
+	$msg = $message;
+	if ($mybb->settings[C_LKT.'_link_preview_not_in_quotes']) {
+		$msg = lkt_strip_nestable_mybb_tag($msg, 'quote', true);
+	}
+
+	$links = lkt_extract_urls($msg, /*$exclude_videos = */true);
+	$g_lkt_links = $links[0];
+
+	$g_lkt_previews = $insertions = array();
+
+	$i = 0;
+	foreach (lkt_get_gen_link_previews(lkt_retrieve_terms($links[0])) as $preview) {
+		$endpos = $links[1][$i];
+		while ($endpos < strlen($msg) && $msg[$endpos++] != "\n") ;
+		$insertions[$i] = array('inspos' => $endpos, 'preview' => $preview);
+		$i++;
+	}
+	$curr = 0;
+	$segments = array();
+	foreach ($insertions as $i => $insertion) {
+		if (empty($insertions[$i]['preview'])) {
+			continue;
+		}
+		$segments[] = substr($message, $curr, $insertions[$i]['inspos'] - $curr);
+		$uniqid = '';
+		for ($j = 0; $j < 20; $j++) {
+			$uniqid = uniqid('lkpv_', true);
+			if (strpos($message, $uniqid) === false && empty($g_lkt_previews[$uniqid])) {
+				break;
+			} else	$uniqid = '';
+		}
+		if ($uniqid) {
+			$inspos = $insertions[$i]['inspos'];
+			if ($inspos == strlen($message) && ($message[$inspos-1] != "\n")) {
+				// Prevent our replacement token from
+				// being appended to any bare URL which
+				// ends the post.
+				$uniqid = "\n".$uniqid;
+			}
+			$g_lkt_previews[$uniqid] = $insertions[$i]['preview'];
+			$segments[] = $uniqid.($inspos < strlen($message) - 1 && !in_array($message[$inspos], array("\r", "\n")) ? "\n" : '');
+		}
+		$curr = $insertions[$i]['inspos'];
+	}
+	$segments[] = substr($message, $curr, strlen($message));
+	$message = implode('', $segments);
+
 	return $message;
 }
 
