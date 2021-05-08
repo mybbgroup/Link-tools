@@ -348,6 +348,8 @@ abstract class LinkPreviewer {
 	 * @return string The preview as valid HTML.
 	 */
 	protected function get_preview_contents($link, $pv_data) {
+		global $mybb, $post; // For use in a customised version of the template, if desired.
+
 		if (my_substr($link, 0, 4) != 'http' && my_substr($link, 0, 2) != '//') {
 			$link = 'https://'.$link;
 		}

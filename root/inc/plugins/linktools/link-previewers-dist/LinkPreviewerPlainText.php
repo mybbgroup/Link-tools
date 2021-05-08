@@ -98,6 +98,8 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 	 * The other of the two hearts of the class.
 	 */
 	protected function get_preview_contents($link, $pv_data) {
+		global $mybb, $post; // For use in a customised version of the template, if desired.
+
 		$link_safe = htmlspecialchars_uni($link);
 		$link_basename = basename($link);
 		$need_ellipsis_basename = my_strlen($link_basename) > $max_chars;

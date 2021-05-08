@@ -93,6 +93,8 @@ class LinkPreviewerYouTubeVideo extends LinkPreviewer {
 	 * The heart of the class. Generates the HTML for the link preview.
 	 */
 	protected function get_preview_contents($link, $pv_data) {
+		global $mybb, $post; // For use in a customised version of the template, if desired.
+
 		$youtube_id = '';
 		$start = '';
 		$parsed_url = lkt_parse_url($link);
