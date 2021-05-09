@@ -58,12 +58,20 @@ $l['lkt_link_preview_type_none'     ] = 'No domains';
 $l['lkt_link_preview_type_whitelist'] = 'Only the following domains (whitelist)';
 $l['lkt_link_preview_type_blacklist'] = 'All domains except the following (blacklist)';
 
-
 $l['lkt_link_preview_dom_list_title'] = 'Link preview domain whitelist/blacklist';
 $l['lkt_link_preview_dom_list_desc' ] = 'The domain whitelist/blacklist for the previous setting (if applicable). One domain per line.';
 
 $l['lkt_link_preview_disable_self_dom_title'] = 'Self-domain disable?';
 $l['lkt_link_preview_disable_self_dom_desc' ] = 'Disable link previews for links within this board\'s domain?';
+
+$l['lkt_link_preview_active_forums_title'   ] = 'Link preview forums';
+$l['lkt_link_preview_active_forums_desc'    ] = 'The forums for which to enable link previews.';
+
+$l['lkt_link_preview_active_post_type_title'] = 'Link preview post type';
+$l['lkt_link_preview_active_post_type_desc' ] = 'The type of posts for which to enable link previews.';
+$l['lkt_link_preview_active_post_first'     ] = 'First post';
+$l['lkt_link_preview_active_post_replies'   ] = 'Replies';
+$l['lkt_link_preview_active_post_both'      ] = 'Both (all posts)';
 
 $l['lkt_link_preview_expiry_period_title'   ] = 'Link preview expiry period';
 $l['lkt_link_preview_expiry_period_desc'    ] = 'The number of days after which a link preview should be expired (and regenerated on demand). Zero indicates "Never expire".';

@@ -981,6 +981,18 @@ function lkt_create_settings() {
 			'optionscode' => 'yesno',
 			'value'       => '1',
 		),
+		'link_preview_active_forums' => array(
+			'title'       => $lang->lkt_link_preview_active_forums_title,
+			'description' => $lang->lkt_link_preview_active_forums_desc,
+			'optionscode' => 'forumselect',
+			'value'       => -1,
+		),
+		'link_preview_active_post_type' => array(
+			'title'       => $lang->lkt_link_preview_active_post_type_title,
+			'description' => $lang->lkt_link_preview_active_post_type_desc,
+			'optionscode' => "select\nfirst={$lang->lkt_link_preview_active_post_first}\nreplies={$lang->lkt_link_preview_active_post_replies}\nboth={$lang->lkt_link_preview_active_post_both}",
+			'value'       => 'both',
+		),
 		'link_preview_expiry_period' => array(
 			'title'       => $lang->lkt_link_preview_expiry_period_title,
 			'description' => $lang->lkt_link_preview_expiry_period_desc,
@@ -2747,9 +2759,32 @@ function lkt_hookin__datahandler_post_update_or_merge_end($posthandler) {
 
 	global $g_lkt_previews, $g_lkt_links, $mybb, $message, $post;
 
-	if (THIS_SCRIPT == 'xmlhttp.php' && $mybb->input['action'] === 'edit_post' && $mybb->input['do'] == 'update_post' && empty($post['lkt_linkpreviewoff'])) {
+	if (THIS_SCRIPT == 'xmlhttp.php' && $mybb->input['action'] === 'edit_post' && $mybb->input['do'] == 'update_post' && empty($post['lkt_linkpreviewoff']) && lkt_should_show_pv($post)) {
 		$message = lkt_insert_preview_placeholders($message);
 	}
+}
+
+function lkt_should_show_pv($post) {
+	global $mybb;
+
+	$ret = false;
+	if ($mybb->settings['linktools_link_preview_active_forums'] == -1 || in_array($post['fid'], explode(',', $mybb->settings['linktools_link_preview_active_forums']))) {
+		if ($mybb->settings['linktools_link_preview_active_post_type'] == 'both') {
+			$ret = true;
+		} else {
+			$thread = get_thread($post['tid']);
+			if ($thread) {
+				$is_first_post = ($post['pid'] == $thread['firstpost']);
+				if ($mybb->settings['linktools_link_preview_active_post_type'] == 'first'   &&  $is_first_post
+				    ||
+				    $mybb->settings['linktools_link_preview_active_post_type'] == 'replies' && !$is_first_post) {
+					$ret = true;
+				}
+			}
+		}
+	}
+
+	return $ret;
 }
 
 function lkt_extract_and_store_urls_for_posts($num_posts) {
@@ -3864,7 +3899,7 @@ function lkt_hookin__parse_message_start($message) {
 	// lkt_hookin__postbit(). False indicates this is the first call
 	// for this post, i.e., the post message itself rather than its
 	// signature.
-	if ($g_lkt_previews === false && empty($post['lkt_linkpreviewoff'])) {
+	if ($g_lkt_previews === false && empty($post['lkt_linkpreviewoff']) && lkt_should_show_pv($post)) {
 		$message = lkt_insert_preview_placeholders($message);
 	}
 
