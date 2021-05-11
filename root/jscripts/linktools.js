@@ -382,30 +382,30 @@ var DLW = {
 			if (enc_summ) msg += '<div id="dlw-warn-summ-box-contents-summ">';
 			if (cnt == 1) {
 				if (op_post_ids.length == 1) {
-					msg += lkt_exist_open_post_contains;
+					msg += lang.lkt_exist_open_post_contains;
 				} else {
-					msg += lkt_exist_post_contains;
+					msg += lang.lkt_exist_post_contains;
 				}
 			} else {
 				if (DLW.further_results) {
-					msg += lkt_more_than;
+					msg += lang.lkt_more_than;
 				}
 				if (op_post_ids.length == cnt) {
-					msg += lkt_x_exist_open_posts_contain.replace('{1}', cnt);
+					msg += lang.lkt_x_exist_open_posts_contain.replace('{1}', cnt);
 				} else {
-					msg += lkt_x_exist_posts_contain     .replace('{1}', cnt);
+					msg += lang.lkt_x_exist_posts_contain     .replace('{1}', cnt);
 				}
 			}
 			if (urls_uniq.length > 1) {
-				msg += lkt_x_of_urls_added.replace('{1}', urls_uniq.length);
+				msg += lang.lkt_x_of_urls_added.replace('{1}', urls_uniq.length);
 			} else {
-				msg += lkt_a_url_added;
+				msg += lang.lkt_a_url_added;
 			}
 			if (op_post_ids.length > 0 && op_post_ids.length != cnt) {
 				if (op_post_ids.length == 1) {
-					msg += lkt_one_is_an_opening_post;
+					msg += lang.lkt_one_is_an_opening_post;
 				} else {
-					msg += lkt_x_are_opening_posts.replace('{1}', op_post_ids.length);
+					msg += lang.lkt_x_are_opening_posts.replace('{1}', op_post_ids.length);
 				}
 			}
 			if (enc_summ) msg += '</div>';
@@ -424,10 +424,10 @@ var DLW = {
 					}
 					var div_open = '<div class="further-results">';
 					var url_esc = DLW.htmlspecialchars('search.php?action=do_search&'+urls_enc+'&showresults=posts');
-					var further_results_below = lkt_further_results_below.replace('{1}', cnt);
+					var further_results_below = lang.lkt_further_results_below.replace('{1}', cnt);
 					further_results_below     = further_results_below    .replace('{2}', url_esc);
 					further_results_below     = div_open+further_results_below+'</div>';
-					var further_results_above = lkt_further_results_above.replace('{1}', cnt);
+					var further_results_above = lang.lkt_further_results_above.replace('{1}', cnt);
 					further_results_above     = further_results_above    .replace('{2}', url_esc)+'</div>';
 					further_results_above     = div_open+further_results_above+'</div>';
 					msg += further_results_below;
@@ -440,10 +440,10 @@ var DLW = {
 						var is_first_post = (post['firstpost'] == post['pid']);
 						msg += '<div id="dlw-post-outer-'+pid+'">'+"\n";
 						msg += '<div>'+post['flinks']+'<br />'+post['nav_bit_img']+post['tlink']+'</div>'+"\n";
-						msg += '<div>'+lkt_msg_started_by+' '+post['ulink_t']+', '+post['dtlink_t']+'</div>'+"\n";
-						msg += '<div>'+(is_first_post ? '<span class="first-post">'+lkt_msg_opening_post+'</span>' : lkt_msg_non_opening_post+' '+post['plink']+' '+lkt_msg_posted_by+' '+post['ulink_p']+', '+post['dtlink_p'])+'</div>'+"\n";
-						msg += '<button id="dlw-btn-dismiss-'+pid+'" type="button" class="btn-dismiss">'+lkt_dismiss_warn_for_post+'</button>';
-						msg += '<div>'+(post.undismissed_urls.length == 1 ? lkt_msg_matching_url_singular : lkt_msg_matching_urls_plural)+"\n";
+						msg += '<div>'+lang.lkt_started_by+' '+post['ulink_t']+', '+post['dtlink_t']+'</div>'+"\n";
+						msg += '<div>'+(is_first_post ? '<span class="first-post">'+lang.lkt_opening_post+'</span>' : lang.lkt_non_opening_post+' '+post['plink']+' '+lang.lkt_posted_by+' '+post['ulink_p']+', '+post['dtlink_p'])+'</div>'+"\n";
+						msg += '<button id="dlw-btn-dismiss-'+pid+'" type="button" class="btn-dismiss">'+lang.lkt_dismiss_warn_for_post+'</button>';
+						msg += '<div>'+(post.undismissed_urls.length == 1 ? lang.lkt_matching_url_singular : lang.lkt_matching_urls_plural)+"\n";
 						msg += '<ul class="url-list">'+"\n";
 						for (var j in post.undismissed_urls) {
 							var url = post.undismissed_urls[j];
@@ -455,7 +455,7 @@ var DLW = {
 								var url2 = post.matching_urls_in_post[idx];
 								var url2_esc = DLW.htmlspecialchars(url2);
 								var link2 = '<a href="'+url2_esc+'">'+url2_esc+'</a>';
-								var tmp = lkt_msg_url1_as_url2.replace('{1}', link);
+								var tmp = lang.lkt_msg_url1_as_url2.replace('{1}', link);
 								var tmp = tmp.replace('{2}', link2);
 								msg += tmp;
 							} else	msg += link;
@@ -547,7 +547,7 @@ var DLW = {
 				'max-height'           : $(window).height() + 'px',
 			       
 			})
-			.append('<button id="dlw-btn-dismiss-summ" type="button">'+'Dismiss all warnings'+'</button><button id="dlw-btn-details-summ-on" type="button">'+lkt_show_more+'</button><button id="dlw-btn-details-summ-off" type="button">'+lkt_show_less+'</button>')
+			.append('<button id="dlw-btn-dismiss-summ" type="button">'+lang.lkt_dismiss_all_warnings+'</button><button id="dlw-btn-details-summ-on" type="button">'+lang.lkt_show_more+'</button><button id="dlw-btn-details-summ-off" type="button">'+lang.lkt_show_less+'</button>')
 			.append('<span id="dlw-warn-summ-box-contents"></span>');
 			$('#dlw-warn-summ-box-contents').html(msg);
 			if (flash) {
@@ -597,7 +597,7 @@ var DLW = {
 		if ($('#dlw-btn-undismiss').length) {
 			$('#dlw-btn-undismiss').show();
 		} else if ($('#dlw-msg-sidebar-div').length) {
-			$('#dlw-msg-sidebar-div').append('<button id="dlw-btn-undismiss" type="button">'+lkt_undismiss_all_warns+'</button>');
+			$('#dlw-msg-sidebar-div').append('<button id="dlw-btn-undismiss" type="button">'+lang.lkt_undismiss_all_warns+'</button>');
 			$('#dlw-btn-undismiss').bind('click', function(e) {
 				for (var pid in DLW.matching_posts) {
 					DLW.matching_posts[pid].undismissed_urls = DLW.matching_posts[pid].matching_urls.slice();
@@ -656,7 +656,7 @@ var DLW = {
 		var lkt_sidebar_div = $('#dlw-msg-sidebar-div');
 		if (lkt_sidebar_div.length) {
 			if (!lkt_setting_dlw_forced) {
-				lkt_sidebar_div.append('<input type="checkbox" id="dlw-cbx-do-warn" name="dlw-cbx-do-warn"' + (lkt_setting_warn_about_links ? ' checked="checked"' : '') + ' /> <span title="' + lkt_title_warn_about_links + '">' + lkt_warn_about_links + '</span>');
+				lkt_sidebar_div.append('<input type="checkbox" id="dlw-cbx-do-warn" name="dlw-cbx-do-warn"' + (lkt_setting_warn_about_links ? ' checked="checked"' : '') + ' /> <span title="' + lang.lkt_title_warn_about_links + '">' + lang.lkt_warn_about_links + '</span>');
 				$('#dlw-cbx-do-warn').bind('click', function(e) {
 					if (!$('#dlw-cbx-do-warn').prop('checked')) {
 						if ($('#dlw-warn-summ-box').length) {
@@ -682,7 +682,7 @@ var DLW = {
 		}).appendTo($('form[name="input"]'));
 
 		MyBBEditor.valueChanged(DLW.mybbeditor_valuechanged_hook);
-		DLW.mybbeditor_valuechanged_hook(null, lkt_previously_dismissed);
+		DLW.mybbeditor_valuechanged_hook(null, lang.lkt_previously_dismissed);
 
 		console.debug('...leaving DLW initialisation function.');
 	}

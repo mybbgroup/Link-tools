@@ -32,6 +32,7 @@ $l['lkt_further_results_above'        ] = 'The first {1} matching posts are show
 $l['lkt_dismiss_warn_for_post'        ] = 'Dismiss warning for this post';
 $l['lkt_show_more'                    ] = 'Show more';
 $l['lkt_show_less'                    ] = 'Show less';
+$l['lkt_dismiss_all_warnings'         ] = 'Dismiss all warnings';
 $l['lkt_undismiss_all_warns'          ] = 'Undismiss all duplicate link warnings';
 $l['lkt_title_warn_about_links'       ] = 'If existing forum posts contain URLs present in your draft, you will be visibly warned about them in real time if you check this box.';
 $l['lkt_warn_about_links'             ] = 'Warn about duplicate links';

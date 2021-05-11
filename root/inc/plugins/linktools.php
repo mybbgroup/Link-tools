@@ -1826,9 +1826,9 @@ function lkt_get_linkpreviewer_classnames() {
  * @param string $term_url     A terminating URL.
  * @param mixed  $manual_regen 1. Boolean true indicates that this is a
  *                                user-requested manual regeneration of the
- *                                preview subject to a wait period.
+ *                                preview subject to the wait period.
  *                             2. String 'force_regen' indicates the same except
- *                                without the need to respect a wait period.
+ *                                without the need to respect the wait period.
  *                             3. Boolean false indicates that this is not a
  *                                user-requested manual regeneration.
  * @param mixed  $content_type A string indicating the content-type of the page
@@ -2077,7 +2077,7 @@ lkt_url_has_needs_preview_end:
 function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 	global $db;
 
-	$previews = $lh_data = array();
+	$previews = $pv_data = array();
 	$term_urls_uniq = array_values(array_unique($term_urls));
 
 	foreach ($term_urls_uniq as $term_url) {
@@ -2090,25 +2090,25 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 			$previews[$term_url] = $previewerobj->get_preview($term_url, $res['preview_data']);
 		} else if ($res['result'] === LKT_PV_GOT_PREVIEWER && $res['previewer']) {
 			if ($res['provis']) {
-				$lh_data[$term_url] = array(
-					'lh_classname' => $res['previewer'   ],
-					'lh_provis'    =>                true ,
+				$pv_data[$term_url] = array(
+					'pv_classname' => $res['previewer'   ],
+					'pv_provis'    =>                true ,
 					'has_db_entry' => $res['has_db_entry']
 				);
 			} else {
 				if ($res['previewer']::get_instance()->needs_content_for() & LinkPreviewer::NC_FOR_GEN_PV) {
-					$lh_data[$term_url] = array(
-						'lh_classname' => $res['previewer'   ],
-						'lh_provis'    =>                false,
+					$pv_data[$term_url] = array(
+						'pv_classname' => $res['previewer'   ],
+						'pv_provis'    =>                false,
 						'has_db_entry' => $res['has_db_entry']
 					);
 				} else	$previews[$term_url] = lkt_get_gen_link_preview($term_url, '', '', '', $res['previewer'], $res['has_db_entry']);
 			}
 		} else	$previews[$term_url] = '';
 	}
-	if ($lh_data) {
+	if ($pv_data) {
 		$server_urls = array();
-		foreach (array_keys($lh_data) as $url) {
+		foreach (array_keys($pv_data) as $url) {
 			$server = lkt_get_norm_server_from_url($url);
 			if (!isset($server_urls[$server])) {
 				$server_urls[$server] = array('last_hit' => 0, 'urls' => array());
@@ -2221,7 +2221,7 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 							$charset = '';
 							$have_preview = false;
 						}
-						if ($lh_data[$url]['lh_provis']) {
+						if ($pv_data[$url]['pv_provis']) {
 							$res = lkt_url_has_needs_preview($url, $force_regen ? 'force_regen' : false, $content_type, $content);
 							if ($res['result'] === LKT_PV_DATA_FOUND) {
 								$previewerobj = $res['previewer']::get_instance();
@@ -2229,11 +2229,11 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 								$have_preview = true;
 							}
 							if ($res['result'] === LKT_PV_GOT_PREVIEWER) {
-								$lh_data[$url]['lh_classname'] = $res['previewer'];
+								$pv_data[$url]['pv_classname'] = $res['previewer'];
 							}
 						}
 						if (!$have_preview) {
-							$previews[$url] = lkt_get_gen_link_preview($url, $html, $content_type, $charset, $lh_data[$url]['lh_classname'], $lh_data[$url]['has_db_entry']);
+							$previews[$url] = lkt_get_gen_link_preview($url, $html, $content_type, $charset, $pv_data[$url]['pv_classname'], $pv_data[$url]['has_db_entry']);
 						}
 						curl_multi_remove_handle($mh, $ch);
 					}
@@ -2336,22 +2336,23 @@ function lkt_get_header($headers, $header_name) {
 
 /**
  * Get the preview for a link, first generating its data and storing that to the
- * DB if appropriate/necessary. If a Link Previewer class name is provided, then
- * it is assumed the check for whether the link's preview data needs to be
- * (re)generated has already been performed, and resulted in a need for
- * (re)generation via the Link Previewer with the provided class name. If,
- * additionally, $has_db_entry is set true, then it is assumed that a database
- * entry for the link's data already exists, and so an update query is performed
- * rather than an insert query.
+ * DB if appropriate/necessary.
+ *
+ * If a Link Previewer class name is provided, then it is assumed the check for
+ * whether the link's preview data needs to be (re)generated has already been
+ * performed, and resulted in a need for (re)generation via the Link Previewer
+ * with the provided class name. If, additionally, $has_db_entry is set true,
+ * then it is assumed that a database entry for the link's data already exists,
+ * and so an update query is performed rather than an insert query.
  */
-function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = '', $lh_classname = false, $has_db_entry = null, $force_regen = false) {
+function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = '', $pv_classname = false, $has_db_entry = null, $force_regen = false) {
 	global $db;
 
 	$preview = '';
 
-	if (!$lh_classname) {
+	if (!$pv_classname) {
 		$res = lkt_url_has_needs_preview($term_url, $force_regen, $content_type, $html);
-	} else	$res = array('result' => LKT_PV_GOT_PREVIEWER, 'previewer' => $lh_classname, 'has_db_entry' => $has_db_entry);
+	} else	$res = array('result' => LKT_PV_GOT_PREVIEWER, 'previewer' => $pv_classname, 'has_db_entry' => $has_db_entry);
 
 	if ($res['result'] == LKT_PV_NOT_REQUIRED) {
 		return false;
@@ -2606,7 +2607,6 @@ function lkt_normalise_domain($domain) {
 	return $domain;
 }
 
-
 function lkt_normalise_url($url, $skip_ignored_query_params = false) {
 	static $ignored_query_params = false;
 
@@ -2708,21 +2708,22 @@ function lkt_normalise_url($url, $skip_ignored_query_params = false) {
 
 /**
  * This hook-in is called once before the thread is deleted (when the posts are
- * still present in the database) and once afterwards (when they've been deleted).
- * We store the to-be-deleted posts' pids on the first call, and then use them on
- * the second to delete associated entries in the post_urls and urls tables - we
- * do it this way so that we can be sure that the posts are actually deleted
+ * still present in the database) and once afterwards (when they've been
+ * deleted).
+ *
+ * We store the to-be-deleted posts' pids on the first call, and then use them
+ * on the second to delete associated entries in the post_urls and urls tables.
+ * We do it this way so that we can be sure that the posts are actually deleted
  * before we delete their associated database entries managed by this plugin,
  * and we can't get their pids any other way on the second call because all we
- * have is a tid whose posts entries have all been deleted.
+ * have is the tid of the thread within which the relevant posts have already
+ * been deleted.
  */
 function lkt_hookin__common__class_moderation_delete_thread($tid) {
-	static $tid_stored = null;
 	static $pids_stored = null;
 	global $db;
 
-	if ($tid_stored === null) {
-		$tid_stored = $tid;
+	if ($pids_stored === null) {
 		$query = $db->simple_select('posts', 'pid', "tid='$tid'");
 		$pids_stored = array();
 		while ($post = $db->fetch_array($query)) {
@@ -2733,7 +2734,7 @@ function lkt_hookin__common__class_moderation_delete_thread($tid) {
 		$db->delete_query('post_urls', "pid IN ($pids)");
 //		lkt_clean_up_dangling_urls();
 
-		$tid_stored = $pids_stored = null;
+		$pids_stored = null;
 	}
 }
 
@@ -2797,7 +2798,8 @@ function lkt_should_show_pv($post) {
 				$is_first_post = ($post['pid'] == $thread['firstpost']);
 				if ($mybb->settings['linktools_link_preview_active_post_type'] == 'first'   &&  $is_first_post
 				    ||
-				    $mybb->settings['linktools_link_preview_active_post_type'] == 'replies' && !$is_first_post) {
+				    $mybb->settings['linktools_link_preview_active_post_type'] == 'replies' && !$is_first_post
+				   ) {
 					$ret = true;
 				}
 			}
@@ -3323,64 +3325,22 @@ function lkt_hookin__newthread_start() {
 
 	$linktools_div = "\n";
 	eval("\$linktools_div .= \"".$templates->get('linktools_div', 1, 0)."\";");
-	$lkt_msg_started_by       = addslashes($lang->lkt_started_by);
-	$lkt_msg_opening_post     = addslashes($lang->lkt_opening_post);
-	$lkt_msg_non_opening_post = addslashes($lang->lkt_non_opening_post);
-	$lkt_msg_posted_by        = addslashes($lang->lkt_posted_by);
-	$lkt_msg_matching_url_singular = addslashes($lang->lkt_matching_url_singular);
-	$lkt_msg_matching_urls_plural  = addslashes($lang->lkt_matching_urls_plural );
-	$lkt_msg_url1_as_url2          = addslashes($lang->lkt_msg_url1_as_url2     );
-	$lkt_exist_open_post_contains  = addslashes($lang->lkt_exist_open_post_contains);
-	$lkt_exist_post_contains       = addslashes($lang->lkt_exist_post_contains  );
-	$lkt_more_than                 = addslashes($lang->lkt_more_than            );
-	$lkt_x_exist_open_posts_contain = addslashes($lang->lkt_x_exist_open_posts_contain);
-	$lkt_x_exist_posts_contain     = addslashes($lang->lkt_x_exist_posts_contain);
-	$lkt_x_of_urls_added           = addslashes($lang->lkt_x_of_urls_added      );
-	$lkt_a_url_added               = addslashes($lang->lkt_a_url_added          );
-	$lkt_one_is_an_opening_post    = addslashes($lang->lkt_one_is_an_opening_post);
-	$lkt_x_are_opening_posts       = addslashes($lang->lkt_x_are_opening_posts  );
-	$lkt_further_results_below     = addslashes($lang->lkt_further_results_below);
-	$lkt_further_results_above     = addslashes($lang->lkt_further_results_above);
-	$lkt_dismiss_warn_for_post     = addslashes($lang->lkt_dismiss_warn_for_post);
-	$lkt_show_more                 = addslashes($lang->lkt_show_more            );
-	$lkt_show_less                 = addslashes($lang->lkt_show_less            );
-	$lkt_undismiss_all_warns       = addslashes($lang->lkt_undismiss_all_warns  );
-	$lkt_title_warn_about_links    = addslashes($lang->lkt_title_warn_about_links);
-	$lkt_warn_about_links          = addslashes($lang->lkt_warn_about_links     );
+
+	$lang_strings = array(
+		'lkt_started_by', 'lkt_opening_post', 'lkt_non_opening_post', 'lkt_posted_by', 'lkt_matching_url_singular', 'lkt_matching_urls_plural', 'lkt_msg_url1_as_url2', 'lkt_exist_open_post_contains', 'lkt_exist_post_contains', 'lkt_more_than', 'lkt_x_exist_open_posts_contain', 'lkt_x_exist_posts_contain', 'lkt_x_of_urls_added', 'lkt_a_url_added', 'lkt_one_is_an_opening_post', 'lkt_x_are_opening_posts', 'lkt_further_results_below', 'lkt_further_results_above', 'lkt_dismiss_warn_for_post', 'lkt_show_more', 'lkt_show_less', 'lkt_dismiss_all_warnings', 'lkt_undismiss_all_warns', 'lkt_title_warn_about_links', 'lkt_warn_about_links',
+	);
 	$lkt_previously_dismissed = json_encode($mybb->get_input('lkt_dismissed') ? json_decode($mybb->get_input('lkt_dismissed'), true) : array(), JSON_PRETTY_PRINT);
 
 	$linktools_js = <<<EOF
-<script type="text/javascript" src="{$mybb->settings['bburl']}/jscripts/linktools.js?1.1.0"></script>
+<script type="text/javascript" src="{$mybb->settings['bburl']}/jscripts/linktools.js?1.3.3"></script>
 <script type="text/javascript">
-var lkt_setting_warn_about_links  = {$mybb->user['lkt_warn_about_links']};
-var lkt_setting_dlw_forced        = {$mybb->settings['linktools_force_dlw']};
-var lkt_msg_started_by            = '{$lkt_msg_started_by}';
-var lkt_msg_opening_post          = '{$lkt_msg_opening_post}';
-var lkt_msg_non_opening_post      = '{$lkt_msg_non_opening_post}';
-var lkt_msg_posted_by             = '{$lkt_msg_posted_by}';
-var lkt_msg_matching_url_singular = '{$lkt_msg_matching_url_singular}';
-var lkt_msg_matching_urls_plural  = '{$lkt_msg_matching_urls_plural}';
-var lkt_msg_url1_as_url2          = '{$lkt_msg_url1_as_url2}';
-var lkt_exist_open_post_contains  = '{$lkt_exist_open_post_contains}';
-var lkt_exist_post_contains       = '{$lkt_exist_post_contains}';
-var lkt_more_than                 = '{$lkt_more_than}';
-var lkt_x_exist_open_posts_contain = '{$lkt_x_exist_open_posts_contain}';
-var lkt_x_exist_posts_contain     = '{$lkt_x_exist_posts_contain}';
-var lkt_x_of_urls_added           = '{$lkt_x_of_urls_added}';
-var lkt_a_url_added               = '{$lkt_a_url_added}';
-var lkt_one_is_an_opening_post    = '{$lkt_one_is_an_opening_post}';
-var lkt_x_are_opening_posts       = '{$lkt_x_are_opening_posts}';
-var lkt_further_results_below     = '{$lkt_further_results_below}';
-var lkt_further_results_above     = '{$lkt_further_results_above}';
-var lkt_dismiss_warn_for_post     = '{$lkt_dismiss_warn_for_post}';
-var lkt_show_more                 = '{$lkt_show_more}';
-var lkt_show_less                 = '{$lkt_show_less}';
-var lkt_undismiss_all_warns       = '{$lkt_undismiss_all_warns}';
-var lkt_title_warn_about_links    = '{$lkt_title_warn_about_links}';
-var lkt_warn_about_links          = '{$lkt_warn_about_links}';
-var lkt_previously_dismissed      = {$lkt_previously_dismissed};
-</script>
+lkt_setting_warn_about_links     = {$mybb->user['lkt_warn_about_links']};
+lkt_setting_dlw_forced           = {$mybb->settings['linktools_force_dlw']};
 EOF;
+	foreach ($lang_strings as $key) {
+		$linktools_js .= "lang.{$key} = '".addslashes($lang->$key)."';\n";
+	}
+	$linktools_js .= '</script>'."\n";
 }
 
 function lkt_get_link($url, $text) {
