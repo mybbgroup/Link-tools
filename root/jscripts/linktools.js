@@ -445,13 +445,21 @@ var DLW = {
 						msg += '<button id="dlw-btn-dismiss-'+pid+'" type="button" class="btn-dismiss">'+lang.lkt_dismiss_warn_for_post+'</button>';
 						msg += '<div>'+(post.undismissed_urls.length == 1 ? lang.lkt_matching_url_singular : lang.lkt_matching_urls_plural)+"\n";
 						msg += '<ul class="url-list">'+"\n";
+						let url_cnt = {};
 						for (var j in post.undismissed_urls) {
 							var url = post.undismissed_urls[j];
 							var url_esc = DLW.htmlspecialchars(url);
 							var link = '<a href="'+url_esc+'">'+url_esc+'</a>';
 							msg += '<li class="url-list-item">';
-							var idx = $.inArray(url, post.matching_urls);
-							if (idx >= 0 && post.matching_urls_in_post[idx] != url) {
+							if (typeof url_cnt[url] === 'undefined') {
+								url_cnt[url] = 0;
+							}
+							var idx = -1;
+							for (cnt = 0; cnt < url_cnt[url]; cnt++) {
+								idx++;
+								idx = $.inArray(url, post.matching_urls, idx);
+							}
+							if (idx >= 0 && idx < post.matching_urls_in_post.length && post.matching_urls_in_post[idx] != url) {
 								var url2 = post.matching_urls_in_post[idx];
 								var url2_esc = DLW.htmlspecialchars(url2);
 								var link2 = '<a href="'+url2_esc+'">'+url2_esc+'</a>';
@@ -460,6 +468,7 @@ var DLW = {
 								msg += tmp;
 							} else	msg += link;
 							msg += '</li>'+"\n";
+							url_cnt[url]++;
 						}
 						msg += '</ul></div>'+"\n";
 						msg += '<div id="dlw-post-inner-'+pid+'" class="dlw-post-inner">'+post['message']+'</div>'+"\n";
