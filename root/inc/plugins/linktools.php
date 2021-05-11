@@ -59,7 +59,7 @@ const lkt_term_tries_secs = array(
 	60*60,         // 1 hour
 	24*60*60,      // 1 day
 	7*24*60*60,    // 1 week
-	28*7*24*60*60, // 4 weeks
+	28*24*60*60,   // 4 weeks
 );
 
 const lkt_preview_regen_min_wait_secs = 30;
@@ -263,7 +263,7 @@ function lkt_install_or_upgrade($from_version, $to_version) {
 		// utf8_bin collation was chosen for the varchar columns
 		// so that SELECTs are case-sensitive, given that everything
 		// after the server name in URLs is case-sensitive.
-		$db->query('
+		$db->write_query('
 CREATE TABLE '.TABLE_PREFIX.'urls (
   urlid         int unsigned NOT NULL auto_increment,
   url           varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
@@ -286,7 +286,7 @@ CREATE TABLE '.TABLE_PREFIX.'urls (
 		// utf8_bin collation was chosen for the varchar columns
 		// so that SELECTs are case-sensitive, given that everything
 		// after the server name in URLs is case-sensitive.
-		$db->query('
+		$db->write_query('
 CREATE TABLE '.TABLE_PREFIX.'url_previews (
   url_term     varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   preview_data text             NOT NULL DEFAULT \'\',
@@ -299,7 +299,7 @@ CREATE TABLE '.TABLE_PREFIX.'url_previews (
 	}
 
 	if (!$db->table_exists('post_urls')) {
-		$db->query('
+		$db->write_query('
 CREATE TABLE '.TABLE_PREFIX.'post_urls (
   pid         int unsigned NOT NULL,
   urlid       int unsigned NOT NULL,
@@ -309,36 +309,36 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 
 	if ($db->table_exists('url_previews')) {
 		if ($db->field_exists('url_norm', 'url_previews') && !$db->field_exists('url_term', 'url_previews')) {
-			$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE url_norm url_term varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL');
+			$db->write_query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE url_norm url_term varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL');
 			$db->delete_query('url_previews', "url_term like 'http(s)://%'");
 		}
 		if ($db->field_exists('helper_class_name', 'url_previews') && !$db->field_exists('previewer_class_name', 'url_previews')) {
-			$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE helper_class_name previewer_class_name varchar('.lkt_max_previewer_class_name_len.') NOT NULL DEFAULT \'\'');
-			$db->query('UPDATE '.TABLE_PREFIX."url_previews SET previewer_class_name = concat('LinkPreviewer', substr(previewer_class_name, 11)) WHERE previewer_class_name LIKE 'LinkHelper%'");
+			$db->write_query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE helper_class_name previewer_class_name varchar('.lkt_max_previewer_class_name_len.') NOT NULL DEFAULT \'\'');
+			$db->write_query('UPDATE '.TABLE_PREFIX."url_previews SET previewer_class_name = concat('LinkPreviewer', substr(previewer_class_name, 11)) WHERE previewer_class_name LIKE 'LinkHelper%'");
 		}
 		if ($db->field_exists('helper_class_vers', 'url_previews') && !$db->field_exists('previewer_class_vers', 'url_previews')) {
-			$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE helper_class_vers previewer_class_vers varchar('.lkt_max_previewer_class_vers_len.') NOT NULL DEFAULT \'\'');
+			$db->write_query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE helper_class_vers previewer_class_vers varchar('.lkt_max_previewer_class_vers_len.') NOT NULL DEFAULT \'\'');
 		}
 		if ($db->field_exists('preview', 'url_previews') && !$db->field_exists('preview_data', 'url_previews')) {
-			$db->query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE preview preview_data text NULL DEFAULT \'\'');
+			$db->write_query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE preview preview_data text NULL DEFAULT \'\'');
 			$db->delete_query('url_previews', "'1'");
 		}
 	}
 
 	if (!$db->field_exists('got_preview', 'urls')) {
-		$db->query('ALTER TABLE '.TABLE_PREFIX.'urls ADD got_preview boolean NOT NULL DEFAULT FALSE');
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'urls ADD got_preview boolean NOT NULL DEFAULT FALSE');
 	}
 
 	if (!$db->field_exists('lkt_got_urls', 'posts')) {
-		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD lkt_got_urls boolean NOT NULL default FALSE");
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'posts ADD lkt_got_urls boolean NOT NULL default FALSE');
 	}
 
 	if (!$db->field_exists('lkt_linkpreviewoff', 'posts')) {
-		$db->query("ALTER TABLE ".TABLE_PREFIX."posts ADD lkt_linkpreviewoff boolean NOT NULL default FALSE");
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'posts ADD lkt_linkpreviewoff boolean NOT NULL default FALSE');
 	}
 
 	if (!$db->field_exists('lkt_warn_about_links', 'users')) {
-		$db->query('ALTER TABLE '.TABLE_PREFIX.'users ADD `lkt_warn_about_links` tinyint(1) NOT NULL default \'1\'');
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'users ADD `lkt_warn_about_links` tinyint(1) NOT NULL default \'1\'');
 	}
 
 	// Convert "Helper" to "Previewer" in the cache as required.
@@ -353,7 +353,7 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 		$cache->update('lrs_plugins', $lrs_plugins);
 	}
 
-	// These five functions are compatible with upgrading -
+	// These six functions are compatible with upgrading -
 	// they either check for existing database entries before
 	// inserting new ones, or they delete existing entries then
 	// reinsert them (potentially with changes), or they update
@@ -363,6 +363,7 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 	lkt_create_settingsgroup();
 	lkt_create_settings();
 	lkt_enable_new_previewers();
+	lkt_create_stylesheets();
 }
 
 function linktools_uninstall() {
@@ -381,15 +382,15 @@ function linktools_uninstall() {
 	}
 
 	if ($db->field_exists('lkt_linkpreviewoff', 'posts')) {
-		$db->query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN lkt_linkpreviewoff');
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN lkt_linkpreviewoff');
 	}
 
 	if ($db->field_exists('lkt_got_urls', 'posts')) {
-		$db->query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN lkt_got_urls');
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'posts DROP COLUMN lkt_got_urls');
 	}
 
 	if ($db->field_exists('lkt_warn_about_links', 'users')) {
-		$db->query('ALTER TABLE '.TABLE_PREFIX.'users DROP column `lkt_warn_about_links`');
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'users DROP column `lkt_warn_about_links`');
 	}
 
 	$db->delete_query('tasks', "file='linktools'");
@@ -397,7 +398,7 @@ function linktools_uninstall() {
 	$db->delete_query('templates', "title LIKE 'linktools\\_%'");
 	$db->delete_query('templategroups', "prefix in ('linktools')");
 
-	lkt_delete_stylesheets();
+	lkt_delete_stylesheets(/*$master_only = */false);
 
 	$lrs_plugins = $cache->read('lrs_plugins');
 	unset($lrs_plugins[C_LKT]);
@@ -427,8 +428,6 @@ function linktools_activate() {
 		$lkt_plugin_upgrade_message = $lang->sprintf($lang->lkt_successful_upgrade_msg, $lang->lkt_name, $info['version']);
 		update_admin_session('lkt_plugin_info_upgrade_message', $lang->sprintf($lang->lkt_successful_upgrade_msg_for_info, $info['version']));
 	}
-
-	lkt_create_stylesheets();
 
 	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
 	find_replace_templatesets('newthread', '({\\$smilieinserter})', '{$smilieinserter}{$linktools_div}');
@@ -686,7 +685,7 @@ function lkt_toggle_hidden_posts() {
 		$present_previewers = array_merge($present_previewers, $classnames);
 	}
 	$inst_but_missing = array_diff(array_keys($inst_previewers), $present_previewers);
-	$tplnames = array_map(function($previewer) {return lkt_mk_tpl_nm_frm_classnm($previewer);}, $inst_but_missing);
+	$tplnames = array_map(function($previewer) use ($db) {return lkt_mk_tpl_nm_frm_classnm($db->escape_string($previewer));}, $inst_but_missing);
 	if ($tplnames) {
 		$previewer_conds = " AND title NOT IN ('".implode("','", $tplnames)."')";
 	}
@@ -861,8 +860,8 @@ EOF;
 function lkt_create_stylesheets() {
 	global $db;
 
-	// This function is called on activate, so first delete any existing stylesheet.
-	lkt_delete_stylesheets();
+	// This function is called on upgrade, so first delete any existing master stylesheets.
+	lkt_delete_stylesheets(/*$master_only = */true);
 
 	$rows = array(
 		array(
@@ -896,10 +895,10 @@ function lkt_create_stylesheets() {
 	}
 }
 
-function lkt_delete_stylesheets() {
+function lkt_delete_stylesheets($master_only) {
 	global $db;
 
-	$db->delete_query('themestylesheets', "(name = 'linktools.css' OR name = 'linkpreview.css') AND tid = 1");
+	$db->delete_query('themestylesheets', "(name = 'linktools.css' OR name = 'linkpreview.css')".($master_only ? ' AND tid = 1' : ''));
 }
 
 function lkt_create_settingsgroup() {
@@ -1474,7 +1473,10 @@ INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_te
 					// We retry in this scenario because it is theoretically possible
 					// that the URL was inserted by another process in between the
 					// select and the insert, and that the false return is due to the
-					// HAVING condition failing.
+					// HAVING condition failing. On retrying in that case, the
+					// simple_select() above will allow us to identify the `urlid` of
+					// the URL as inserted by that other process, so that we can
+					// ensure below that it is associated with the post with ID $pid.
 					continue;
 				}
 				$urlid = $db->insert_id();
@@ -1484,8 +1486,7 @@ INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_te
 				// We hide errors here because there is a race condition in which this insert could
 				// be performed by another process (a task or rebuild) before the current process
 				// performs it, in which case the database will reject the insert as violating the
-				// uniqueness of the primary
-				// key (urlid, pid).
+				// uniqueness of the primary key (urlid, pid).
 				$db->write_query('INSERT INTO '.TABLE_PREFIX."post_urls (urlid, pid) VALUES ($urlid, $pid)", /* $hide_errors = */true);
 			}
 
@@ -1521,7 +1522,7 @@ function lkt_get_norm_server_from_url($url) {
 
 /**
  * Resolves and returns the immediate redirects for each URL in $urls. Optionally, while doing this
- * (with access to the HTML of any terminating redirects), generate link previews for those
+ * (with access to the HTML of any terminating redirects), generates link previews for those
  * terminating redirects.
  *
  * Uses the non-blocking functionality of cURL so that multiple URLs can be checked simultaneously,
@@ -1531,25 +1532,28 @@ function lkt_get_norm_server_from_url($url) {
  * scheme are assumed to use the http:// protocol. For all other protocols, the $url is deemed to
  * terminate at itself.
  *
- * @param $urls Array.
- * @param $server_last_hit_times Array. The UNIX epoch timestamps at which each server was last polled,
- *                                      indexed by normalised (any 'www.' prefix removed) server name.
- * @param $use_head_method Boolean. If true, the HEAD method is used for all requests, otherwise
- *                                  the GET method is used.
- * @param $check_html_redirects Boolean. Self-explanatory.
- * @param $check_html_canonical_tag Boolean. Self-explanatory.
- * @param $get_link_previews Boolean. Whether or not to generate link previews and store them to the DB.
+ * @param array   $urls
+ * @param array   $server_last_hit_times    The UNIX epoch timestamps at which each server was last
+ *                                           polled, indexed by normalised (any 'www.' prefix
+ *                                           removed) server name.
+ * @param boolean $use_head_method          If true, the HEAD method is used for all requests,
+ *                                           otherwise the GET method is used.
+ * @param boolean $check_html_redirects     Self-explanatory.
+ * @param boolean $check_html_canonical_tag Self-explanatory.
+ * @param boolean $get_link_previews        Whether or not to generate link previews and store them
+ *                                           to the DB.
  *
- * @return An array with two array entries, $redirs and $deferred_urls.
+ * @return Array Contains two array entries, $redirs and $deferred_urls.
  *         $redirs contains the immediate redirects of each of the URLs in $urls (which form
- *                   the keys of $redir array), if any.
+ *                   the keys of the $redirs array), if any.
  *                 If a URL does not redirect, then that URL's entry is set to itself.
  *                 If a link-specific error occurs for a URL, e.g. web server timeout,
  *                   then that URL's entry is set to false.
- *                 If a non-link-specific error occurs, such as failure to initialise a generic cURL handle,
- *                   then that URL's entry is set to null.
- *         $deferred_urls lists any URLs that were deferred because requesting it would have polled its
- *                        server within lkt_rehit_delay_in_secs seconds of the last time it was polled.
+ *                 If a non-link-specific error occurs, such as failure to initialise a generic cURL
+ *                   handle, then that URL's entry is set to null.
+ *         $deferred_urls an array containing any URLs that were deferred because querying them
+ *                        would have hit their server within lkt_rehit_delay_in_secs seconds
+ *                        of the last time we hit that server.
  */
 function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_urls = [], $use_head_method = true, $check_html_redirects = false, $check_html_canonical_tag = false, $get_link_previews = true) {
 	$redirs = $deferred_urls = $curl_handles = [];
@@ -1690,7 +1694,9 @@ function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 				if ($target == $url && $html) {
 					$content_type = lkt_get_content_type_from_hdrs($headers);
 					$charset = lkt_get_charset($headers, $html);
-					lkt_get_gen_link_preview($url, $html, $content_type, $charset);
+					if ($get_link_previews) {
+						lkt_get_gen_link_preview($url, $html, $content_type, $charset);
+					}
 				}
 				$redirs[$url] = $target;
 				$origin_urls[$target] = $origin_urls[$url];
@@ -1814,23 +1820,35 @@ function lkt_get_linkpreviewer_classnames() {
 }
 
 /**
- * @param string $term_url A terminating URL.
- * @param boolean $manual_regen True if this is a user-requested manual
- *                              regeneration of the preview; false otherwise.
- * @return An array containing at least two entries, the first keyed by
+ * Determines whether or not the provided URL has or requires a preview, based
+ * on the plugin's ACP domain settings and the enabled Previewer classes.
+ *
+ * @param string $term_url     A terminating URL.
+ * @param mixed  $manual_regen 1. Boolean true indicates that this is a
+ *                                user-requested manual regeneration of the
+ *                                preview subject to a wait period.
+ *                             2. String 'force_regen' indicates the same except
+ *                                without the need to respect a wait period.
+ *                             3. Boolean false indicates that this is not a
+ *                                user-requested manual regeneration.
+ * @param mixed  $content_type A string indicating the content-type of the page
+ *                             at $term_url, or boolean false if unknown.
+ * @param mixed  $content      A string containing the content of the page at
+ *                             $term_url, or boolean false if unknown.
+ * @return Array Contains at least two entries, the first keyed by
  *         'result', with value as one of the constants defined below, and the
  *         second keyed by 'has_db_entry', indicating (true/false/null) whether
  *         the preview for this URL has a database entry. The value for the
  *         'result' key has the following meanings:
- *          LKT_PV_NOT_REQUIRED: a preview is not required for the supplied URL.
- *          LKT_PV_DATA_FOUND  : valid preview data was retrieved for the
- *                               supplied URL, in which case the returned array
- *                               also contains that preview data, indexed by
- *                               'preview_data', and the LinkPreviewer class
- *                               which can generate the preview from that data,
- *                               indexed as 'previewer'.
- *          LKT_PV_TOO_SOON    : $manual_regen was set true but it is too soon
- *                               since the last regen to perform another one.
+ *          LKT_PV_NOT_REQUIRED : a preview is not required for the supplied URL.
+ *          LKT_PV_DATA_FOUND   : valid preview data was retrieved for the
+ *                                supplied URL, in which case the returned array
+ *                                also contains that preview data, indexed by
+ *                                'preview_data', and the LinkPreviewer class
+ *                                which can generate the preview from that data,
+ *                                indexed as 'previewer'.
+ *          LKT_PV_TOO_SOON     : $manual_regen was set true but it is too soon
+ *                                since the last regen to perform another one.
  *          LKT_PV_GOT_PREVIEWER: a preview is required but its data is not
  *                                cached, in which case the returned array also
  *                                contains the name of the prioritised Link
@@ -1843,10 +1861,10 @@ function lkt_get_linkpreviewer_classnames() {
  *                                support for the page's yet-to-be-downloaded
  *                                content and/or its content-type.
  */
-define('LKT_PV_NOT_REQUIRED'        , 1);
-define('LKT_PV_DATA_FOUND'          , 2);
-define('LKT_PV_TOO_SOON'            , 3);
-define('LKT_PV_GOT_PREVIEWER'       , 4);
+define('LKT_PV_NOT_REQUIRED' , 1);
+define('LKT_PV_DATA_FOUND'   , 2);
+define('LKT_PV_TOO_SOON'     , 3);
+define('LKT_PV_GOT_PREVIEWER', 4);
 function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_type = false, $content = false) {
 	global $db, $mybb, $cache;
 
@@ -2048,11 +2066,13 @@ lkt_url_has_needs_preview_end:
 }
 
 /**
- * @param $term_urls Array of non-normalised terminating URLs.
+ * @param array   $term_urls   Entries are non-normalised terminating URLs.
+ * @param boolean $force_regen Whether to force a regeneration of the preview
+ *                              data.
  *
- * @return Array. Keys are non-normalised URLs as supplied in $term_urls;
- *                values are the previews of the corresponding terminating URLs
- *                also as supplied in $term_urls.
+ * @return array Keys are non-normalised URLs as supplied in $term_urls;
+ *               values are the previews of the corresponding terminating URLs
+ *               also as supplied in $term_urls.
  */
 function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 	global $db;
@@ -2365,7 +2385,7 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 				// constraint because the DB's maximum allowable key
 				// length is so short that we often enough end up with
 				// duplicate keys for different values.
-				$db->query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, previewer_class_name, previewer_class_vers, preview_data, url_term)
+				$db->write_query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, previewer_class_name, previewer_class_vers, preview_data, url_term)
 	SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['previewer_class_name'].'\', \''.$fields['previewer_class_vers'].'\', \''.$fields['preview_data'].'\', \''.$fields['url_term'].'\'
 	FROM '.TABLE_PREFIX.'url_previews WHERE url_term=\''.$fields['url_term'].'\'
 	HAVING COUNT(*) = 0');
@@ -2395,8 +2415,8 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
  *
  * This function only makes sense for $urls with a protocol of http:// or https://.
  *
- * @param $urls Array.
- * @return An array indexed by each URL in $urls. Each entry is either:
+ * @param array $urls
+ * @return array Indexed by each URL in $urls. Each entry is either:
  *         1. The URL's terminating redirect target (which might be itself).
  *         2. False in the case that a link-specific error occurred, e.g. web server timeout
  *            or redirect loop.
@@ -3276,7 +3296,7 @@ function lkt_hookin__datahandler_post_insert_thread($posthandler) {
 			$urls_esc .= 'urls['.$i.']='.urlencode($url);
 			$i++;
 		}
-		$url_esc = htmlspecialchars('lkt_search.php?'.$urls_esc.'&showresults=posts');
+		$url_esc = htmlspecialchars('search.php?action=do_search&'.$urls_esc.'&showresults=posts');
 		$further_results_below_div = '<div class="further-results">'.$lang->sprintf($lang->lkt_further_results_below, count($matching_posts), $url_esc).'</div>';
 		$further_results_above_div = '<div class="further-results">'.$lang->sprintf($lang->lkt_further_results_above, count($matching_posts), $url_esc).'</div>';
 	} else {
@@ -3524,7 +3544,7 @@ function lkt_hookin__search_do_search_start() {
  * (this is a limitation of the PHP core function
  * filter_var()).
  *
- * @param $url string The potential URL.
+ * @param string $url The potential URL.
  * @return boolean True if a valid URL; false otherwise.
  */
 function lkt_is_url($url) {
@@ -3784,12 +3804,14 @@ function lkt_search($urls) {
 }
 
 function lkt_hookin__xmlhttp() {
-	global $mybb, $db;
+	global $mybb, $db, $charset;
 
-	if ($mybb->input['action'] == 'lkt_set_warn_about_links') {
+	switch ($mybb->input['action']) {
+	case 'lkt_set_warn_about_links':
 		$lkt_setting_warn_about_links = $mybb->get_input('lkt_setting_warn_about_links', MyBB::INPUT_INT) ? 1 : 0;
 		$db->update_query('users', array('lkt_warn_about_links' => $lkt_setting_warn_about_links), "uid='{$mybb->user['uid']}'");
-	} else if ($mybb->input['action'] == 'lkt_get_post_regen_cont') {
+		break;
+	case 'lkt_get_post_regen_cont':
 		$post = get_post($mybb->get_input('pid', MyBB::INPUT_INT));
 		if ($post) {
 			list($urls) = lkt_extract_urls($post['message']);
@@ -3797,6 +3819,26 @@ function lkt_hookin__xmlhttp() {
 				echo lkt_get_preview_regen_container($post, $urls);
 			}
 		} echo '';
+		break;
+	case 'lkt_get_posts_for_urls':
+		header("Content-type: application/json; charset={$charset}");
+
+		if (!empty($mybb->input['urls'])) {
+			$urls = (array)$mybb->input['urls'];
+
+			// Add any missing URLs to the DB after resolving redirects
+			lkt_get_and_add_urls($urls);
+
+			$post_edit_times = array();
+			if (!empty($mybb->input['pids']) && !empty($mybb->input['edtms'])) {
+				foreach ((array)$mybb->input['pids'] as $i => $pid) {
+					$post_edit_times[$pid] = ((array)$mybb->input['edtms'])[$i];
+				}
+			}
+			list($matching_posts, $forum_names, $further_results) = lkt_get_posts_for_urls($urls, $post_edit_times);
+			echo json_encode(array('matching_posts' => $matching_posts, 'further_results' => $further_results));
+		}
+		break;
 	}
 }
 

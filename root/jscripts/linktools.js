@@ -244,10 +244,11 @@ var DLW = {
 
 		// If new, unchecked URLs have been edited into the post, then query the server for matching posts.
 		if (new_urls.length > 0) {
-			var data_to_send = {};
-			data_to_send.urls  = new_urls;
-			data_to_send.pids  = [];
-			data_to_send.edtms = [];
+			var data_to_send    = {};
+			data_to_send.action = 'lkt_get_posts_for_urls';
+			data_to_send.urls   = new_urls;
+			data_to_send.pids   = [];
+			data_to_send.edtms  = [];
 			for (var pid in DLW.matching_posts) {
 				data_to_send.pids .push(pid);
 				data_to_send.edtms.push(DLW.matching_posts[pid].edittime);
@@ -258,7 +259,7 @@ var DLW = {
 			// any of those posts which match and which have not been edited since last check.
 			// Use the "post" method rather than the "get" method because it supports
 			// a greater maximum limit on the data payload.
-			$.post(rootpath + '/linktools.php', data_to_send, function(data) {
+			$.post(rootpath + '/xmlhttp.php', data_to_send, function(data) {
 				if (data.error) {
 					console.debug('Server responded with this error message: "' + data.error + '"');
 					return;
@@ -421,9 +422,8 @@ var DLW = {
 							i++;
 						}
 					}
-					urls_enc = urls_enc;
 					var div_open = '<div class="further-results">';
-					var url_esc = DLW.htmlspecialchars('lkt_search.php?'+urls_enc+'&showresults=posts');
+					var url_esc = DLW.htmlspecialchars('search.php?action=do_search&'+urls_enc+'&showresults=posts');
 					var further_results_below = lkt_further_results_below.replace('{1}', cnt);
 					further_results_below     = further_results_below    .replace('{2}', url_esc);
 					further_results_below     = div_open+further_results_below+'</div>';
