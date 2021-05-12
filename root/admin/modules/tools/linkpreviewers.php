@@ -45,6 +45,9 @@ if ($mybb->get_input('do_invalidation') && ($pv_lc = $mybb->get_input('previewer
 $table = new Table;
 
 foreach ($all_previewers as $previewer) {
+	if (!class_exists($previewer)) {
+		continue;
+	}
 	$previewerobj = $previewer::get_instance();
 	if ($previewerobj->get_should_cache_preview()) {
 		$friendly_name = $previewerobj->get_friendly_name();
