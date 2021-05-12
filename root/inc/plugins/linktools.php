@@ -97,7 +97,7 @@ $plugins->add_hook('search_do_search_start'                 , 'lkt_hookin__searc
 $plugins->add_hook('admin_config_plugins_activate_commit'   , 'lkt_hookin__admin_config_plugins_activate_commit'   );
 $plugins->add_hook('xmlhttp'                                , 'lkt_hookin__xmlhttp'                                );
 $plugins->add_hook('admin_config_settings_change'           , 'lkt_hookin__admin_config_settings_change'           );
-$plugins->add_hook('admin_page_output_footer'               , 'lkt_hookin__admin_page_output_footer'               );
+$plugins->add_hook('admin_settings_print_peekers'           , 'lkt_hookin__admin_settings_print_peekers'           );
 $plugins->add_hook('postbit'                                , 'lkt_hookin__postbit'                                );
 $plugins->add_hook('parse_message_start'                    , 'lkt_hookin__parse_message_start'                    );
 $plugins->add_hook('xmlhttp_update_post'                    , 'lkt_hookin__xmlhttp_update_post'                    );
@@ -3810,15 +3810,13 @@ function lkt_hookin__admin_config_settings_change() {
 	$lkt_settings_peeker = ($mybb->input['gid'] == $gid) && ($mybb->request_method != 'post');
 }
 
-function lkt_hookin__admin_page_output_footer() {
+function lkt_hookin__admin_settings_print_peekers(&$peekers) {
 	global $lkt_settings_peeker;
 
-	if ($lkt_settings_peeker) {
-		echo '<script type="text/javascript">
-		$(document).ready(function() {
-			new Peeker($(".setting_'.C_LKT.'_enable_dlw"), $("#row_setting_'.C_LKT.'_force_dlw"), 1, true)
-		});
-		</script>';
+	if (!empty($lkt_settings_peeker)) {
+		$peekers[] = 'new Peeker($(".setting_'.C_LKT.'_enable_dlw"), $("#row_setting_'.C_LKT.'_force_dlw"), 1, true)';
+		$peekers[] = 'new Peeker($("#setting_'.C_LKT.'_link_preview_type"), $("#row_setting_'.C_LKT.'_link_preview_dom_list"), /^(whitelist|blacklist)$/, false)';
+		$peekers[] = 'new Peeker($("#setting_'.C_LKT.'_link_preview_on_fly"), $("#row_setting_'.C_LKT.'_link_preview_on_fly_dom_list"), /^(whitelist|blacklist)$/, false)';
 	}
 }
 
