@@ -3530,8 +3530,8 @@ function lkt_search($urls) {
 
 	$lang->load('search');
 
-	// Begin code copied, with only minor changes - such as to coding style,
-	// a typo correction- from search.php under the hook 'search_do_search_start'.
+	// Begin code copied, with only minor changes - such as to coding style and
+	// a typo correction - from search.php under the hook 'search_do_search_start'.
 	// This is an unfortunate duplication, however that core code does not appear
 	// to let us hook in better so as to reuse that code.
 
@@ -3573,7 +3573,7 @@ function lkt_search($urls) {
 
 	// Begin code copied with minor modifications from perform_search_mysql() in inc/functions_search.php.
 	// As above, this is unfortunate, but unavoidable other than by making
-	// changes to core code, which we prefer not to do.
+	// changes to core code, which we prefer to avoid.
 
 	$post_usersql = '';
 	$thread_usersql = '';
@@ -4077,10 +4077,10 @@ function lkt_hookin__admin_style_templates_edit_template_commit() {
 	$previewer = false;
 	$prefix = 'linktools_linkpreview_';
 	if (substr($mybb->input['title'], 0, strlen($prefix)) == $prefix) {
-		$hlp_lc = substr($mybb->input['title'], strlen($prefix));
+		$pv_lc = substr($mybb->input['title'], strlen($prefix));
 		foreach (lkt_get_linkpreviewer_classnames() as $type => $classnames) {
 			foreach ($classnames as $classname) {
-				if ('linkpreviewer'.$hlp_lc == strtolower($classname)) {
+				if ('linkpreviewer'.$pv_lc == strtolower($classname)) {
 					$previewer = $classname;
 					break;
 				}
@@ -4111,7 +4111,7 @@ function lkt_hookin__admin_style_templates_edit_template_commit() {
 		$table = new Table;
 		$table->construct_cell($invalidate_previewer_msg);
 		$table->construct_row();
-		$form = new Form('index.php?module=tools-linkpreviewers&amp;action=do_invalidation&amp;previewer='.htmlspecialchars_uni($hlp_lc).'&amp;url_return='.urlencode($url_return), 'post');
+		$form = new Form('index.php?module=tools-linkpreviewers&amp;action=do_invalidation&amp;previewer='.htmlspecialchars_uni($pv_lc).'&amp;url_return='.urlencode($url_return), 'post');
 		$table->construct_cell($form->generate_submit_button($lang->sprintf($lang->lkt_inval_pv_cache_for, $friend_nm_esc), array('name' => 'do_invalidation')), array('class' => 'align_center'));
 		$table->construct_row();
 		$heading = $lang->sprintf($lang->lkt_preview_previewer_tpl_chg_pg_heading, $friend_nm_esc);

@@ -22,10 +22,10 @@ $page->add_breadcrumb_item($lang->lkt_linkpreviewers_cache_invalidation, "index.
 
 $page->output_header($lang->lkt_linkpreviewers_cache_invalidation);
 
-if ($mybb->get_input('do_invalidation') && ($hlp_lc = $mybb->get_input('previewer'))) {
+if ($mybb->get_input('do_invalidation') && ($pv_lc = $mybb->get_input('previewer'))) {
 	$purged_previewers = array();
 	foreach ($all_previewers as $previewer) {
-		if (('linkpreviewer'.$hlp_lc == strtolower($previewer) || $hlp_lc == '[all]') && $previewer::get_instance()->get_should_cache_preview()) {
+		if (('linkpreviewer'.$pv_lc == strtolower($previewer) || $pv_lc == '[all]') && $previewer::get_instance()->get_should_cache_preview()) {
 			$purged_previewers[] = $previewer;
 			$db->update_query('url_previews', array('valid' => '0'), "previewer_class_name='".$db->escape_string($previewer)."'");
 		}
@@ -48,8 +48,8 @@ foreach ($all_previewers as $previewer) {
 	$previewerobj = $previewer::get_instance();
 	if ($previewerobj->get_should_cache_preview()) {
 		$friendly_name = $previewerobj->get_friendly_name();
-		$hlp_lc = strtolower(preg_replace('(^LinkPreviewer)', '', $previewer));
-		$form = new Form('index.php?module=tools-linkpreviewers&amp;action=do_invalidation&amp;previewer='.htmlspecialchars_uni($hlp_lc), 'post', '', false, '', true);
+		$pv_lc = strtolower(preg_replace('(^LinkPreviewer)', '', $previewer));
+		$form = new Form('index.php?module=tools-linkpreviewers&amp;action=do_invalidation&amp;previewer='.htmlspecialchars_uni($pv_lc), 'post', '', false, '', true);
 		$table->construct_cell($form->construct_return.$form->generate_submit_button($friendly_name, array('name' => 'do_invalidation')).$form->end(true), array('class' => 'align_center'));
 		$table->construct_row();
 	}
