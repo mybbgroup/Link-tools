@@ -1559,6 +1559,7 @@ function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 	$redirs = $deferred_urls = $curl_handles = [];
 
 	if (!$urls) return [$redirs, $deferred_urls];
+	$urls = array_values($urls);
 
 	if ($check_html_redirects || $check_html_canonical_tag || $get_link_previews) {
 		$use_head_method = false;
