@@ -148,7 +148,7 @@ function linktools_info() {
 		'website'       => 'https://mybb.group/Thread-Link-Tools',
 		'author'        => 'Laird as a member of the unofficial MyBB Group',
 		'authorsite'    => 'https://mybb.group/User-Laird',
-		'version'       => '1.3.3',
+		'version'       => '1.3.3-dev',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
 		'version_code'  => '10303',
@@ -1234,7 +1234,7 @@ function lkt_get_url_search_sql($urls, $already_normalised = false, $extra_condi
 	$onlyusfids = array();
 	$group_permissions = forum_permissions();
 	foreach ($group_permissions as $fid => $forum_permissions) {
-		if ($forum_permissions['canonlyviewownthreads'] == 1) {
+		if (isset($forum_permissions['canonlyviewownthreads']) && $forum_permissions['canonlyviewownthreads'] == 1) {
 			$onlyusfids[] = $fid;
 		}
 	}
@@ -1270,7 +1270,7 @@ ORDER BY        isfirstpost DESC, p.dateline DESC';
 
 // Returns at most lkt_max_matching_posts results. Indicates whether there are further results via the third entry of the returned array.
 function lkt_get_posts_for_urls($urls, $post_edit_times = array()) {
-	global $db, $parser;
+	global $db, $parser, $all_matching_urls_in_quotes_flag;
 
 	sort($urls);
 	$urls_norm = lkt_normalise_urls($urls);
@@ -1339,7 +1339,7 @@ function lkt_get_posts_for_urls($urls, $post_edit_times = array()) {
 	}
 
 	uasort($matching_posts, function ($post1, $post2) use ($urls) {
-		$grade_post = function($post) {
+		$grade_post = function($post) use ($urls) {
 			return ($post['pid'] == $post['firstpost']
 			        ? ($urls == $post['matching_urls']
 			           ? (count($urls) == count($post['all_urls'])
@@ -1450,7 +1450,7 @@ function lkt_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 
 	$now = time();
 	foreach ($urls as $url) {
-		$target = $redirs[$url];
+		$target = (!$got_terms || $got_terms[$url] == false) ? '' : $redirs[$url];
 		for ($try = 1; $try <= 2; $try++) {
 			$res = $db->simple_select('urls', 'urlid', 'url = \''.$db->escape_string($url).'\'');
 			if ($row = $db->fetch_array($res)) {
@@ -2546,7 +2546,7 @@ function lkt_get_url_term_redirs($urls, &$got_terms = array(), $get_link_preview
 	foreach ($urls as $url) {
 		$term = $url;
 		$seen = [$term => true];
-		while ($term && $redirs[$term] && $term != $redirs[$term]) {
+		while ($term && isset($redirs[$term]) && $term != $redirs[$term]) {
 			$term = $redirs[$term];
 			// Abort on redirect loop.
 			if (isset($seen[$term])) {
@@ -2563,7 +2563,7 @@ function lkt_get_url_term_redirs($urls, &$got_terms = array(), $get_link_preview
 		// same key as value. In that case, indicate to the
 		// calling function that got_term should be set to
 		// zero in the database.
-		$got_terms[$url] = ($term == $redirs[$term]);
+		$got_terms[$url] = (isset($redirs[$term]) && $term == $redirs[$term]);
 	}
 
 	return $terms;
@@ -2860,7 +2860,7 @@ function lkt_get_sql_conds_for_ltt() {
  * of all operations - or, at least, that's my understanding unless/until
  * somebody corrects me.
  */
-function lkt_proportion_urls_by_server($num_urls, $conds, $field, &$count = 0, &$ids) {
+function lkt_proportion_urls_by_server($num_urls, $conds, $field, &$count = 0, &$ids = array()) {
 	global $db;
 
 	$servers = $servers_sought = $servers_tot = $urls_final = $ids = array();
@@ -3215,7 +3215,7 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 }
 
 function lkt_hookin__datahandler_post_insert_thread($posthandler) {
-	global $db, $mybb, $templates, $lang, $headerinclude, $header, $footer;
+	global $db, $mybb, $templates, $lang, $headerinclude, $header, $footer, $all_matching_urls_in_quotes_flag;
 
 	if ($mybb->get_input('ignore_dup_link_warn') || $posthandler->data['savedraft'] ||
 	    !($mybb->settings[C_LKT.'_enable_dlw'] && ($mybb->settings[C_LKT.'_force_dlw'] || $mybb->user['lkt_warn_about_links']))) {
@@ -3275,7 +3275,11 @@ function lkt_hookin__datahandler_post_insert_thread($posthandler) {
 
 	$inputs = '';
 	foreach ($mybb->input as $key => $val) {
-		$inputs .= '<input type="hidden" name="'.htmlspecialchars_uni($key).'" value="'.htmlspecialchars_uni($val).'" />'."\n";
+		if (is_array($val)) {
+			foreach ($val as $idx => $value) {
+				$inputs .= '<input type="hidden" name="'.htmlspecialchars_uni($key).'['.htmlspecialchars($idx).']" value="'.htmlspecialchars_uni($value).'" />'."\n";
+			}
+		} else	$inputs .= '<input type="hidden" name="'.htmlspecialchars_uni($key).'" value="'.htmlspecialchars_uni($val).'" />'."\n";
 	}
 
 	$savedraftbutton = '';
@@ -3306,6 +3310,8 @@ function lkt_hookin__datahandler_post_insert_thread($posthandler) {
 		$further_results_below_div = '';
 		$further_results_above_div = '';
 	}
+
+	$fid = $posthandler->data['fid'];
 
 	eval("\$op = \"".$templates->get('linktools_review_page', 1, 0)."\";");
 
