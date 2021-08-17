@@ -289,7 +289,7 @@ CREATE TABLE '.TABLE_PREFIX.'urls (
 		$db->write_query('
 CREATE TABLE '.TABLE_PREFIX.'url_previews (
   url_term     varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  preview_data text             NOT NULL DEFAULT \'\',
+  preview_data text             NOT NULL,
   dateline     int(10) unsigned NOT NULL DEFAULT 0,
   valid        tinyint(1)       NOT NULL DEFAULT 1,
   previewer_class_name varchar('.lkt_max_previewer_class_name_len.') NOT NULL DEFAULT \'\',
@@ -320,7 +320,7 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 			$db->write_query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE helper_class_vers previewer_class_vers varchar('.lkt_max_previewer_class_vers_len.') NOT NULL DEFAULT \'\'');
 		}
 		if ($db->field_exists('preview', 'url_previews') && !$db->field_exists('preview_data', 'url_previews')) {
-			$db->write_query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE preview preview_data text NULL DEFAULT \'\'');
+			$db->write_query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE preview preview_data text NOT NULL');
 			$db->delete_query('url_previews', "'1'");
 		}
 	}
