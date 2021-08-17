@@ -157,7 +157,7 @@ function linktools_info() {
 		'compatibility' => '18*'
 	);
 
-	if (linktools_is_installed() && is_array($plugins_cache) && is_array($plugins_cache['active']) && $plugins_cache['active'][C_LKT]) {
+	if (linktools_is_installed() && is_array($plugins_cache) && is_array($plugins_cache['active']) && !empty($plugins_cache['active'][C_LKT])) {
 		$desc = '';
 		$desc .= '<ul>'.PHP_EOL;
 
