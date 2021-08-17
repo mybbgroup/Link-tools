@@ -2,7 +2,7 @@
 
 /**
  *  Part of the Link Tools plugin for MyBB 1.8.
- *  Copyright (C) 2020 Laird Shaw
+ *  Copyright (C) 2020-2021 Laird Shaw
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,9 +27,9 @@ if (!defined('IN_MYBB')) {
 const lkt_valid_schemes = array('http', 'https', 'ftp', 'sftp', '');
 
 const lkt_default_rebuild_links_items_per_page = 500;
-const lkt_default_rebuild_term_items_per_page = 40;
+const lkt_default_rebuild_term_items_per_page = 30;
 const lkt_default_rebuild_renorm_items_per_page = 500;
-const lkt_default_rebuild_linkpreviews_items_per_page = 40;
+const lkt_default_rebuild_linkpreviews_items_per_page = 30;
 
 const lkt_max_matching_posts = 10;
 
@@ -3007,7 +3007,6 @@ function lkt_get_and_store_terms($num_urls, &$count = 0) {
 	if ($terms) {
 		// Reopen the DB connection in case it has "gone away" given the potentially long delay while
 		// we resolved redirects. This was occurring at times on our (Psience Quest's) host, Hostgator.
-		$db->close();
 		$db->connect($mybb->config['database']);
 		foreach ($terms as $url => $term) {
 			if ($term !== null) {
