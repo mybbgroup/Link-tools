@@ -100,6 +100,7 @@ $l['lkt_link_preview_not_in_quotes_desc' ] = 'Set to "Yes" to prevent previews f
 $l['lkt_link_preview_skip_if_contains_img_title'] = 'Exclude [url] tags enclosing [img] tags from preview?';
 $l['lkt_link_preview_skip_if_contains_img_desc'] = 'Set to "Yes" to prevent previews from being generated for links for [url] tags that enclose [img] tags (if, for example, in these cases an enclosed image serves as a sufficient preview for your purposes).';
 
+$l['lkt_can_manage_link_previewers'] = 'Can manage link previewers?';
 $l['lkt_linkpreviewers'    ] = 'Link Previewers';
 $l['lkt_template_installed'] = 'Template installed?';
 $l['lkt_previewer_enabled' ] = 'Enabled?';
@@ -125,6 +126,7 @@ $l['lkt_all'                       ] = '[All]';
 $l['lkt_linkpreviewers_invalidated'] = 'The link preview caches of the following Previewers were invalidated: {1}';
 $l['lkt_go_back_link_txt'          ] = '« Go back to where you were';
 
+$l['lkt_can_manage_link_limits'] = 'Can manage link limits?';
 $l['lkt_linklimits'] = 'Link Posting Limits';
 $l['lkt_linklimitsdesc'] = 'For each row of settings, those members who are in any of the listed user groups may not post to the listed forums more than the maximum allowed links during the period in days. The limit applies across the set of forums, not to each of the forums individually. Sub-forums of selected forums are not included unless selected too. Selected categories are ignored: to include all of the sub-forums of a category, select them individually. All user groups of a member are checked - both primary and additional. If multiple limits apply to a member, all are checked; if any one of them would prohibit the member from posting, then s/he is prohibited.';
 $l['lkt_groups'    ] = 'Affected user groups';

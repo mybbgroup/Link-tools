@@ -103,8 +103,10 @@ $plugins->add_hook('parse_message_start'                    , 'lkt_hookin__parse
 $plugins->add_hook('xmlhttp_update_post'                    , 'lkt_hookin__xmlhttp_update_post'                    );
 $plugins->add_hook('admin_config_menu'                      , 'lkt_hookin__admin_config_menu'                      );
 $plugins->add_hook('admin_config_action_handler'            , 'lkt_hookin__admin_config_action_handler'            );
+$plugins->add_hook('admin_config_permissions'               , 'lkt_hookin__admin_config_permissions'               );
 $plugins->add_hook('admin_forum_menu'                       , 'lkt_hookin__admin_forum_menu'                       );
 $plugins->add_hook('admin_forum_action_handler'             , 'lkt_hookin__admin_forum_action_handler'             );
+$plugins->add_hook('admin_forum_permissions'                , 'lkt_hookin__admin_forum_permissions'                );
 $plugins->add_hook('admin_tools_menu'                       , 'lkt_hookin__admin_tools_menu'                       );
 $plugins->add_hook('admin_tools_action_handler'             , 'lkt_hookin__admin_tools_action_handler'             );
 $plugins->add_hook('newthread_start'                        , 'lkt_hookin__newthreadorreply_start'                 );
@@ -4011,6 +4013,14 @@ function lkt_hookin__admin_config_action_handler(&$actions) {
 	);
 }
 
+function lkt_hookin__admin_config_permissions(&$admin_permissions) {
+	global $lang;
+
+	$lang->load(C_LKT);
+
+	$admin_permissions['linkpreviewers'] = $lang->lkt_can_manage_link_previewers;
+}
+
 function lkt_hookin__admin_tools_menu(&$sub_menu) {
 	global $lang;
 
@@ -4191,6 +4201,14 @@ function lkt_hookin__admin_forum_menu($sub_menu) {
 	$sub_menu[$key] = array('id' => 'linklimits', 'title' => $lang->lkt_linklimits, 'link' => 'index.php?module=forum-linklimits');
 
 	return $sub_menu;
+}
+
+function lkt_hookin__admin_forum_permissions(&$admin_permissions) {
+	global $lang;
+
+	$lang->load(C_LKT);
+
+	$admin_permissions['linklimits'] = $lang->lkt_can_manage_link_limits;
 }
 
 function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
