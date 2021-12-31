@@ -53,3 +53,5 @@ $l['lkt_success_regen_url'            ] = 'Successfully regenerated a preview fo
 $l['lkt_regen_page_return_link'       ] = 'Return to post';
 
 $l['lkt_linkpreviewoff'               ] = '<strong>Disable Link Previews</strong>: disable link previews from showing in this post.';
+
+$l['lkt_err_toomanylinks'             ] = 'You may not post this content because it contains too many links (for clarity: embedded videos count as links). You are a member of the usergroup(s) {1}, whose members may not post more than {2} link(s) over a continuous period of {3} days to the forum(s) (combined): {4}. You have already posted {5} link(s) within that period to that/those forums. There is/are {6} link(s) in the content you are attempting to post. That would put you {7} link(s) over your current limit.';

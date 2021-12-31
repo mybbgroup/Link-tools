@@ -103,6 +103,8 @@ $plugins->add_hook('parse_message_start'                    , 'lkt_hookin__parse
 $plugins->add_hook('xmlhttp_update_post'                    , 'lkt_hookin__xmlhttp_update_post'                    );
 $plugins->add_hook('admin_config_menu'                      , 'lkt_hookin__admin_config_menu'                      );
 $plugins->add_hook('admin_config_action_handler'            , 'lkt_hookin__admin_config_action_handler'            );
+$plugins->add_hook('admin_forum_menu'                       , 'lkt_hookin__admin_forum_menu'                       );
+$plugins->add_hook('admin_forum_action_handler'             , 'lkt_hookin__admin_forum_action_handler'             );
 $plugins->add_hook('admin_tools_menu'                       , 'lkt_hookin__admin_tools_menu'                       );
 $plugins->add_hook('admin_tools_action_handler'             , 'lkt_hookin__admin_tools_action_handler'             );
 $plugins->add_hook('newthread_start'                        , 'lkt_hookin__newthreadorreply_start'                 );
@@ -111,6 +113,8 @@ $plugins->add_hook('newreply_start'                         , 'lkt_hookin__newth
 $plugins->add_hook('newreply_do_newreply_end'               , 'lkt_hookin__newreply_do_newreply_end'               );
 $plugins->add_hook('editpost_action_start'                  , 'lkt_hookin__editpost_action_start'                  );
 $plugins->add_hook('editpost_do_editpost_end'               , 'lkt_hookin__editpost_do_editpost_end'               );
+$plugins->add_hook('datahandler_post_validate_post'         , 'lkt_hookin__datahandler_post_validate_thread_or_post');
+$plugins->add_hook('datahandler_post_validate_thread'       , 'lkt_hookin__datahandler_post_validate_thread_or_post');
 //$plugins->add_hook('admin_style_templates_edit_template_commit', 'lkt_hookin__admin_style_templates_edit_template_commit');
 
 function lkt_hookin__global_start() {
@@ -148,10 +152,10 @@ function linktools_info() {
 		'website'       => 'https://mybb.group/Thread-Link-Tools',
 		'author'        => 'Laird as a member of the unofficial MyBB Group',
 		'authorsite'    => 'https://mybb.group/User-Laird',
-		'version'       => '1.3.4',
+		'version'       => '1.4.0-prerelease',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
-		'version_code'  => '10304',
+		'version_code'  => '10400',
 		'guid'          => '',
 		'codename'      => C_LKT,
 		'compatibility' => '18*'
@@ -307,6 +311,17 @@ CREATE TABLE '.TABLE_PREFIX.'post_urls (
 )'.$db->build_create_table_collation().';');
 	}
 
+	if (!$db->table_exists('link_limits')) {
+		$db->write_query('
+CREATE TABLE '.TABLE_PREFIX.'link_limits (
+  llid     int unsigned NOT NULL auto_increment PRIMARY KEY,
+  gids     varchar(256) NOT NULL,
+  fids     varchar(256) NOT NULL,
+  maxlinks int unsigned NOT NULL,
+  days     int unsigned NOT NULL
+)'.$db->build_create_table_collation().';');
+	}
+
 	if ($db->table_exists('url_previews')) {
 		if ($db->field_exists('url_norm', 'url_previews') && !$db->field_exists('url_term', 'url_previews')) {
 			$db->write_query('ALTER TABLE '.TABLE_PREFIX.'url_previews CHANGE url_norm url_term varchar('.lkt_max_url_len.') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL');
@@ -379,6 +394,10 @@ function linktools_uninstall() {
 
 	if ($db->table_exists('url_previews')) {
 		$db->drop_table('url_previews');
+	}
+
+	if ($db->table_exists('link_limits')) {
+		$db->drop_table('link_limits');
 	}
 
 	if ($db->field_exists('lkt_linkpreviewoff', 'posts')) {
@@ -1422,7 +1441,13 @@ function lkt_handle_new_post($posthandler) {
 }
 
 function lkt_get_and_add_urls_of_post($message, $pid = null) {
-	lkt_get_and_add_urls(lkt_extract_urls($message)[0], $pid);
+	global $g_lkt_links_incl_vids;
+
+	if (!isset($g_lkt_links_incl_vids)) {
+		$g_lkt_links_incl_vids = lkt_extract_urls($message)[0];
+	}
+
+	lkt_get_and_add_urls($g_lkt_links_incl_vids, $pid);
 }
 
 function lkt_get_and_add_urls($urls, $pid = null) {
@@ -2779,7 +2804,7 @@ function lkt_hookin__datahandler_post_update_or_merge_end($posthandler) {
 		lkt_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
 	}
 
-	global $g_lkt_previews, $g_lkt_links, $mybb, $message, $post;
+	global $mybb, $message, $post;
 
 	if (THIS_SCRIPT == 'xmlhttp.php' && $mybb->input['action'] === 'edit_post' && $mybb->input['do'] == 'update_post' && empty($post['lkt_linkpreviewoff']) && lkt_should_show_pv($post)) {
 		$message = lkt_insert_preview_placeholders($message);
@@ -3864,11 +3889,12 @@ function lkt_get_preview_regen_container($post, $urls) {
 }
 
 function lkt_hookin__postbit($post) {
-	global $g_lkt_previews, $g_lkt_links;
+	global $g_lkt_previews, $g_lkt_links_excl_vids;
 
+	$post['updatepreview'] = '';
 	if ($g_lkt_previews && empty($post['lkt_linkpreviewoff'])) {
 		$post['message'] = str_replace(array_keys($g_lkt_previews), array_values($g_lkt_previews), $post['message']);
-		$post['updatepreview'] = lkt_get_preview_regen_container($post, $g_lkt_links);
+		$post['updatepreview'] = lkt_get_preview_regen_container($post, $g_lkt_links_excl_vids);
 	}
 
 	$g_lkt_previews = false;
@@ -3887,7 +3913,7 @@ function lkt_hookin__xmlhttp_update_post() {
 }
 
 function lkt_hookin__parse_message_start($message) {
-	global $g_lkt_previews, $g_lkt_links, $mybb, $post;
+	global $g_lkt_previews, $mybb, $post;
 
 	if (empty($post['pid'])
 	    ||
@@ -3914,7 +3940,7 @@ function lkt_hookin__parse_message_start($message) {
 }
 
 function lkt_insert_preview_placeholders($message) {
-	global $g_lkt_previews, $g_lkt_links, $mybb, $post;
+	global $g_lkt_previews, $g_lkt_links_excl_vids, $mybb, $post;
 
 	$msg = $message;
 	if ($mybb->settings[C_LKT.'_link_preview_not_in_quotes']) {
@@ -3922,7 +3948,7 @@ function lkt_insert_preview_placeholders($message) {
 	}
 
 	$links = lkt_extract_urls($msg, /*$exclude_videos = */true);
-	$g_lkt_links = $links[0];
+	$g_lkt_links_excl_vids = $links[0];
 
 	$g_lkt_previews = $insertions = array();
 
@@ -4146,4 +4172,87 @@ function lkt_get_extra_curl_opts() {
 	if (!empty($extra_opts) && is_array($extra_opts)) {
 		return $extra_opts;
 	} else	return array();
+}
+
+function lkt_hookin__admin_forum_action_handler($actions) {
+	$actions['linklimits'] = array(
+		'active' => 'linklimits',
+		'file'   => 'linklimits.php',
+	);
+
+	return $actions;
+}
+
+function lkt_hookin__admin_forum_menu($sub_menu) {
+	global $lang;
+
+	$lang->load(C_LKT);
+	$key = max(array_keys($sub_menu)) + 10;
+	$sub_menu[$key] = array('id' => 'linklimits', 'title' => $lang->lkt_linklimits, 'link' => 'index.php?module=forum-linklimits');
+
+	return $sub_menu;
+}
+
+function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
+	global $db, $mybb, $cache, $lang, $g_lkt_links_incl_vids;
+
+	if (!isset($g_lkt_links_incl_vids)) {
+		$g_lkt_links_incl_vids = lkt_extract_urls($posthandler->data['message'])[0];
+	}
+
+	if (!empty($g_lkt_links_incl_vids)) {
+		$num_links_in_post = count($g_lkt_links_incl_vids);
+		$prefix = TABLE_PREFIX;
+		$groups = array_merge(array($mybb->user['usergroup']), explode(',', $mybb->user['additionalgroups']));
+		$query1 = $db->simple_select('link_limits', '*');
+		while ($row = $db->fetch_array($query1)) {
+			$common_groups = array_intersect($groups, explode(',', $row['gids']));
+			if ($common_groups) {
+				$cutoff = TIME_NOW - $row['days'] * 24 * 60 * 60;
+				$query2 = $db->query("
+  SELECT          COUNT(*) AS num_links
+  FROM            {$prefix}urls urls
+  LEFT OUTER JOIN {$prefix}post_urls pu
+  ON              urls.urlid = pu.urlid
+  LEFT OUTER JOIN {$prefix}posts p
+  ON              pu.pid = p.pid
+  LEFT OUTER JOIN {$prefix}forums f
+  ON              f.fid = p.fid
+  LEFT OUTER JOIN {$prefix}users u
+  ON              p.uid = u.uid
+  WHERE           u.uid = {$mybb->user['uid']}
+                  AND
+                  f.fid IN ({$row['fids']})
+                  AND
+                  p.dateline >= {$cutoff}");
+				$num_links_already_posted = $db->fetch_field($query2, 'num_links');
+				$db->free_result($query2);
+				if ($num_links_already_posted + $num_links_in_post > $row['maxlinks']) {
+					$groups_cache = $cache->read('usergroups');
+					$group_links = array();
+					foreach ($common_groups as $common_gid) {
+						$common_gid = (int)trim($common_gid);
+						if (isset($groups_cache[$common_gid])) {
+							$group_links[] = format_name(htmlspecialchars_uni($groups_cache[$common_gid]['title']), $common_gid);
+						}
+					}
+					if (!is_array($forum_cache)) {
+						$forum_cache = cache_forums();
+					}
+					$forum_links = array();
+					foreach (explode(',', $row['fids']) as $ll_fid) {
+						$ll_fid = (int)trim($ll_fid);
+						if (isset($forum_cache[$ll_fid]['name'])) {
+							$forum_links[] = '<a href="'.get_forum_link($ll_fid).'">'.htmlspecialchars_uni($forum_cache[$ll_fid]['name']).'</a>';
+						}
+					}
+
+					$lang->load(C_LKT);
+					$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), $num_links_already_posted, $num_links_in_post, ($num_links_already_posted + $num_links_in_post - $row['maxlinks'])));
+
+					return;
+				}
+			}
+		}
+	}
 }

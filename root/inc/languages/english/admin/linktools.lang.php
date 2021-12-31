@@ -124,3 +124,17 @@ $l['lkt_linkpreviewers_cache_invalidation_msg'] = 'Invalidate Cached Link Previe
 $l['lkt_all'                       ] = '[All]';
 $l['lkt_linkpreviewers_invalidated'] = 'The link preview caches of the following Previewers were invalidated: {1}';
 $l['lkt_go_back_link_txt'          ] = '« Go back to where you were';
+
+$l['lkt_linklimits'] = 'Link Posting Limits';
+$l['lkt_linklimitsdesc'] = 'For each row of settings, those members who are in any of the listed user groups may not post to the listed forums more than the maximum allowed links during the period in days. The limit applies across the set of forums, not to each of the forums individually. Sub-forums of selected forums are not included unless selected too. Selected categories are ignored: to include all of the sub-forums of a category, select them individually. All user groups of a member are checked - both primary and additional. If multiple limits apply to a member, all are checked; if any one of them would prohibit the member from posting, then s/he is prohibited.';
+$l['lkt_groups'    ] = 'Affected user groups';
+$l['lkt_maxlinks'  ] = 'Maximum allowed links';
+$l['lkt_days'      ] = 'Period (in days)';
+$l['lkt_forums'    ] = 'Affected forums (collectively)';
+$l['lkt_action'    ] = 'Action';
+$l['lkt_delete'    ] = 'Delete';
+$l['lkt_add'       ] = 'Add';
+$l['lkt_err_nogrps'] = 'You did not select any groups.';
+$l['lkt_err_nofrms'] = 'You did not select any forums.';
+$l['lkt_err_nodays'] = 'You did not enter an integer of one or more for the period in days.';
+$l['lkt_err_nomaxlnk'] = 'You did not enter an integer of zero or more for the maximum links.';
