@@ -325,7 +325,7 @@ $(function() {
 						$(btn_add).prop('disabled', false).css('background', '');
 						if (result && result.outcome == 'OK') {
 							var row_ = $(btn_add).parent().parent();
-							$(row_).after($(row_).clone());
+							row_.after(row_.clone(true));
 							$(btn_add).parent().parent().children().each(function(i) {
 								if (i < 4) {
 									$(this).html(result[i]);
