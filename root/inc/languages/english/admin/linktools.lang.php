@@ -136,6 +136,7 @@ $l['lkt_forums'    ] = 'Affected forums (collectively)';
 $l['lkt_action'    ] = 'Action';
 $l['lkt_edit'      ] = 'Edit';
 $l['lkt_save'      ] = 'Save';
+$l['lkt_cancel'    ] = 'Cancel';
 $l['lkt_delete'    ] = 'Delete';
 $l['lkt_add'       ] = 'Add';
 $l['lkt_err_nogrps'] = 'You did not select any groups.';
