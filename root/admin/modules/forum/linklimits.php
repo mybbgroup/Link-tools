@@ -208,10 +208,12 @@ echo <<<EOF
 
 var btn_del_click_handler = function(event) {
 	var btn_del = this;
+	$(this).prop('disabled', true).css('background', 'url(../images/spinner.gif) center no-repeat');
 	$.post('index.php?module=forum-linklimits', {my_post_key: '{$mybb->post_code}', ajax_del_id: this.name.substr(4)}, function(data) {
 		if (data.outcome == 'OK') {
 			$(btn_del).parent().parent().remove();
 		} else	$.jGrowl(result.errors, {theme:'jgrowl_error'});
+		$(btn_del).prop('disabled', false).css('background', '');
 	});
 	event.preventDefault();
 };
@@ -226,7 +228,7 @@ var btn_edit_click_handler = function(event) {
 		var data = new FormData(form);
 		data.append('ajax_save_id', save_id);
 		var btn_edit = this;
-		$(this).prop('disabled', true);
+		$(this).prop('disabled', true).css('background', 'url(../images/spinner.gif) center no-repeat');
 
 		$.ajax({
 			type: "POST",
@@ -248,11 +250,11 @@ var btn_edit_click_handler = function(event) {
 						}
 					});
 				} else	$.jGrowl(result.errors, {theme:'jgrowl_error'});
-				$(btn_edit).prop('disabled', false);
+				$(btn_edit).prop('disabled', false).css('background', '');
 			},
 			error: function(error) {
 				$.jGrowl(error.message, {theme:'jgrowl_error'});
-				$(btn_edit).prop('disabled', false);
+				$(btn_edit).prop('disabled', false).css('background', '');
 			}
 		});
 	} else {
@@ -308,7 +310,7 @@ $(function() {
 				var data = new FormData(form);
 				data.append('ajax_add', '1');
 				var btn_add = this;
-				$(this).prop('disabled', true);
+				$(this).prop('disabled', true).css('background', 'url(../images/spinner.gif) center no-repeat');
 
 				$.ajax({
 					type: "POST",
@@ -320,6 +322,7 @@ $(function() {
 					cache: false,
 					timeout: 800000,
 					success: function (result) {
+						$(btn_add).prop('disabled', false).css('background', '');
 						if (result && result.outcome == 'OK') {
 							var row_ = $(btn_add).parent().parent();
 							$(row_).after($(row_).clone());
@@ -343,11 +346,10 @@ $(function() {
 							});
 							$(btn_add).after(btn_del);
 						} else	$.jGrowl(result.errors, {theme:'jgrowl_error'});
-						$(btn_add).prop('disabled', false);
 					},
 					error: function(error) {
 						$.jGrowl(error.message, {theme:'jgrowl_error'});
-						$(btn_add).prop('disabled', false);
+						$(btn_add).prop('disabled', false).css('background', '');
 					}
 				});
 			});
