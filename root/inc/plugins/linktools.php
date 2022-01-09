@@ -154,10 +154,10 @@ function linktools_info() {
 		'website'       => 'https://mybb.group/Thread-Link-Tools',
 		'author'        => 'Laird as a member of the unofficial MyBB Group',
 		'authorsite'    => 'https://mybb.group/User-Laird',
-		'version'       => '1.4.0',
+		'version'       => '1.4.1-devel',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
-		'version_code'  => '10400',
+		'version_code'  => '10401',
 		'guid'          => '',
 		'codename'      => C_LKT,
 		'compatibility' => '18*'
@@ -4225,7 +4225,7 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
 		$query1 = $db->simple_select('link_limits', '*');
 		while ($row = $db->fetch_array($query1)) {
 			$common_groups = array_intersect($groups, explode(',', $row['gids']));
-			if ($common_groups) {
+			if ($common_groups && in_array($posthandler->data['fid'], explode(',', $row['fids']))) {
 				$cutoff = TIME_NOW - $row['days'] * 24 * 60 * 60;
 				$query2 = $db->query("
   SELECT          COUNT(*) AS num_links
