@@ -4219,15 +4219,59 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
 	}
 
 	if (!empty($g_lkt_links_incl_vids)) {
-		$num_links_in_post = count($g_lkt_links_incl_vids);
+		$num_submitted_links = count($g_lkt_links_incl_vids);
 		$prefix = TABLE_PREFIX;
-		$groups = array_merge(array($mybb->user['usergroup']), explode(',', $mybb->user['additionalgroups']));
+
+		// The effective user is the user who originally posted the post if it's being
+		// edited, and the current user otherwise (i.e., for new posts).
+		//
+		// We handle the editing of the posts of others by treating the effective user
+		// as the original poster, not the (current) editing poster. This may limit
+		// moderators at times - e.g., by preventing them from adding explanatory links
+		// for their actions to offending posts - but it's a (the most?) straightforward
+		// approach.
+		$eff_user = $posthandler->data['uid'] ? get_user($posthandler->data['uid']) : $mybb->user;
+
+		$groups = array_merge(array($eff_user['usergroup']), explode(',', $eff_user['additionalgroups']));
+
+		// If the user is editing a post, find out how many links are in the pre-edited post.
+		$num_existing_links_in_post = 0;
+		if ($posthandler->data['pid']) {
+				$query = $db->query("
+  SELECT          COUNT(*) AS num_links
+  FROM            {$prefix}urls urls
+  LEFT OUTER JOIN {$prefix}post_urls pu
+  ON              urls.urlid = pu.urlid
+  LEFT OUTER JOIN {$prefix}posts p
+  ON              pu.pid = p.pid
+  WHERE           pu.pid = {$posthandler->data['pid']}");
+			$num_existing_links_in_post = $db->fetch_field($query, 'num_links');
+			$db->free_result($query);
+		}
+
+		// If the user is editing a post, we pivot our check periods around the post's
+		// creation dateline; otherwise, we pivot around the current time and only into the past.
+		if ($posthandler->data['pid']) {
+			$post = get_post($posthandler->data['pid']);
+			$pivot_time = $post['dateline'];
+		} else	$pivot_time = TIME_NOW;
+
 		$query1 = $db->simple_select('link_limits', '*');
 		while ($row = $db->fetch_array($query1)) {
 			$common_groups = array_intersect($groups, explode(',', $row['gids']));
 			if ($common_groups && in_array($posthandler->data['fid'], explode(',', $row['fids']))) {
-				$cutoff = TIME_NOW - $row['days'] * 24 * 60 * 60;
-				$query2 = $db->query("
+				$limit_period_secs = $row['days'] * 24 * 60 * 60;
+				foreach (array('past', 'future') as $pivot_dir) {
+					if ($pivot_dir == 'past') {
+						$cutoff = $pivot_time - $limit_period_secs;
+						$interval_cond = "p.dateline >= {$cutoff} AND p.dateline <= {$pivot_time}";
+					} else if (empty($posthandler->data['pid'])) {
+						continue;
+					} else { // future
+						$cutoff = min($pivot_time + $limit_period_secs, TIME_NOW);
+						$interval_cond = "p.dateline <= {$cutoff} AND p.dateline >= {$pivot_time}";
+					}
+					$query2 = $db->query("
   SELECT          COUNT(*) AS num_links
   FROM            {$prefix}urls urls
   LEFT OUTER JOIN {$prefix}post_urls pu
@@ -4238,37 +4282,43 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
   ON              f.fid = p.fid
   LEFT OUTER JOIN {$prefix}users u
   ON              p.uid = u.uid
-  WHERE           u.uid = {$mybb->user['uid']}
+  WHERE           u.uid = {$eff_user['uid']}
                   AND
                   f.fid IN ({$row['fids']})
                   AND
-                  p.dateline >= {$cutoff}");
-				$num_links_already_posted = $db->fetch_field($query2, 'num_links');
-				$db->free_result($query2);
-				if ($num_links_already_posted + $num_links_in_post > $row['maxlinks']) {
-					$groups_cache = $cache->read('usergroups');
-					$group_links = array();
-					foreach ($common_groups as $common_gid) {
-						$common_gid = (int)trim($common_gid);
-						if (isset($groups_cache[$common_gid])) {
-							$group_links[] = format_name(htmlspecialchars_uni($groups_cache[$common_gid]['title']), $common_gid);
-						}
-					}
-					if (!is_array($forum_cache)) {
-						$forum_cache = cache_forums();
-					}
-					$forum_links = array();
-					foreach (explode(',', $row['fids']) as $ll_fid) {
-						$ll_fid = (int)trim($ll_fid);
-						if (isset($forum_cache[$ll_fid]['name'])) {
-							$forum_links[] = '<a href="'.get_forum_link($ll_fid).'">'.htmlspecialchars_uni($forum_cache[$ll_fid]['name']).'</a>';
-						}
-					}
+                  {$interval_cond}");
+					$num_interval_links = $db->fetch_field($query2, 'num_links');
+					$db->free_result($query2);
 
-					$lang->load(C_LKT);
-					$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), $num_links_already_posted, $num_links_in_post, ($num_links_already_posted + $num_links_in_post - $row['maxlinks'])));
+					$num_net_new_links = $num_submitted_links - $num_existing_links_in_post;
+					if ($num_interval_links + $num_net_new_links > $row['maxlinks']) {
+						$groups_cache = $cache->read('usergroups');
+						$group_links = array();
+						foreach ($common_groups as $common_gid) {
+							$common_gid = (int)trim($common_gid);
+							if (isset($groups_cache[$common_gid])) {
+								$group_links[] = format_name(htmlspecialchars_uni($groups_cache[$common_gid]['title']), $common_gid);
+							}
+						}
+						if (!is_array($forum_cache)) {
+							$forum_cache = cache_forums();
+						}
+						$forum_links = array();
+						foreach (explode(',', $row['fids']) as $ll_fid) {
+							$ll_fid = (int)trim($ll_fid);
+							if (isset($forum_cache[$ll_fid]['name'])) {
+								$forum_links[] = '<a href="'.get_forum_link($ll_fid).'">'.htmlspecialchars_uni($forum_cache[$ll_fid]['name']).'</a>';
+							}
+						}
 
-					return;
+						$lang->load(C_LKT);
+
+						if (!empty($posthandler->data['pid'])) {
+							$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks_prior_period, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), my_date('normal', $pivot_dir == 'past' ? $cutoff : $pivot_time), my_date('normal', $pivot_dir == 'past' ? $pivot_time : $cutoff), $num_interval_links, $num_net_new_links, ($num_interval_links + $num_net_new_links - $row['maxlinks'])));
+						} else	$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), $num_interval_links, $num_net_new_links, ($num_interval_links + $num_net_new_links - $row['maxlinks'])));
+
+						return;
+					}
 				}
 			}
 		}
