@@ -4,7 +4,7 @@ Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links 
 
 1. *Link previews*. Are shown at the bottom of each post for each link in the post. Supports custom "Link Previewers" to generate different previews for different types of link. Shows the preview for the terminating link rather than the original link itself.
 
-2. *Seamless link searching*. Just type a link (URL) into the default field ("Keyword") of the standard MyBB search form and Link Tools will intercept the search and provide accurate results: only posts which contain the link or its equivalent will be listed. The default MyBB search does not handle links at all well and typically returns results completely unrelated to the link for which you searched.
+2. *Seamless link searching*. Just type a link (URL) into the default field ("Keyword") of the standard MyBB search form and Link Tools will intercept the search and provide accurate results: only posts which contain the link or its equivalent will be listed. The default MyBB search when set to Full Text does not handle links at all well and typically returns results completely unrelated to the link for which you searched.
 
 3. *A duplicate link warner*. When a member is starting a new thread, s/he will be warned if any links (URLs) that s/he includes in the thread-starter have already been posted to the board. This feature is especially useful when your board is heavily resource-based and there is a risk of members starting duplicate discussions about resources (links and videos) that have already been discussed.
 
