@@ -4237,7 +4237,7 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
 		// If the user is editing a post, find out how many links are in the pre-edited post.
 		$num_existing_links_in_post = 0;
 		if ($posthandler->data['pid']) {
-				$query = $db->query("
+			$query = $db->query("
   SELECT          COUNT(*) AS num_links
   FROM            {$prefix}urls urls
   LEFT OUTER JOIN {$prefix}post_urls pu
@@ -4249,29 +4249,51 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
 			$db->free_result($query);
 		}
 
-		// If the user is editing a post, we pivot our check periods around the post's
-		// creation dateline; otherwise, we pivot around the current time and only into the past.
 		if ($posthandler->data['pid']) {
 			$post = get_post($posthandler->data['pid']);
-			$pivot_time = $post['dateline'];
-		} else	$pivot_time = TIME_NOW;
-
+			$post_dateline = $post['dateline'];
+		} else	$post_dateline = TIME_NOW;
 		$query1 = $db->simple_select('link_limits', '*');
 		while ($row = $db->fetch_array($query1)) {
 			$common_groups = array_intersect($groups, explode(',', $row['gids']));
 			if ($common_groups && in_array($posthandler->data['fid'], explode(',', $row['fids']))) {
 				$limit_period_secs = $row['days'] * 24 * 60 * 60;
-				foreach (array('past', 'future') as $pivot_dir) {
-					if ($pivot_dir == 'past') {
-						$cutoff = $pivot_time - $limit_period_secs;
-						$interval_cond = "p.dateline >= {$cutoff} AND p.dateline <= {$pivot_time}";
-					} else if (empty($posthandler->data['pid'])) {
-						continue;
-					} else { // future
-						$cutoff = min($pivot_time + $limit_period_secs, TIME_NOW);
-						$interval_cond = "p.dateline <= {$cutoff} AND p.dateline >= {$pivot_time}";
+				$datelines = array();
+				if ($posthandler->data['pid']) {
+					// The user is editing a post, so try to find out whether, if the post were to be saved,
+					// it would cause the effective user's link count to be exceeded for any relevant period.
+					$start = $post_dateline - $limit_period_secs;
+					$end   = $post_dateline + $limit_period_secs;
+					$query2 = $db->simple_select('posts', 'dateline', "uid='{$eff_user['uid']}' AND dateline >= '{$start}' AND dateline <= '{$end}'", array('order_by' => 'dateline', 'order_dir' => 'DESC'));
+					while ($dateline = $db->fetch_field($query2, 'dateline')) {
+						$datelines[] = $dateline;
 					}
-					$query2 = $db->query("
+					$db->free_result($query2);
+					// Sample at most 10 periods based on datelines of posts made during the overall interval of interest.
+					// If we don't sample, we can end up with huge numbers of queries which take a long time to complete.
+					// Occasionally, this might miss a period for which the link count would exceed its allowed maximum,
+					// but it should for the vast majority of the time be reliable, and otherwise be "close enough".
+					$max_dlines = 10;
+					$num_dlines = count($datelines);
+					if ($num_dlines > $max_dlines) {
+						$d2 = array($datelines[0], $datelines[$num_dlines - 1]);
+						for ($i = 1; $i <= ($max_dlines - 2); $i++) {
+							$idx = ceil($i * $num_dlines / ($max_dlines - 1));
+							$d2[] = $datelines[$idx];
+						}
+						$datelines = $d2;
+					}
+				} else	$datelines[] = $post_dateline;
+				foreach ($datelines as $dateline) {
+					if ($dateline >= $post_dateline) {
+						$end = $dateline;
+						$start = $end - $limit_period_secs;
+					} else {
+						$start = $dateline;
+						$end = $start + $limit_period_secs;
+					}
+					$interval_cond = "p.dateline >= {$start} AND p.dateline <= {$end}";
+					$query3 = $db->query("
   SELECT          COUNT(*) AS num_links
   FROM            {$prefix}urls urls
   LEFT OUTER JOIN {$prefix}post_urls pu
@@ -4287,8 +4309,8 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
                   f.fid IN ({$row['fids']})
                   AND
                   {$interval_cond}");
-					$num_interval_links = $db->fetch_field($query2, 'num_links');
-					$db->free_result($query2);
+					$num_interval_links = $db->fetch_field($query3, 'num_links');
+					$db->free_result($query3);
 
 					$num_net_new_links = $num_submitted_links - $num_existing_links_in_post;
 					if ($num_interval_links + $num_net_new_links > $row['maxlinks']) {
@@ -4314,7 +4336,7 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
 						$lang->load(C_LKT);
 
 						if (!empty($posthandler->data['pid'])) {
-							$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks_prior_period, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), my_date('normal', $pivot_dir == 'past' ? $cutoff : $pivot_time), my_date('normal', $pivot_dir == 'past' ? $pivot_time : $cutoff), $num_interval_links, $num_net_new_links, ($num_interval_links + $num_net_new_links - $row['maxlinks'])));
+							$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks_prior_period, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), my_date('normal', $start), my_date('normal', $end), $num_interval_links, $num_net_new_links, ($num_interval_links + $num_net_new_links - $row['maxlinks'])));
 						} else	$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), $num_interval_links, $num_net_new_links, ($num_interval_links + $num_net_new_links - $row['maxlinks'])));
 
 						return;
