@@ -360,6 +360,12 @@ CREATE TABLE '.TABLE_PREFIX.'link_limits (
 
 	// Convert "Helper" to "Previewer" in the cache as required.
 	$lrs_plugins = $cache->read('lrs_plugins');
+	if (empty($lrs_plugins)) {
+		$lrs_plugins = [];
+	}
+	if (empty($lrs_plugins[C_LKT])) {
+		$lrs_plugins[C_LKT] = [];
+	}
 	if (!empty($lrs_plugins[C_LKT]['installed_link_helpers']) && empty($lrs_plugins[C_LKT]['installed_link_previewers'])) {
 		$lrs_plugins[C_LKT]['installed_link_previewers'] = array();
 		foreach ($lrs_plugins[C_LKT]['installed_link_helpers'] as $classname => $value) {
@@ -422,7 +428,9 @@ function linktools_uninstall() {
 	lkt_delete_stylesheets(/*$master_only = */false);
 
 	$lrs_plugins = $cache->read('lrs_plugins');
-	unset($lrs_plugins[C_LKT]);
+	if (isset($lrs_plugins[C_LKT])) {
+		unset($lrs_plugins[C_LKT]);
+	}
 	$cache->update('lrs_plugins', $lrs_plugins);
 }
 
@@ -541,6 +549,12 @@ function lkt_enable_new_previewers() {
 		}
 	}
 
+	if (empty($lrs_plugins)) {
+		$lrs_plugins = [];
+	}
+	if (empty($lrs_plugins[C_LKT])) {
+		$lrs_plugins[C_LKT] = [];
+	}
 	$lrs_plugins[C_LKT]['installed_link_previewers'] = $inst_previewers;
 	$cache->update('lrs_plugins', $lrs_plugins);
 }
@@ -757,6 +771,12 @@ function lkt_toggle_hidden_posts() {
 		}
 	}
 
+	if (empty($lrs_plugins)) {
+		$lrs_plugins = [];
+	}
+	if (empty($lrs_plugins[C_LKT])) {
+		$lrs_plugins[C_LKT] = [];
+	}
 	$lrs_plugins[C_LKT]['installed_link_previewers'] = $inst_previewers;
 	$cache->update('lrs_plugins', $lrs_plugins);
 	$lrs_plugins = $cache->read('lrs_plugins');

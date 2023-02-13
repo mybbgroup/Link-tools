@@ -57,6 +57,12 @@ if ($mybb->get_input('do_update')) {
 			}
 		}
 	}
+	if (empty($lrs_plugins)) {
+		$lrs_plugins = [];
+	}
+	if (empty($lrs_plugins[C_LKT])) {
+		$lrs_plugins[C_LKT] = [];
+	}
 	$lrs_plugins[C_LKT]['installed_link_previewers'] = $inst_previewers;
 	$cache->update('lrs_plugins', $lrs_plugins);
 }
