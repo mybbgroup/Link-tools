@@ -168,7 +168,7 @@ function linktools_info() {
 		$desc .= '<ul>'.PHP_EOL;
 
 		if (!empty($admin_session['data']['lkt_plugin_info_upgrade_message'])) {
-			$msg = $admin_session['data']['lkt_plugin_info_upgrade_message'].' '.$msg;
+			$msg = $admin_session['data']['lkt_plugin_info_upgrade_message'];
 			update_admin_session('lkt_plugin_info_upgrade_message', '');
 			$desc .= "	<li style=\"list-style-image: url(styles/default/images/icons/success.png)\"><div class=\"success\">{$msg}</div></li>".PHP_EOL;
 		}

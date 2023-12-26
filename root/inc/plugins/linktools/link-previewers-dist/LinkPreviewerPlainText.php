@@ -26,7 +26,7 @@ if (!defined('IN_MYBB')) {
 class LinkPreviewerPlainText extends LinkPreviewer {
 	/**
 	 * Provisionally support all links (subject to the page to which a
-	 * link refers having a content-type of text/html).
+	 * link refers having a content-type of text/plain).
 	 */
 	protected $supported_norm_links_regex = '(^)';
 
@@ -64,6 +64,8 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 	</a>
 </div>';
 
+	protected $max_chars = 83;
+
 	/**
 	 * Only support previews of plain text content.
 	 */
@@ -81,12 +83,10 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 			return '';
 		}
 
-		$max_chars = 83;
-
 		$description = trim(preg_replace('(\\s+)', ' ', strip_tags($content)));
-		$need_ellipsis_desc = strlen($description) > $max_chars;
+		$need_ellipsis_desc = strlen($description) > $this->max_chars;
 		if ($need_ellipsis_desc) {
-			$description = my_substr($description, 0, $max_chars);
+			$description = my_substr($description, 0, $this->max_chars);
 		}
 		$description_safe = htmlspecialchars_uni($description);
 		if ($need_ellipsis_desc) $description_safe .= '&hellip;';
@@ -102,9 +102,9 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 
 		$link_safe = htmlspecialchars_uni($link);
 		$link_basename = basename($link);
-		$need_ellipsis_basename = my_strlen($link_basename) > $max_chars;
+		$need_ellipsis_basename = my_strlen($link_basename) > $this->max_chars;
 		if ($need_ellipsis_basename) {
-			$link_basename = my_substr($link_basename, 0, $max_chars);
+			$link_basename = my_substr($link_basename, 0, $this->max_chars);
 		}
 		$link_basename_safe = htmlspecialchars_uni($link_basename);
 		if ($need_ellipsis_basename) $link_basename_safe .= '&hellip;';
