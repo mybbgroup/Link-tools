@@ -1,6 +1,6 @@
 ## About Link Tools
 
-Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links (URLs) in posts made to your forum, and then provides you with three new features:
+Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links (URLs) in posts made to your forum, and then provides you with four new features:
 
 1. *Link previews*. Are shown at the bottom of each post for each link in the post. Supports custom "Link Previewers" to generate different previews for different types of link. Shows the preview for the terminating link rather than the original link itself.
 
