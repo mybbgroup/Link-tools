@@ -99,6 +99,10 @@ $plugins->add_hook('xmlhttp'                                , 'lkt_hookin__xmlht
 $plugins->add_hook('admin_config_settings_change'           , 'lkt_hookin__admin_config_settings_change'           );
 $plugins->add_hook('admin_settings_print_peekers'           , 'lkt_hookin__admin_settings_print_peekers'           );
 $plugins->add_hook('postbit'                                , 'lkt_hookin__postbit'                                );
+$plugins->add_hook('postbit'                                , 'lkt_hookin__postbit_etc'                            );
+$plugins->add_hook('postbit_prev'                           , 'lkt_hookin__postbit_etc'                            );
+$plugins->add_hook('postbit_pm'                             , 'lkt_hookin__postbit_etc'                            );
+$plugins->add_hook('postbit_announcement'                   , 'lkt_hookin__postbit_etc'                            );
 $plugins->add_hook('parse_message_start'                    , 'lkt_hookin__parse_message_start'                    );
 $plugins->add_hook('xmlhttp_update_post'                    , 'lkt_hookin__xmlhttp_update_post'                    );
 $plugins->add_hook('admin_config_menu'                      , 'lkt_hookin__admin_config_menu'                      );
@@ -3910,10 +3914,15 @@ function lkt_get_preview_regen_container($post, $urls) {
 	return $ret;
 }
 
+function lkt_hookin__postbit_etc($post) {
+	$post['updatepreview'] = '';
+
+	return $post;
+}
+
 function lkt_hookin__postbit($post) {
 	global $g_lkt_previews, $g_lkt_links_excl_vids;
 
-	$post['updatepreview'] = '';
 	if ($g_lkt_previews && empty($post['lkt_linkpreviewoff'])) {
 		$post['message'] = str_replace(array_keys($g_lkt_previews), array_values($g_lkt_previews), $post['message']);
 		$post['updatepreview'] = lkt_get_preview_regen_container($post, $g_lkt_links_excl_vids);
