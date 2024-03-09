@@ -27,16 +27,42 @@ if (extension_loaded('curl')) {
 	echo 'PASS'.PHP_EOL.PHP_EOL;
 } else {
 	echo 'FAIL'.PHP_EOL.PHP_EOL;
-	echo get_limited_func_str(true).PHP_EOL;
+	echo get_limited_func_str('installed');
 	exit;
 }
 
-echo 'Checking for the existence of the curl_init() function...';
-if (function_exists('curl_init')) {
+echo 'Checking for the existence of all required cURL functions...';
+$funcs = array(
+	'curl_init',
+	'curl_setopt_array',
+	'curl_exec',
+	'curl_getinfo',
+	'curl_multi_init',
+	'curl_multi_add_handle',
+	'curl_multi_exec',
+	'curl_multi_select',
+	'curl_multi_getcontent',
+	'curl_multi_remove_handle',
+	'curl_close',
+);
+$funcs_exist = array();
+$funcs_not_exist = array();
+foreach ($funcs as $func) {
+	if (function_exists($func)) {
+		$funcs_exist[] = $func;
+	} else	$funcs_not_exist[] = $func;
+}
+if (!$funcs_not_exist) {
 	echo 'PASS'.PHP_EOL.PHP_EOL;
 } else {
 	echo 'FAIL'.PHP_EOL.PHP_EOL;
-	echo get_limited_func_str(true).PHP_EOL;
+	echo 'Link Tools functionality will be limited because not all of the required functions from the Client URL Library (cURL) are available.'.PHP_EOL.PHP_EOL;
+	if ($funcs_exist) {
+		echo 'The following cURL functions are available: '.implode('(), ', $funcs_exist).'().'.PHP_EOL.PHP_EOL;
+	}
+	echo 'The following cURL functions are not available: '.implode('(), ', $funcs_not_exist).'().'.PHP_EOL.PHP_EOL;
+	echo 'Probably, these unavailable functions have been disabled by your host, in which case, you could contact your host to have them enabled if possible.'.PHP_EOL.PHP_EOL;
+	echo 'For more details on the cURL library, please see here: <https://www.php.net/manual/en/book.curl.php>.';
 	exit;
 }
 
@@ -208,6 +234,6 @@ function do_failure($ch, $err_msgs) {
 	echo 'The curl_error() function reports: '.curl_error($ch).PHP_EOL.PHP_EOL;
 }
 
-function get_limited_func_str($for_not_installed = false) {
-	return 'Link Tools functionality will be limited because the Client URL Library (cURL) does not appear to be '.($for_not_installed ? 'installed' : 'functioning correctly').'. For more details on this library, please see here: <https://www.php.net/manual/en/book.curl.php>.'.PHP_EOL;
+function get_limited_func_str($error_wording = 'functioning correctly') {
+	return 'Link Tools functionality will be limited because the Client URL Library (cURL) does not appear to be '.$error_wording.'. For more details on this library, please see here: <https://www.php.net/manual/en/book.curl.php>.'.PHP_EOL;
 }
