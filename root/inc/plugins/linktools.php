@@ -3528,7 +3528,7 @@ function lkt_hookin__search_do_search_start() {
 
 	$do_lkt_search = false;
 
-	if ($mybb->input['urls']) {
+	if ($mybb->get_input('urls')) {
 		$urls = $mybb->input['urls'];
 		$do_lkt_search = true;
 	} else if ($mybb->input['keywords']) {
