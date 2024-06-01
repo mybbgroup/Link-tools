@@ -45,7 +45,7 @@ $l['lkt_task_ran'         ] = 'The Link Tools link extraction and redirect resol
 $l['lkt_enable_dlw_title' ] = 'Enable the duplicate link warner?';
 $l['lkt_enable_dlw_desc'  ] = 'When enabled, a member posting a new thread will be warned if any links in their thread-starter have already been posted to the forum in one or more existing posts.';
 
-$l['lkt_settings'         ] = 'Link Tools Settings';
+$l['lkt_settings_title'   ] = 'Link Tools Settings';
 $l['lkt_settings_desc'    ] = 'Settings to customise the Link Tools plugin';
 
 $l['lkt_force_dlw_title'  ] = 'Force members to use the duplicate link warner?';

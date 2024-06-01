@@ -261,9 +261,13 @@ function linktools_info() {
 	return $ret;
 }
 
+/**
+ * Performs the tasks required upon installation of this plugin.
+ */
 function linktools_install() {
-	$info = linktools_info();
-	lkt_install_or_upgrade(false, $info['version_code']);
+	// We don't do anything here. Given that a plugin cannot be installed
+	// without being simultaneously activated, it is sufficient to call
+	// lkt_install_or_upgrade() from linktools_activate().
 }
 
 function lkt_install_or_upgrade($from_version, $to_version) {
@@ -387,14 +391,15 @@ CREATE TABLE '.TABLE_PREFIX.'link_limits (
 	// existing entries.
 	lkt_create_templategroup();
 	lkt_insert_templates($from_version);
-	lkt_create_settingsgroup();
-	lkt_create_settings();
+	lkt_create_or_update_settings();
 	lkt_enable_new_previewers();
 	lkt_create_stylesheets();
 }
 
 function linktools_uninstall() {
 	global $db, $cache;
+
+	lkt_remove_settings();
 
 	if ($db->table_exists('urls')) {
 		$db->drop_table('urls');
@@ -946,54 +951,59 @@ function lkt_delete_stylesheets($master_only) {
 	$db->delete_query('themestylesheets', "(name = 'linktools.css' OR name = 'linkpreview.css')".($master_only ? ' AND tid = 1' : ''));
 }
 
-function lkt_create_settingsgroup() {
-	global $db, $lang;
+/**
+ * Gets the gid of this plugin's setting group, if any.
+ *
+ * @return The gid or false if the setting group does not exist.
+ */
+function lkt_get_gid() {
+	global $db;
+	$prefix = C_LKT.'_';
 
-	if (!isset($lang->linktools)) {
-		$lang->load(C_LKT);
-	}
+	$query = $db->simple_select('settinggroups', 'gid', "name = '{$prefix}settings'", array(
+		'order_by' => 'gid',
+		'order_dir' => 'DESC',
+		'limit' => 1
+	));
 
-	$res = $db->simple_select('settinggroups', 'gid', "name = '".C_LKT."_settings'", array('limit' => 1));
-	$gid = $db->fetch_field($res, 'gid');
-
-	$fields = array(
-		'title'        => $db->escape_string($lang->lkt_settings     ),
-		'description'  => $db->escape_string($lang->lkt_settings_desc),
-	);
-
-	if (!$gid) {
-		$res = $db->simple_select('settinggroups', 'MAX(disporder) as max_disporder');
-		$disporder = $db->fetch_field($res, 'max_disporder') + 1;
-		$fields = array_merge($fields, array(
-			'name'         => C_LKT.'_settings',
-			'disporder'    => intval($disporder),
-			'isdefault'    => 0
-		));
-		// Insert the plugin settings group into the database.
-		$db->insert_query('settinggroups', $fields);
-	} else	$db->update_query('settinggroups', $fields, "gid={$gid}");
+	return $db->fetch_field($query, 'gid');
 }
 
-function lkt_create_settings() {
+/**
+ * Creates or updates this plugin's settings.
+ */
+function lkt_create_or_update_settings() {
 	global $db, $lang;
+	$prefix = C_LKT.'_';
 
-	if (!isset($lang->linktools)) {
-		$lang->load(C_LKT);
+	$lang->load(C_LKT);
+
+	$setting_group = array(
+		'name'         => $prefix.'settings',
+		'title'        => $db->escape_string($lang->lkt_settings_title),
+		'description'  => $db->escape_string($lang->lkt_settings_desc ),
+		'isdefault'    => 0
+	);
+	$gid = lkt_get_gid();
+	if (empty($gid)) {
+		// Insert the plugin's settings group into the database.
+		$query = $db->query('SELECT MAX(disporder) as max_disporder FROM '.TABLE_PREFIX.'settinggroups');
+		$setting_group['disporder'] = intval($db->fetch_field($query, 'max_disporder')) + 1;
+		$db->insert_query('settinggroups', $setting_group);
+		$gid = $db->insert_id();
+	} else {
+		// Update the plugin's settings group in the database.
+		$db->update_query('settinggroups', $setting_group, "gid='{$gid}'");
 	}
 
-	$existing_setting_values = array();
-	$res = $db->simple_select('settinggroups', 'gid', "name = '".C_LKT."_settings'", array('limit' => 1));
-	$gid = $db->fetch_field($res, 'gid');
-	if ($gid) {
-		$res2 = $db->simple_select('settings', 'value, name', "gid={$gid}");
-		while ($setting = $db->fetch_array($res2)) {
-			$existing_setting_values[$setting['name']] = $setting['value'];
-		}
-		// Delete existing settings, without deleting their group.
-		$db->delete_query('settings', "gid='{$gid}'");
+	// Get the plugin's existing settings, if any.
+	$existing_settings = array();
+	$query = $db->simple_select('settings', 'name', "gid='{$gid}'");
+	while ($setting = $db->fetch_array($query)) {
+		$existing_settings[] = $setting['name'];
 	}
 
-	// The settings to (re)create in the database.
+	// Define the plugin's (new/updated) settings.
 	$settings = array(
 		'enable_dlw' => array(
 			'title'       => $lang->lkt_enable_dlw_title,
@@ -1081,25 +1091,66 @@ function lkt_create_settings() {
 		),
 	);
 
-	// (Re)create the settings, retaining the old values where they exist.
-	$ordernum = 1;
+	// Delete existing settings no longer present in the plugin's current version.
+	$new_settings = array_map(function($e) use ($prefix) {return $prefix.$e;}, array_keys($settings));
+	$to_delete = array_diff($existing_settings, $new_settings);
+	if ($to_delete) {
+		$names_esc_cs_qt = "'".implode("', '", array_map([$db, 'escape_string'], $to_delete))."'";
+		$db->delete_query('settings', "name IN ({$names_esc_cs_qt}) AND gid='{$gid}'");
+	}
+
+	// Insert into, or update in, the database each of this plugin's settings.
+	$disporder = 1;
+	$inserts = [];
 	foreach ($settings as $name => $setting) {
-		$value = isset($existing_setting_values[C_LKT.'_'.$name]) ? $existing_setting_values[C_LKT.'_'.$name] : $setting['value'];
-		$insert_settings = array(
-			'name'        => $db->escape_string(C_LKT.'_'.$name        ),
+		$fields = array(
+			'name'        => $db->escape_string($prefix.$name          ),
 			'title'       => $db->escape_string($setting['title'      ]),
 			'description' => $db->escape_string($setting['description']),
 			'optionscode' => $db->escape_string($setting['optionscode']),
-			'value'       => $value                                     ,
-			'disporder'   => $ordernum                                  ,
+			'value'       => $db->escape_string($setting['value'      ]),
+			'disporder'   => $disporder                                 ,
 			'gid'         => $gid                                       ,
-			'isdefault'   => 0
+			'isdefault'   => 0                                          ,
 		);
-		$db->insert_query('settings', $insert_settings);
-		$ordernum++;
+		if (in_array($prefix.$name, $existing_settings)) {
+			// Update the already-existing setting while retaining its value.
+			unset($fields['value']);
+			$db->update_query('settings', $fields, "name='{$prefix}{$name}' AND gid='{$gid}'");
+		} else {
+			// Queue the new setting for insertion.
+			$inserts[] = $fields;
+		}
+		$disporder++;
+	}
+
+	if ($inserts) {
+		// Insert the queued new settings.
+		$db->insert_query_multiple('settings', $inserts);
 	}
 
 	rebuild_settings();
+}
+
+/**
+ * Removes this plugin's settings, including its settings group.
+ * Accounts for the possibility that the settings group + settings were
+ * accidentally created multiple times.
+ */
+function lkt_remove_settings() {
+	global $db;
+	$prefix = C_LKT.'_';
+
+	$rebuild = false;
+	$query = $db->simple_select('settinggroups', 'gid', "name = '{$prefix}settings'");
+	while ($gid = $db->fetch_field($query, 'gid')) {
+		$db->delete_query('settinggroups', "gid='{$gid}'");
+		$db->delete_query('settings', "gid='{$gid}'");
+		$rebuild = true;
+	}
+	if ($rebuild) {
+		rebuild_settings();
+	}
 }
 
 function lkt_get_scheme($url) {
