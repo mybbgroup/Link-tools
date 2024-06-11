@@ -7,7 +7,8 @@ if (!defined('IN_MYBB')) {
 
 $lang->load('linktools');
 
-$errs = array();
+$ll_gids = $ll_fids = $errs = array();
+$maxlinks = $days = '';
 
 if ($mybb->get_input('my_post_key')) {
 	verify_post_check($mybb->get_input('my_post_key'));
@@ -100,7 +101,7 @@ if ($mybb->get_input('my_post_key')) {
 // We re-initialise $form afterwards though with its $return value set to false (the default).
 $form = new Form('index.php?module=forum-linklimits', 'post', /*$id=*/'', /*$allow_uploads=*/false, /*$name=*/'', /*$return=*/true);
 $groups_cache = $cache->read('usergroups');
-if (!is_array($forum_cache)) {
+if (!isset($forum_cache) || !is_array($forum_cache)) {
 	$forum_cache = cache_forums();
 }
 
