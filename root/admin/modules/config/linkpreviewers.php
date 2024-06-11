@@ -21,6 +21,7 @@ $page->add_breadcrumb_item($lang->lkt_linkpreviewers, "index.php?module=config-l
 $page->output_header($lang->lkt_linkpreviewers);
 
 if ($mybb->get_input('do_update')) {
+	$did_update = false;
 	$installall = !empty($mybb->get_input('installall'));
 	$just_installed = array();
 	foreach ($present_previewers as $present_previewer) {
@@ -42,6 +43,7 @@ if ($mybb->get_input('do_update')) {
 					'dateline' => TIME_NOW
 				);
 				$db->insert_query('templates', $fields);
+				$did_update = true;
 				$inst_previewers[$present_previewer]['tpl_installed'] = $previewerobj->get_version();
 				$just_installed[$present_previewer] = true;
 			}
@@ -53,6 +55,7 @@ if ($mybb->get_input('do_update')) {
 			if (empty($just_installed[$inst_previewer]) && is_array($input_arr) && $input_arr[0] != $inst_previewer) {
 				$tpl_nm = lkt_mk_tpl_nm_frm_classnm($inst_previewer);
 				$db->delete_query('templates', "title = '$tpl_nm'");
+				$did_update = true;
 				$inst_previewers[$inst_previewer]['tpl_installed'] = '';
 			}
 		}
@@ -63,8 +66,30 @@ if ($mybb->get_input('do_update')) {
 	if (empty($lrs_plugins[C_LKT])) {
 		$lrs_plugins[C_LKT] = [];
 	}
+
+	if (!isset($lrs_plugins[C_LKT]['installed_link_previewers'])) {
+		$did_update = true;
+	} else {
+		$pvs_old = array_keys($lrs_plugins[C_LKT]['installed_link_previewers']);
+		$pvs_new = array_keys($inst_previewers);
+		if (array_diff($pvs_old, $pvs_new) || array_diff($pvs_new, $pvs_old)) {
+			$did_update = true;
+		} else {
+			foreach ($lrs_plugins[C_LKT]['installed_link_previewers'] as $pv => $data) {
+				if ($inst_previewers[$pv] != $data) {
+					$did_update = true;
+					break;
+				}
+			}
+		}
+	}
+
 	$lrs_plugins[C_LKT]['installed_link_previewers'] = $inst_previewers;
 	$cache->update('lrs_plugins', $lrs_plugins);
+
+	if ($did_update) {
+		log_admin_action();
+	}
 }
 
 if ($present_previewers || $inst_previewers) {

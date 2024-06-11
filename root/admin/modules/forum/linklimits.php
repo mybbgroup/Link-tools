@@ -13,6 +13,8 @@ $maxlinks = $days = '';
 if ($mybb->get_input('my_post_key')) {
 	verify_post_check($mybb->get_input('my_post_key'));
 
+	$did_update = false;
+
 	if (!isset($mybb->input['ajax_save_id']) && !isset($mybb->input['ajax_del_id'])) {
 		$ll_gids = $mybb->get_input('ll_gids', MyBB::INPUT_ARRAY);
 		foreach ($ll_gids as &$ll_gid) {
@@ -53,6 +55,7 @@ if ($mybb->get_input('my_post_key')) {
 				$ll_gids = $ll_fids = array();
 				$maxlinks = '';
 				$days = '';
+				$did_update = true;
 			}
 		}
 	}
@@ -78,6 +81,7 @@ if ($mybb->get_input('my_post_key')) {
 					'days'     => $mybb->get_input('days_'    .$save_id, MyBB::INPUT_INT),
 				);
 				$db->update_query('link_limits', $fields, "llid = '$save_id'");
+				$did_update = true;
 				if ($key == 'ajax_save_id') {
 					$fields['llid'] = $save_id;
 					break;
@@ -91,8 +95,13 @@ if ($mybb->get_input('my_post_key')) {
 			$del_id = $key == 'ajax_del_id' ? $val : (int)substr($key, 4);
 			if ($del_id > 0) {
 				$db->delete_query('link_limits', "llid = '$del_id'");
+				$did_update = true;
 			}
 		}
+	}
+
+	if ($did_update) {
+		log_admin_action();
 	}
 }
 

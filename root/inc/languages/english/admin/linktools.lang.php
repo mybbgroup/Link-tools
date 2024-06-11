@@ -143,3 +143,7 @@ $l['lkt_err_nogrps'] = 'You did not select any groups.';
 $l['lkt_err_nofrms'] = 'You did not select any forums.';
 $l['lkt_err_nodays'] = 'You did not enter an integer of one or more for the period in days.';
 $l['lkt_err_nomaxlnk'] = 'You did not enter an integer of zero or more for the maximum links.';
+
+$l['admin_log_forum_linklimits_'     ] = 'Updated the Link Tools link posting limits';
+$l['admin_log_config_linkpreviewers_'] = 'Updated the Link Tools link previewers';
+$l['admin_log_tools_linkpreviewers_do_invalidation'] = 'Invalidated one or more Link Tools link previewer caches for all applicable URLs';

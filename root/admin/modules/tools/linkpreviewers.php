@@ -39,6 +39,7 @@ if ($mybb->get_input('do_invalidation') && ($pv_lc = $mybb->get_input('previewer
 		}
 		$msg = $lang->sprintf($lang->lkt_linkpreviewers_invalidated, $previewer_list);
 		echo '<p style="color: #00b200; font-weight: bold; font-size: 10px; margin-bottom: 10px;">'.$msg.'</p>';
+		log_admin_action();
 	}
 }
 
