@@ -483,7 +483,7 @@ function linktools_activate() {
 		require_once MYBB_ROOT . '/inc/functions_task.php';
 		$new_task = array(
 			'title' => $db->escape_string($lang->lkt_task_title),
-			'description' => $db->escape_string($lang->lkt_task_description),
+			'description' => $db->escape_string($lang->sprint($lang->lkt_task_description, lkt_default_rebuild_term_items_per_page)),
 			'file' => 'linktools',
 			'minute'      => '0',
 			'hour'        => '0',
