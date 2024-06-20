@@ -474,9 +474,9 @@ function linktools_activate() {
 	find_replace_templatesets('postbit_classic', '({\\$post\\[\'poststatus\'\\]})', '{$post[\'poststatus\']}{$post[\'updatepreview\']}');
 	find_replace_templatesets('showthread'     , '(<script\\stype="text/javascript"\\ssrc="{\\$mybb->asset_url}/jscripts/thread.js(?:\\?ver=\\d+)"></script>)', '<script type="text/javascript" src="{$mybb->asset_url}/jscripts/thread.js?ver=1822"></script>
 <script type="text/javascript" src="{$mybb->asset_url}/jscripts/linkpreviews.js?ver=1.1.0"></script>');
-	find_replace_templatesets('newthread_postoptions', '({\\$disablesmilies})', '{$disablesmilies}<br />{$disablelinkpreviews}');
-	find_replace_templatesets('newreply_postoptions', '({\\$disablesmilies})', '{$disablesmilies}<br />{$disablelinkpreviews}');
-	find_replace_templatesets('editpost_postoptions', '({\\$disablesmilies})', '{$disablesmilies}<br />{$disablelinkpreviews}');
+	find_replace_templatesets('newthread_postoptions', '({\\$disablesmilies})', '{$disablesmilies}{$disablelinkpreviews}');
+	find_replace_templatesets('newreply_postoptions', '({\\$disablesmilies})', '{$disablesmilies}{$disablelinkpreviews}');
+	find_replace_templatesets('editpost_postoptions', '({\\$disablesmilies})', '{$disablesmilies}{$disablelinkpreviews}');
 
 	$res = $db->simple_select('tasks', 'tid', "file='linktools'", array('limit' => '1'));
 	if ($db->num_rows($res) == 0) {
@@ -518,9 +518,9 @@ function linktools_deactivate() {
 	find_replace_templatesets('postbit'        , '({\\$post\\[\'updatepreview\'\\]})', '', 0);
 	find_replace_templatesets('postbit_classic', '({\\$post\\[\'updatepreview\'\\]})', '', 0);
 	find_replace_templatesets('showthread'     , '(\\r?\\n?<script\\stype="text/javascript"\\ssrc="{\\$mybb->asset_url}/jscripts/linkpreviews.js(?:\\?ver=[^"]+)?"></script>)', '', 0);
-	find_replace_templatesets('newthread_postoptions', '(<br\\s/>{\\$disablelinkpreviews})', '', 0);
-	find_replace_templatesets('newreply_postoptions', '(<br\\s/>{\\$disablelinkpreviews})', '', 0);
-	find_replace_templatesets('editpost_postoptions', '(<br\\s/>{\\$disablelinkpreviews})', '', 0);
+	find_replace_templatesets('newthread_postoptions', '({\\$disablelinkpreviews})', '', 0);
+	find_replace_templatesets('newreply_postoptions', '({\\$disablelinkpreviews})', '', 0);
+	find_replace_templatesets('editpost_postoptions', '({\\$disablelinkpreviews})', '', 0);
 
 	$db->update_query('tasks', array('enabled' => 0), 'file=\'linktools\'');
 }
@@ -711,8 +711,8 @@ function lkt_toggle_hidden_posts() {
 			'version_at_last_change' => '10100',
 		),
 		'linktools_cbxdisablelinkpreview' => array(
-			'template' => '<label><input type="checkbox" class="checkbox" name="lkt_linkpreviewoff" value="1" tabindex="9"{$linkpreviewoffchecked} /> {$lang->lkt_linkpreviewoff}</label>',
-			'version_at_last_change' => '10100',
+			'template' => '<br /><label><input type="checkbox" class="checkbox" name="lkt_linkpreviewoff" value="1" tabindex="9"{$linkpreviewoffchecked} /> {$lang->lkt_linkpreviewoff}</label>',
+			'version_at_last_change' => '10402',
 		),
 	);
 
