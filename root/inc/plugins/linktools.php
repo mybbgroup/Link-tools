@@ -3439,10 +3439,13 @@ function lkt_hookin__newthread_start() {
 	);
 	$lkt_previously_dismissed = json_encode($mybb->get_input('lkt_dismissed') ? json_decode($mybb->get_input('lkt_dismissed'), true) : array(), JSON_PRETTY_PRINT);
 
+	// This user setting won't be present when posting as a guest, so check for its existence, and default to "warn" for guests.
+	$lkt_warn_about_links = isset($mybb->user['lkt_warn_about_links']) ? $mybb->user['lkt_warn_about_links'] : 1;
+
 	$linktools_js = <<<EOF
 <script type="text/javascript" src="{$mybb->settings['bburl']}/jscripts/linktools.js?1.3.3"></script>
 <script type="text/javascript">
-lkt_setting_warn_about_links     = {$mybb->user['lkt_warn_about_links']};
+lkt_setting_warn_about_links     = {$lkt_warn_about_links};
 lkt_setting_dlw_forced           = {$mybb->settings['linktools_force_dlw']};
 EOF;
 	foreach ($lang_strings as $key) {
