@@ -80,7 +80,7 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 		global $mybb;
 
 		if ($content_type != 'text/plain') {
-			return '';
+			return array('description_safe' => '');
 		}
 
 		$description = trim(preg_replace('(\\s+)', ' ', strip_tags($content)));
@@ -108,6 +108,10 @@ class LinkPreviewerPlainText extends LinkPreviewer {
 		}
 		$link_basename_safe = htmlspecialchars_uni($link_basename);
 		if ($need_ellipsis_basename) $link_basename_safe .= '&hellip;';
+
+		if (empty($pv_data)) {
+			$pv_data = array('description_safe' => '');
+		}
 
 		eval('$preview_contents = "'.$this->get_template_for_eval().'";');
 

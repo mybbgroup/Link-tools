@@ -1552,7 +1552,7 @@ function lkt_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 
 	$now = time();
 	foreach ($urls as $url) {
-		$target = (!$got_terms || $got_terms[$url] == false) ? '' : $redirs[$url];
+		$target = (!$got_terms || empty($got_terms[$url])) ? '' : $redirs[$url];
 		for ($try = 1; $try <= 2; $try++) {
 			$res = $db->simple_select('urls', 'urlid', 'url = \''.$db->escape_string($url).'\'');
 			if ($row = $db->fetch_array($res)) {
@@ -2763,7 +2763,7 @@ function lkt_normalise_url($url, $skip_ignored_query_params = false) {
 		$ret .= ':'.$parsed_url['port'];
 	}
 
-	$ret .= ($parsed_url['path'] == '' ? '/' : lkt_check_canonicalise_path($parsed_url['path']));
+	$ret .= (empty($parsed_url['path']) ? '/' : lkt_check_canonicalise_path($parsed_url['path']));
 
 	if (isset($parsed_url['query'])) {
 		$query = str_replace('&amp;', '&', $parsed_url['query']);
@@ -4319,7 +4319,7 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
 
 		// If the user is editing a post, find out how many links are in the pre-edited post.
 		$num_existing_links_in_post = 0;
-		if ($posthandler->data['pid']) {
+		if (!empty($posthandler->data['pid'])) {
 			$query = $db->query("
   SELECT          COUNT(*) AS num_links
   FROM            {$prefix}urls urls
@@ -4332,7 +4332,7 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
 			$db->free_result($query);
 		}
 
-		if ($posthandler->data['pid']) {
+		if (!empty($posthandler->data['pid'])) {
 			$post = get_post($posthandler->data['pid']);
 			$post_dateline = $post['dateline'];
 		} else	$post_dateline = TIME_NOW;

@@ -147,7 +147,7 @@ class LinkPreviewerDefault extends LinkPreviewer {
 				$img_url = '';
 			}
 		}
-		if (!$img_url) {
+		if (empty($img_url)) {
 			$img_url = $mybb->settings['bburl'].'/images/image-placeholder-icon.png';
 		}
 
