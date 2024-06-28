@@ -149,3 +149,4 @@ $l['admin_log_config_linkpreviewers_'] = 'Updated the Link Tools link previewers
 $l['admin_log_tools_linkpreviewers_do_invalidation'] = 'Invalidated one or more Link Tools link previewer caches for all applicable URLs';
 
 $l['moderate_field_lkt_mod_edit_link_into_post'] = $l['lkt_mod_edit_link_into_post'] = 'Moderate posts after they\'ve had a link edited in?';
+$l['moderate_field_lkt_mod_link_in_new_post'] = $l['lkt_mod_link_in_new_post'] = 'Moderate new posts containing a link?';

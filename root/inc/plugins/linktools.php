@@ -369,6 +369,14 @@ CREATE TABLE '.TABLE_PREFIX.'link_limits (
 		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'users ADD `lkt_warn_about_links` tinyint(1) NOT NULL default \'1\'');
 	}
 
+	if (!$db->field_exists('lkt_mod_link_in_new_post', 'usergroups')) {
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'usergroups ADD `lkt_mod_link_in_new_post` tinyint(1) NOT NULL default \'0\'');
+	}
+
+	if (!$db->field_exists('lkt_mod_link_in_new_post', 'forumpermissions')) {
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'forumpermissions ADD `lkt_mod_link_in_new_post` tinyint(1) NOT NULL default \'0\'');
+	}
+
 	if (!$db->field_exists('lkt_mod_edit_link_into_post', 'usergroups')) {
 		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'usergroups ADD `lkt_mod_edit_link_into_post` tinyint(1) NOT NULL default \'0\'');
 	}
@@ -441,6 +449,14 @@ function linktools_uninstall() {
 
 	if ($db->field_exists('lkt_warn_about_links', 'users')) {
 		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'users DROP column `lkt_warn_about_links`');
+	}
+
+	if ($db->field_exists('lkt_mod_link_in_new_post', 'usergroups')) {
+		$db->drop_column('usergroups', 'lkt_mod_link_in_new_post');
+	}
+
+	if ($db->field_exists('lkt_mod_link_in_new_post', 'forumpermissions')) {
+		$db->drop_column('forumpermissions', 'lkt_mod_link_in_new_post');
 	}
 
 	if ($db->field_exists('lkt_mod_edit_link_into_post', 'usergroups')) {
@@ -1539,7 +1555,24 @@ function lkt_handle_new_post($posthandler) {
 		return;
 	}
 
-	lkt_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
+	if (lkt_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid)) {
+		// Moderate the new post if it contains links and posts by members of
+		// this usergroup in this forum are set to be moderated in that scenario.
+		$forumpermissions = forum_permissions($posthandler->data['fid'], isset($posthandler->data['uid']) ? $posthandler->data['uid'] : 0);
+		if ($forumpermissions['lkt_mod_link_in_new_post']) {
+			global $lang;
+
+			if (!isset($lang->linktools)) {
+				$lang->load(C_LKT);
+			}
+
+			$posthandler->return_values['visible'] = 0;
+			require_once MYBB_ROOT.'inc/class_moderation.php';
+			$moderation = new Moderation;
+			$moderation->unapprove_posts([$posthandler->pid]);
+			$lang->redirect_newreply_moderation = $lang->lkt_redirect_newreply_moderation;
+		}
+	}
 }
 
 function lkt_get_and_add_urls_of_post($message, $pid = null) {
@@ -4396,6 +4429,12 @@ function lkt_hookin__admin_formcontainer_output_row($pluginargs) {
 		if (!empty($groupscache[$gid])) {
 			$usergroup = $groupscache[$gid];
 
+			$cbx_opts = array('id' => 'id_lkt_mod_link_in_new_post');
+			if ($usergroup['lkt_mod_link_in_new_post']) {
+				$cbx_opts['checked'] = true;
+			}
+			$pluginargs['content'] .= '<div class="group_settings_bit">'.$form->generate_check_box('lkt_mod_link_in_new_post', '1', $lang->lkt_mod_link_in_new_post, $cbx_opts).'</div>';
+
 			$cbx_opts = array('id' => 'id_lkt_mod_edit_link_into_post');
 			if ($usergroup['lkt_mod_edit_link_into_post']) {
 				$cbx_opts['checked'] = true;
@@ -4408,10 +4447,12 @@ function lkt_hookin__admin_formcontainer_output_row($pluginargs) {
 function lkt_hookin__admin_user_groups_edit_commit() {
 	global $db, $mybb, $updated_group;
 
+	$updated_group['lkt_mod_link_in_new_post'   ] = $db->escape_string($mybb->get_input('lkt_mod_link_in_new_post'  , MyBB::INPUT_INT));
 	$updated_group['lkt_mod_edit_link_into_post'] = $db->escape_string($mybb->get_input('lkt_mod_edit_link_into_post', MyBB::INPUT_INT));
 }
 
 function lkt_hookin__admin_forum_management_permission_groups($groups) {
+	$groups['lkt_mod_link_in_new_post'   ] = 'moderate';
 	$groups['lkt_mod_edit_link_into_post'] = 'moderate';
 	return $groups;
 }
