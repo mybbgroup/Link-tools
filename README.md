@@ -1,6 +1,6 @@
 ## About Link Tools
 
-Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links (URLs) in posts made to your forum, and then provides you with four new features:
+Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links (URLs) in posts made to your forum, and then provides you with five new features:
 
 1. *Link previews*. Are shown at the bottom of each post for each link in the post. Supports custom "Link Previewers" to generate different previews for different types of link. Shows the preview for the terminating link rather than the original link itself.
 
@@ -9,6 +9,8 @@ Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links 
 3. *A duplicate link warner*. When a member is starting a new thread, s/he will be warned if any links (URLs) that s/he includes in the thread-starter have already been posted to the board. This feature is especially useful when your board is heavily resource-based and there is a risk of members starting duplicate discussions about resources (links and videos) that have already been discussed.
 
 4. *Link limiting*. Admins can set a maximum to the number of links over a (rolling) stipulated period (in days) that members of stipulated usergroups may post to a stipulated set of forums. Once the limit is reached for a given member, or would be by the new submission, submissions of new posts/threads to any of the stipulated forums by that member are rejected with an explanatory error message. The interface for adding link limit rules is in the ACP at "Forums & Posts" -> "Link Posting Limits".
+
+5. *Link posting moderation*. Admins can set forum and usergroup permissions such that new posts containing a link and/or existing posts into which a new link is edited are subjected to moderation.
 
 ### What does Link Tools consider to be a link?
 
