@@ -116,6 +116,7 @@ $plugins->add_hook('admin_tools_action_handler'             , 'lkt_hookin__admin
 $plugins->add_hook('admin_formcontainer_output_row'         , 'lkt_hookin__admin_formcontainer_output_row'         );
 $plugins->add_hook('admin_user_groups_edit_commit'          , 'lkt_hookin__admin_user_groups_edit_commit'          );
 $plugins->add_hook('admin_forum_management_permission_groups', 'lkt_hookin__admin_forum_management_permission_groups');
+$plugins->add_hook('admin_load'                             , 'lkt_hookin__admin_load'                             );
 $plugins->add_hook('newthread_start'                        , 'lkt_hookin__newthreadorreply_start'                 );
 $plugins->add_hook('datahandler_post_insert_thread_post'    , 'lkt_hookin__datahandler_post_insert_thread_post'    );
 $plugins->add_hook('newreply_start'                         , 'lkt_hookin__newthreadorreply_start'                 );
@@ -170,7 +171,7 @@ function linktools_info() {
 		'compatibility' => '18*'
 	);
 
-	if (linktools_is_installed() && is_array($plugins_cache) && is_array($plugins_cache['active']) && !empty($plugins_cache['active'][C_LKT])) {
+	if (linktools_is_installed() && !empty($plugins_cache['active'][C_LKT])) {
 		$desc = '';
 		$desc .= '<ul>'.PHP_EOL;
 
@@ -256,6 +257,23 @@ function linktools_info() {
 			$desc .= '	<li style="list-style-image: url(styles/default/images/icons/warning.png); color: red;">'.$lang->sprintf($lang->lkt_need_inst_previewers, $lang_previewer_or_previewers, '<form method="post" action="'.$mybb->settings['bburl'].'/'.$config['admin_dir'].'/index.php?module=config-linkpreviewers" style="display: inline;"><input type="hidden" name="installall" value="1" /><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_update" value="', '" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;" /></form>').'</li>';
 		}
 
+		if ($db->field_exists('dateline', 'urls') && ($num_dateable = $db->fetch_field($db->query("
+SELECT COUNT(*) AS num_dateable
+FROM   (
+        ".lkt_get_min_url_dateline_sql()."
+       ) subq
+"), 'num_dateable')) > 0
+		) {
+			if ($num_dateable == 1) {
+				$lang_dateable_links = $lang->lkt_init_url_dateline;
+				$url_key = 'lkt_init_url_dateline_link';
+			} else {
+				$lang_dateable_links = $lang->sprintf($lang->lkt_init_urls_dateline, $num_dateable);
+				$url_key = 'lkt_init_url_dateline_links';
+			}
+			$desc .= '	<li style="list-style-image: url(styles/default/images/icons/warning.png);">'.$lang_dateable_links.' <form method="post" action="index.php?module=config-plugins&amp;action=lkt_init_url_dateline" style="display: inline;"><input type="hidden" name="my_post_key" value="'.generate_post_check().'" /><input type="submit" name="do_update" value="'.$lang->$url_key.'" style="background: none; border: none; color: #0066ff; text-decoration: underline; cursor: pointer; display: inline; margin: 0; padding: 0; font-size: inherit;" /></form>';
+		}
+
 		$desc .= '</ul>'.PHP_EOL;
 
 		$ret['description'] .= $desc;
@@ -292,9 +310,13 @@ CREATE TABLE '.TABLE_PREFIX.'urls (
   last_term_try int unsigned  NOT NULL DEFAULT 0,
   lock_time     int unsigned  NOT NULL DEFAULT 0,
   got_preview   boolean       NOT NULL DEFAULT FALSE,
+  dateline      int(10) unsigned NOT NULL DEFAULT 0,
+  spam_class    enum(\'Unspecified\', \'Potential spam\', \'Not spam\', \'Spam\') NOT NULL DEFAULT \'Unspecified\',
   KEY           url           (url(168)),
   KEY           url_norm      (url_norm(166)),
   KEY           url_term_norm (url_term_norm(166)),
+  KEY           k_dateline    (dateline),
+  KEY           spam_class_dateline (spam_class, dateline),
   PRIMARY KEY   (urlid)
 )'.$db->build_create_table_collation().';');
 	}
@@ -356,6 +378,26 @@ CREATE TABLE '.TABLE_PREFIX.'link_limits (
 	if (!$db->field_exists('got_preview', 'urls')) {
 		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'urls ADD got_preview boolean NOT NULL DEFAULT FALSE');
 	}
+
+
+	/** The following two columns and two indexes were added in version 1.4.2. */
+
+	if (!$db->field_exists('dateline', 'urls')) {
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'urls ADD dateline int(10) unsigned NOT NULL DEFAULT 0');
+	}
+
+	if (!$db->field_exists('spam_class', 'urls')) {
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'urls ADD spam_class enum(\'Unspecified\', \'Potential spam\', \'Not spam\', \'Spam\') NOT NULL DEFAULT \'Unspecified\'');
+	}
+
+	if (!$db->index_exists('urls', 'k_dateline')) {
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'urls ADD KEY k_dateline (dateline)');
+	}
+
+	if (!$db->index_exists('urls', 'spam_class_dateline')) {
+		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'urls ADD KEY spam_class_dateline (spam_class, dateline)');
+	}
+
 
 	if (!$db->field_exists('lkt_got_urls', 'posts')) {
 		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'posts ADD lkt_got_urls boolean NOT NULL default FALSE');
@@ -1629,8 +1671,8 @@ function lkt_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 				// using a SELECT with a HAVING condition. This prevents the possibility of
 				// rows with duplicate values for `url`.
 				if (!$db->write_query('
-INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try)
-       SELECT \''.$db->escape_string($url_fit).'\', \''.$db->escape_string($url_norm_fit).'\', \''.$db->escape_string($target == false ? $url_fit : $target_fit).'\', \''.$db->escape_string($target_norm_fit).'\', \''.(!$got_terms || $got_terms[$url] == false ? '0' : '1')."', '".(!$got_terms ? '0' : '1')."', '$now'".'
+INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try, spam_class, dateline)
+       SELECT \''.$db->escape_string($url_fit).'\', \''.$db->escape_string($url_norm_fit).'\', \''.$db->escape_string($target == false ? $url_fit : $target_fit).'\', \''.$db->escape_string($target_norm_fit).'\', \''.(!$got_terms || $got_terms[$url] == false ? '0' : '1')."', '".(!$got_terms ? '0' : '1')."', '$now', 'Unspecified', '$now'".'
        FROM '.TABLE_PREFIX.'urls WHERE url=\''.$db->escape_string($url).'\'
        HAVING COUNT(*) = 0')
 				    ||
@@ -4455,6 +4497,61 @@ function lkt_hookin__admin_forum_management_permission_groups($groups) {
 	$groups['lkt_mod_link_in_new_post'   ] = 'moderate';
 	$groups['lkt_mod_edit_link_into_post'] = 'moderate';
 	return $groups;
+}
+
+function lkt_get_min_url_dateline_sql() {
+	global $db;
+
+	return "
+        SELECT subq2__.urlid, MIN(subq2__.min_url_dateline) AS min_url_dateline
+        FROM   (SELECT urlid, MIN(min_dateline) AS min_url_dateline
+                 FROM   (
+                         SELECT          u.urlid,
+                                         u.url,
+                                         MIN(p.dateline) AS min_dateline
+                         FROM            {$db->table_prefix}urls u
+                         INNER JOIN      {$db->table_prefix}post_urls pu
+                         ON              pu.urlid = u.urlid
+                         LEFT OUTER JOIN {$db->table_prefix}posts p
+                         ON              p.pid = pu.pid
+                         WHERE           p.dateline IS NOT NULL
+                                         AND
+                                         u.dateline = 0
+                         GROUP BY        u.urlid, u.url
+                         UNION
+                         SELECT          u2.urlid,
+                                         u2.url,
+                                         MIN(pv.dateline) AS min_dateline
+                         FROM            {$db->table_prefix}urls u2
+                         INNER JOIN      {$db->table_prefix}url_previews pv
+                         ON              pv.url_term = u2.url
+                         WHERE           u2.dateline = 0
+                         GROUP BY        u2.urlid, u2.url
+                        ) subq1__
+                GROUP BY urlid
+               ) subq2__
+        GROUP BY urlid
+        HAVING subq2__.urlid IS NOT NULL AND MIN(subq2__.min_url_dateline) IS NOT NULL
+";
+}
+
+function lkt_hookin__admin_load() {
+	global $mybb, $lang, $db;
+
+	if ($mybb->get_input('action') == 'lkt_init_url_dateline') {
+		$db->write_query("
+UPDATE          {$db->table_prefix}urls u
+LEFT OUTER JOIN (".lkt_get_min_url_dateline_sql()."
+                ) subq
+ON              u.urlid = subq.urlid
+SET             u.dateline = subq.min_url_dateline
+WHERE           u.dateline = 0
+");
+		$lang_key = $db->affected_rows() == 1 ? 'lkt_init_url_dateline_success' : 'lkt_init_url_datelines_success';
+		$lang->load(C_LKT);
+		flash_message($lang->$lang_key, 'success');
+		admin_redirect('index.php?module=config-plugins');
+	}
 }
 
 function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
