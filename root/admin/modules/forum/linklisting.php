@@ -110,7 +110,7 @@ while ($row = $db->fetch_array($query)) {
 	$form_container->output_cell("<a href=\"{$url_enc}\">$url_enc</a>");
 	$form_container->output_cell("<a href=\"{$url_term_enc}\">$url_term_enc</a>");
 	$form_container->output_cell($row['dateline'] ? my_date('relative', $row['dateline']) : $lang->lkt_date_unknown, ['style' => 'text-align: center;']);
-	$form_container->output_cell(my_number_format($row['posts_count']), ['style' => 'text-align: center;']);
+	$form_container->output_cell('<a href="'.$mybb->settings['bburl'].'/search.php?action=do_search&amp;urls='.urlencode($row['url']).'&amp;raw_only=1">'.my_number_format($row['posts_count']).'</a>', ['style' => 'text-align: center;']);
 	$cell = '';
 	foreach ($spam_classes as $spam_class) {
 		$options = ['class' => $spam_class];

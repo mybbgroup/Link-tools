@@ -1396,18 +1396,23 @@ function lkt_extract_urls($text, $exclude_videos = false) {
 	return array($urls_ret, $endposns);
 }
 
-function lkt_get_url_search_sql($urls, $already_normalised = false, $extra_conditions = '') {
+function lkt_get_url_search_sql($urls, $already_normalised = false, $extra_conditions = '', $raw_only = false) {
 	global $db;
 
 	if ($already_normalised) {
 		$urls_norm = $urls;
-	} else {
+	} else if (!$raw_only) {
 		sort($urls);
 		$urls_norm = lkt_normalise_urls($urls);
 	}
 
-	$url_paren_list = "('".implode("', '", array_map(array($db, 'escape_string'), $urls_norm))."')";
-	$conds = 'u.url_norm IN '.$url_paren_list.' OR u.url_term_norm IN '.$url_paren_list;
+	if ($raw_only) {
+		$url_paren_list = "('".implode("', '", array_map(array($db, 'escape_string'), $urls))."')";
+		$conds = 'u.url IN '.$url_paren_list;
+	} else {
+		$url_paren_list = "('".implode("', '", array_map(array($db, 'escape_string'), $urls_norm))."')";
+		$conds = 'u.url_norm IN '.$url_paren_list.' OR u.url_term_norm IN '.$url_paren_list;
+	}
 
 	$fids = get_unviewable_forums(true);
 	if ($inact_fids = get_inactive_forums()) {
@@ -4020,7 +4025,7 @@ function lkt_search($urls) {
 	// End copied code.
 
 	$extra_conditions = "{$post_datecut} {$thread_replycut} {$thread_prefixcut} {$forumin} {$post_usersql} {$permsql} {$tidsql} {$visiblesql} {$post_visiblesql} AND t.closed NOT LIKE 'moved|%'";
-	$sql = lkt_get_url_search_sql((array)$urls, false, $extra_conditions);
+	$sql = lkt_get_url_search_sql((array)$urls, false, $extra_conditions, $mybb->get_input('raw_only', MyBB::INPUT_INT));
 	$res = $db->query($sql);
 
 	$pids = array();
