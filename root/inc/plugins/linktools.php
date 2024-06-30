@@ -93,7 +93,8 @@ $plugins->add_hook('class_moderation_delete_thread'         , 'lkt_hookin__commo
 $plugins->add_hook('admin_tools_recount_rebuild_output_list', 'lkt_hookin__admin_tools_recount_rebuild_output_list');
 $plugins->add_hook('admin_tools_recount_rebuild'            , 'lkt_hookin__admin_tools_recount_rebuild'            );
 $plugins->add_hook('global_start'                           , 'lkt_hookin__global_start'                           );
-$plugins->add_hook('search_do_search_start'                 , 'lkt_hookin__search_do_search_start'                 );
+$plugins->add_hook('search_do_search_start'                 , 'lkt_hookin__search_start'                           );
+$plugins->add_hook('search_thread_start'                    , 'lkt_hookin__search_start'                           );
 $plugins->add_hook('admin_config_plugins_activate_commit'   , 'lkt_hookin__admin_config_plugins_activate_commit'   );
 $plugins->add_hook('xmlhttp'                                , 'lkt_hookin__xmlhttp'                                );
 $plugins->add_hook('admin_config_settings_change'           , 'lkt_hookin__admin_config_settings_change'           );
@@ -3747,7 +3748,7 @@ function lkt_strip_nestable_mybb_tag($message, $tagname, $blank_out = false) {
 	return $message;
 }
 
-function lkt_hookin__search_do_search_start() {
+function lkt_hookin__search_start() {
 	global $mybb;
 
 	$do_lkt_search = false;
@@ -3828,7 +3829,7 @@ function lkt_search($urls) {
 		$query = $db->simple_select('searchlog', '*', "$conditions AND dateline > '$timecut'", array('order_by' => "dateline", 'order_dir' => "DESC"));
 		$last_search = $db->fetch_array($query);
 		// User's last search was within the flood time, show the error
-		if ($last_search['sid']) {
+		if (!empty($last_search['sid'])) {
 			$remaining_time = $mybb->settings['searchfloodtime'] - (TIME_NOW - $last_search['dateline']);
 			if ($remaining_time == 1) {
 				$lang->error_searchflooding = $lang->sprintf($lang->error_searchflooding_1, $mybb->settings['searchfloodtime']);
@@ -3938,7 +3939,7 @@ function lkt_search($urls) {
 
 	$forumin = '';
 	$fidlist = array();
-	$forums = $mybb->input['forums'];
+	$forums = $mybb->get_input('forums');
 	if (!empty($forums) && (!is_array($forums) || $forums[0] != 'all')) {
 		if (!is_array($forums)) {
 			$forums = array((int)$forums);
@@ -4009,6 +4010,11 @@ function lkt_search($urls) {
 				$plain_post_visiblesql = " AND visible == '0'";
 			}
 		}
+	}
+
+	$tidsql = '';
+	if ($mybb->get_input('tid', MyBB::INPUT_INT)) {
+		$tidsql = " AND t.tid='".$mybb->get_input('tid', MyBB::INPUT_INT)."'";
 	}
 
 	// End copied code.
