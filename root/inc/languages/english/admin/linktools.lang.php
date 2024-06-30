@@ -100,6 +100,9 @@ $l['lkt_link_preview_not_in_quotes_desc' ] = 'Set to "Yes" to prevent previews f
 $l['lkt_link_preview_skip_if_contains_img_title'] = 'Exclude [url] tags enclosing [img] tags from preview?';
 $l['lkt_link_preview_skip_if_contains_img_desc'] = 'Set to "Yes" to prevent previews from being generated for links for [url] tags that enclose [img] tags (if, for example, in these cases an enclosed image serves as a sufficient preview for your purposes).';
 
+$l['lkt_links_per_listing_page_title'] = 'Links per page in link listing';
+$l['lkt_links_per_listing_page_desc'] = 'The number of links to display per page on the ACP\'s Forums &amp; Posts » Link Listing page.';
+
 $l['lkt_can_manage_link_previewers'] = 'Can manage link previewers?';
 $l['lkt_linkpreviewers'    ] = 'Link Previewers';
 $l['lkt_template_installed'] = 'Template installed?';
@@ -150,6 +153,22 @@ $l['lkt_err_nogrps'] = 'You did not select any groups.';
 $l['lkt_err_nofrms'] = 'You did not select any forums.';
 $l['lkt_err_nodays'] = 'You did not enter an integer of one or more for the period in days.';
 $l['lkt_err_nomaxlnk'] = 'You did not enter an integer of zero or more for the maximum links.';
+
+$l['lkt_can_manage_link_listings'] = 'Can view and classify (as spam) links?';
+$l['lkt_linklisting'] = 'Link Listing';
+$l['lkt_linklistingdesc'] = 'All links are visible here, including those posted in private forums. Access to this page can be granted or denied via the "Can view and classify (as spam) links?" admin permission.';
+$l['lkt_url'] = 'Link (URL)';
+$l['lkt_url_term'] = 'Terminating Link (URL)';
+$l['lkt_date_added'] = 'Date added';
+$l['lkt_posts_count'] = 'Count of containing posts';
+$l['lkt_spam_class'] = 'Spam classification';
+$l['lkt_save_spam_classes'] = 'Save spam classifications';
+$l['lkt_spam_class_update_success'] = 'Successfully updated the spam classifications';
+$l['lkt_spam_class_update_fail'] = 'Failed to update the spam classifications: no updates detected';
+$l['lkt_filter_go'] = 'Filter';
+$l['lkt_mark_all_spam'] = 'Mark all spam';
+$l['lkt_mark_all_not_spam'] = 'Mark all not spam';
+$l['lkt_date_unknown'] = 'Unknown (oldest)';
 
 $l['admin_log_forum_linklimits_'     ] = 'Updated the Link Tools link posting limits';
 $l['admin_log_config_linkpreviewers_'] = 'Updated the Link Tools link previewers';

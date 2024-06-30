@@ -1172,6 +1172,12 @@ function lkt_create_or_update_settings() {
 			'optionscode' => 'yesno',
 			'value'       => '1',
 		),
+		'links_per_listing_page' => array(
+			'title'       => $lang->lkt_links_per_listing_page_title,
+			'description' => $lang->lkt_links_per_listing_page_desc,
+			'optionscode' => 'numeric',
+			'value'       => '40',
+		),
 	);
 
 	// Delete existing settings no longer present in the plugin's current version.
@@ -4436,6 +4442,10 @@ function lkt_hookin__admin_forum_action_handler($actions) {
 		'active' => 'linklimits',
 		'file'   => 'linklimits.php',
 	);
+	$actions['linklisting'] = array(
+		'active' => 'linklisting',
+		'file'   => 'linklisting.php',
+	);
 
 	return $actions;
 }
@@ -4446,6 +4456,7 @@ function lkt_hookin__admin_forum_menu($sub_menu) {
 	$lang->load(C_LKT);
 	$key = max(array_keys($sub_menu)) + 10;
 	$sub_menu[$key] = array('id' => 'linklimits', 'title' => $lang->lkt_linklimits, 'link' => 'index.php?module=forum-linklimits');
+	$sub_menu[$key + 10] = array('id' => 'linklisting', 'title' => $lang->lkt_linklisting, 'link' => 'index.php?module=forum-linklisting');
 
 	return $sub_menu;
 }
@@ -4456,6 +4467,7 @@ function lkt_hookin__admin_forum_permissions(&$admin_permissions) {
 	$lang->load(C_LKT);
 
 	$admin_permissions['linklimits'] = $lang->lkt_can_manage_link_limits;
+	$admin_permissions['linklisting'] = $lang->lkt_can_manage_link_listings;
 }
 
 function lkt_hookin__admin_formcontainer_output_row($pluginargs) {
