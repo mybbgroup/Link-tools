@@ -22,6 +22,8 @@ foreach ($spam_class_filters as $spam_class) {
 $tot_rows = $db->fetch_field($db->simple_select('urls', 'COUNT(*) AS tot_links', $conds), 'tot_links');
 
 $pgmax = ceil($tot_rows/$per_page);
+if ($pgmax < 1) $pgmax = 1;
+
 if ($pgnum > $pgmax) $pgnum = $pgmax;
 
 $current_url = "index.php?module=forum-linklisting&amp;page={$pgnum}";
