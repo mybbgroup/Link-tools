@@ -110,7 +110,7 @@ while ($row = $db->fetch_array($query)) {
 	$url_enc      = htmlspecialchars_uni($row['url'     ]);
 	$url_term_enc = htmlspecialchars_uni($row['url_term']);
 	$form_container->output_cell("<a href=\"{$url_enc}\">$url_enc</a>");
-	$form_container->output_cell("<a href=\"{$url_term_enc}\">$url_term_enc</a>");
+	$form_container->output_cell($url_term_enc == $url_enc ? $lang->lkt_itself : "<a href=\"{$url_term_enc}\">$url_term_enc</a>");
 	$form_container->output_cell($row['dateline'] ? my_date('relative', $row['dateline']) : $lang->lkt_date_unknown, ['style' => 'text-align: center;']);
 	$form_container->output_cell('<a href="'.$mybb->settings['bburl'].'/search.php?action=do_search&amp;urls='.urlencode($row['url']).'&amp;raw_only=1">'.my_number_format($row['posts_count']).'</a>', ['style' => 'text-align: center;']);
 	$cell = '';

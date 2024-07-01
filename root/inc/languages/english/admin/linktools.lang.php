@@ -169,6 +169,7 @@ $l['lkt_filter_go'] = 'Filter';
 $l['lkt_mark_all_spam'] = 'Mark all spam';
 $l['lkt_mark_all_not_spam'] = 'Mark all not spam';
 $l['lkt_date_unknown'] = 'Unknown (oldest)';
+$l['lkt_itself'] = 'Itself';
 
 $l['admin_log_forum_linklimits_'     ] = 'Updated the Link Tools link posting limits';
 $l['admin_log_config_linkpreviewers_'] = 'Updated the Link Tools link previewers';
