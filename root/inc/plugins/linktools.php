@@ -1179,6 +1179,48 @@ function lkt_create_or_update_settings() {
 			'optionscode' => 'numeric',
 			'value'       => '40',
 		),
+		'anti_link_spam_usergroups' => array(
+			'title'       => $lang->lkt_anti_link_spam_usergroups_title,
+			'description' => $lang->lkt_anti_link_spam_usergroups_desc,
+			'optionscode' => 'groupselect',
+			'value'       => '2,5',
+		),
+		'anti_link_spam_max_account_age_days' => array(
+			'title'       => $lang->lkt_anti_link_spam_max_account_age_days_title,
+			'description' => $lang->lkt_anti_link_spam_max_account_age_days_desc,
+			'optionscode' => 'numeric',
+			'value'       => '90',
+		),
+		'anti_link_spam_max_post_count' => array(
+			'title'       => $lang->lkt_anti_link_spam_max_post_count_title,
+			'description' => $lang->lkt_anti_link_spam_max_post_count_desc,
+			'optionscode' => 'numeric',
+			'value'       => '30',
+		),
+		'anti_link_spam_qualifying_action' => array(
+			'title'       => $lang->lkt_anti_link_spam_qualifying_action_title,
+			'description' => $lang->lkt_anti_link_spam_qualifying_action_desc,
+			'optionscode' => "select\nnew_post={$lang->lkt_anti_link_spam_qualifying_action_new_post}\nedit_post={$lang->lkt_anti_link_spam_qualifying_action_edit_post}\neither={$lang->lkt_anti_link_spam_qualifying_action_either}",
+			'value'       => 'either',
+		),
+		'anti_link_spam_response_action' => array(
+			'title'       => $lang->lkt_anti_link_spam_response_action_title,
+			'description' => $lang->lkt_anti_link_spam_response_action_desc,
+			'optionscode' => "select\npurge_delete_spammer={$lang->lkt_anti_link_spam_response_action_purge_delete_spammer}\npurge_ban_spammer={$lang->lkt_anti_link_spam_response_action_purge_ban_spammer}\nreject_post_or_edit={$lang->lkt_anti_link_spam_response_action_reject_post_or_edit}\nmoderate_post={$lang->lkt_anti_link_spam_response_action_moderate_post}",
+			'value'       => 'purge_delete_spammer',
+		),
+		'anti_link_spam_response_classify_same_post' => array(
+			'title'       => $lang->lkt_anti_link_spam_response_classify_same_post_title,
+			'description' => $lang->lkt_anti_link_spam_response_classify_same_post_desc,
+			'optionscode' => "select\nas_spam_abs={$lang->lkt_anti_link_spam_response_classify_opt_as_spam_abs}\nas_spam={$lang->lkt_anti_link_spam_response_classify_opt_as_spam}\nas_potential_spam={$lang->lkt_anti_link_spam_response_classify_opt_as_potential_spam}\nno_change={$lang->lkt_anti_link_spam_response_classify_opt_no_change}",
+			'value'       => 'as_potential_spam',
+		),
+		'anti_link_spam_response_classify_other_posts' => array(
+			'title'       => $lang->lkt_anti_link_spam_response_classify_other_posts_title,
+			'description' => $lang->lkt_anti_link_spam_response_classify_other_posts_desc,
+			'optionscode' => "select\nas_spam_abs={$lang->lkt_anti_link_spam_response_classify_opt_as_spam_abs}\nas_spam={$lang->lkt_anti_link_spam_response_classify_opt_as_spam}\nas_potential_spam={$lang->lkt_anti_link_spam_response_classify_opt_as_potential_spam}\nno_change={$lang->lkt_anti_link_spam_response_classify_opt_no_change}",
+			'value'       => 'as_potential_spam',
+		),
 	);
 
 	// Delete existing settings no longer present in the plugin's current version.
@@ -1604,67 +1646,215 @@ function lkt_hookin__datahandler_post_insert_thread_end($posthandler) {
 	lkt_handle_new_post($posthandler);
 }
 
+function lkt_purge_spammer($uid_in, $type) {
+	global $mybb, $db, $cache, $plugins, $lang, $uid, $user;
+
+	$uid = $uid_in;
+
+	if ($uid < 0) {
+		// We can't purge a guest, so just return.
+		return;
+	} else if (!is_super_admin($uid)) { // Don't mistakenly ban/delete a super-admin.
+		if (!isset($lang->linktools)) {
+			$lang->load(C_LKT);
+		}
+
+		$user = get_user($uid);
+
+		// For the sake of the hook from core also triggered below, temporarily change
+		// the 'purgespammerbandelete' setting to accord with the type of purge we're
+		// undertaking here.
+		$saved_purgespammerbandelete = $mybb->settings['purgespammerbandelete'];
+		$mybb->settings['purgespammerbandelete'] = $type;
+
+		// Due to the condition in the user handler methods called below which avoids
+		// action when $uid == $mybb->user['uid'], temporarily change $mybb->user['uid']
+		// so that it does not equal $uid.
+		$saved_user_uid = $mybb->user['uid'];
+		$mybb->user['uid'] = 0;
+
+
+		// Begin code heavily based on the corresponding code in moderation.php.
+		// This duplication is unfortunately necessary because that code isn't easily
+		// callable from here.
+
+		// Run the hooks first to avoid any issues when we delete the user.
+		$plugins->run_hooks('moderation_purgespammer_purge');
+
+		require_once MYBB_ROOT.'inc/datahandlers/user.php';
+		$userhandler = new UserDataHandler('delete');
+
+		if ($type == 'ban') {
+			// First delete everything
+			$userhandler->delete_content($uid);
+			$userhandler->delete_posts($uid);
+
+			// Next ban him/her (or update the banned reason; this shouldn't happen)
+			$query = $db->simple_select('banned', 'uid', "uid = '{$uid}'");
+			if ($db->num_rows($query) > 0) {
+				$banupdate = array(
+					'reason' => $db->escape_string($mybb->settings['purgespammerbanreason'])
+				);
+				$db->update_query('banned', $banupdate, "uid = '{$uid}'");
+			} else {
+				$insert = array(
+					'uid' => $uid,
+					'gid' => (int)$mybb->settings['purgespammerbangroup'],
+					'oldgroup' => 2,
+					'oldadditionalgroups' => '',
+					'olddisplaygroup' => 0,
+					'admin' => 0,
+					'dateline' => TIME_NOW,
+					'bantime' => '---',
+					'lifted' => 0,
+					'reason' => $db->escape_string($mybb->settings['purgespammerbanreason'])
+				);
+				$db->insert_query('banned', $insert);
+			}
+
+
+			// Begin code NOT present in the code otherwise duplicated from moderation.php that
+			// seemingly *ought* to have been present - we add it here.
+
+			// Move the user to the banned group
+			$update_array = array(
+				'usergroup' => (int)$mybb->settings['purgespammerbangroup'],
+				'displaygroup' => 0,
+				'additionalgroups' => '',
+			);
+			$db->update_query('users', $update_array, "uid = {$uid}");
+
+			// End code NOT present in the code otherwise duplicated from moderation.php.
+
+
+			// Add the IPs to the banfilters
+			if ($mybb->settings['purgespammerbanip'] == 1) {
+				foreach (array($user['regip'], $user['lastip']) as $ip) {
+					$ip = my_inet_ntop($db->unescape_binary($ip));
+					$query = $db->simple_select('banfilters', 'type', "type = 1 AND filter = '".$db->escape_string($ip)."'");
+					if ($db->num_rows($query) == 0) {
+						$insert = array(
+							'filter' => $db->escape_string($ip),
+							'type' => 1,
+							'dateline' => TIME_NOW
+						);
+						$db->insert_query('banfilters', $insert);
+					}
+				}
+			}
+
+			// Clear the profile
+			$userhandler->clear_profile($uid, $mybb->settings['purgespammerbangroup']);
+
+			$cache->update_bannedips();
+			$cache->update_awaitingactivation();
+
+			// Update reports cache
+			$cache->update_reportedcontent();
+		} else if ($type == 'delete') {
+			$userhandler->delete_user($uid, 1);
+		}
+
+		// Submit the user to Stop Forum Spam
+		if (!empty($mybb->settings['purgespammerapikey'])) {
+			$sfs = @fetch_remote_file('http://stopforumspam.com/add.php?username='.urlencode($user['username']).'&ip_addr='.urlencode(my_inet_ntop($db->unescape_binary($user['lastip']))).'&email='. urlencode($user['email']).'&api_key='.urlencode($mybb->settings['purgespammerapikey']));
+		}
+
+		log_moderator_action(array('uid' => $uid, 'username' => $user['username']), $lang->lkt_purge_link_spammer_modlog);
+
+		// End code heavily based on the corresponding code in moderation.php
+
+
+		// Restore the temporarily changed setting.
+		$mybb->settings['purgespammerbandelete'] = $saved_purgespammerbandelete;
+
+		// Restore the temporarily changed user ID.
+		$mybb->user['uid'] = $saved_user_uid;
+
+	}
+}
+
 function lkt_handle_new_post($posthandler) {
+	global $g_lkt_moderate_post, $g_lkt_links_incl_vids, $g_lkt_redirs, $g_lkt_got_terms;
+
 	if ($posthandler->data['savedraft']) {
 		return;
 	}
 
-	if (lkt_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid)) {
-		// Moderate the new post if it contains links and posts by members of
-		// this usergroup in this forum are set to be moderated in that scenario.
-		$forumpermissions = forum_permissions($posthandler->data['fid'], isset($posthandler->data['uid']) ? $posthandler->data['uid'] : 0);
-		if ($forumpermissions['lkt_mod_link_in_new_post']) {
-			global $lang;
+	$uid = isset($posthandler->data['uid']) ? $posthandler->data['uid'] : 0;
 
-			if (!isset($lang->linktools)) {
-				$lang->load(C_LKT);
-			}
+	// Store any links and their association with this new post to the database
+	// (when $g_lkt_moderate_post is true, we will have stored them already in the
+	// validation hook, but won't have associated them with this post by providing
+	// a pid as we do here).
+	if (isset($g_lkt_links_incl_vids)) {
+		lkt_store_urls($g_lkt_links_incl_vids, $g_lkt_redirs, $g_lkt_got_terms, $posthandler->pid);
+		$redirs = $g_lkt_redirs;
+	} else	$redirs = lkt_resolve_and_store_urls_from_message($posthandler->data['message'], $posthandler->pid)[0];
 
-			$posthandler->return_values['visible'] = 0;
-			require_once MYBB_ROOT.'inc/class_moderation.php';
-			$moderation = new Moderation;
-			$moderation->unapprove_posts([$posthandler->pid]);
-			$lang->redirect_newreply_moderation = $lang->lkt_redirect_newreply_moderation;
+	// Moderate this new post if...
+	if (
+	    // ... we determined in the earlier validation hook that it ought to be,
+	    // given the anti-link spam policy...
+	    !empty($g_lkt_moderate_post)
+	    // ...or links were included in it and posts by members of this usergroup
+	    // in this forum are set to be moderated in that scenario
+	    ||
+	    $redirs
+	    &&
+	    forum_permissions($posthandler->data['fid'], $uid)['lkt_mod_link_in_new_post']
+	) {
+		global $lang;
+
+		if (!isset($lang->linktools)) {
+			$lang->load(C_LKT);
 		}
+
+		$posthandler->return_values['visible'] = 0;
+		require_once MYBB_ROOT.'inc/class_moderation.php';
+		$moderation = new Moderation;
+		$moderation->unapprove_posts([$posthandler->pid]);
+		$lang_key = !empty($g_lkt_moderate_post) ? 'lkt_redirect_newreply_anti_link_spam_moderation' : 'lkt_redirect_newreply_moderation';
+		$lang->redirect_newreply_moderation = $lang->$lang_key;
 	}
 }
 
-function lkt_get_and_add_urls_of_post($message, $pid = null) {
-	global $g_lkt_links_incl_vids;
-
-	if (!isset($g_lkt_links_incl_vids)) {
-		$g_lkt_links_incl_vids = lkt_extract_urls($message)[0];
-	}
-
-	return lkt_get_and_add_urls($g_lkt_links_incl_vids, $pid);
+function lkt_resolve_and_store_urls_from_message($message, $pid = null) {
+	return lkt_resolve_and_store_urls_from_list(lkt_extract_urls($message)[0], $pid);
 }
 
-function lkt_get_and_add_urls($urls, $pid = null) {
+function lkt_resolve_and_store_urls_from_list($urls, $pid = null) {
+	list($redirs, $got_terms) = lkt_get_resolved_urls_from_list($urls);
+	lkt_store_urls($urls, $redirs, $got_terms, $pid);
+
+	return [$redirs, $got_terms];
+}
+
+function lkt_get_resolved_urls_from_list($urls) {
 	global $db;
 
 	// Don't waste time and bandwidth resolving redirects for URLs already in the DB.
-	$res = $db->simple_select('urls', 'url, url_term', "url in ('".implode("', '", array_map(array($db, 'escape_string'), $urls))."')");
-	$existing_urls = $existing_redirs = [];
+	$res = $db->simple_select('urls', 'url, url_term, got_term', "url in ('".implode("', '", array_map(array($db, 'escape_string'), $urls))."')");
+	$got_terms = $existing_urls = $existing_redirs = [];
 	while (($row = $db->fetch_array($res))) {
-		$existing_urls[] = $row['url'];
-		$existing_redirs[$row['url']] = $row['url_term'];
+		$existing_urls     []            = $row['url'     ];
+		$existing_redirs   [$row['url']] = $row['url_term'];
+		$got_terms         [$row['url']] = $row['got_term'];
 	}
-	$redirs = lkt_get_url_term_redirs(array_diff($urls, $existing_urls), $got_terms);
-
-	lkt_add_urls_for_pid($urls, $redirs, $got_terms, $pid);
+	$redirs = lkt_resolve_url_terms(array_diff($urls, $existing_urls), $got_terms);
 
 	foreach (array_intersect($urls, $existing_urls) as $url) {
 		$redirs[$url] = $existing_redirs[$url];
 	}
 
-	return $redirs;
+	return [$redirs, $got_terms];
 }
 
 /**
  * If $got_terms is false, then it indicates that no attempt was even made at resolving terminating redirects.
  * Otherwise, it is an array indexed by URLs indicating (true/false) whether or not a terminating redirect was found for the given URL.
  */
-function lkt_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
+function lkt_store_urls($urls, $redirs, $got_terms, $pid = null) {
 	global $db;
 
 	$now = time();
@@ -1989,7 +2179,7 @@ function lkt_check_absolutise_relative_uri($target, $source) {
 	return $target;
 }
 
-function lkt_get_url_term_redirs_auto($urls) {
+function lkt_resolve_url_terms_auto($urls) {
 	static $repl_regexes = false;
 
 	if ($repl_regexes === false) {
@@ -2644,7 +2834,7 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
  *         3. Null in the case that a non-link-specific error occurred, such as failure to
  *            initialise a generic cURL handle.
  */
-function lkt_get_url_term_redirs($urls, &$got_terms = array(), $get_link_previews = true) {
+function lkt_resolve_url_terms($urls, &$got_terms = array(), $get_link_previews = true) {
 	$terms = $redirs = $server_urls = $server_last_hit_times = $to_retry = array();
 	static $min_wait_flag_value = 99999;
 	static $want_use_head_method = lkt_use_head_method && !(lkt_check_for_canonical_tags || lkt_check_for_html_redirects);
@@ -2668,7 +2858,7 @@ function lkt_get_url_term_redirs($urls, &$got_terms = array(), $get_link_preview
 	}
 	$num_servers = count($server_urls);
 
-	$redirs = lkt_get_url_term_redirs_auto($urls);
+	$redirs = lkt_resolve_url_terms_auto($urls);
 	if ($get_link_previews) {
 		lkt_get_gen_link_previews($redirs);
 	}
@@ -2991,7 +3181,7 @@ function lkt_hookin__datahandler_post_update($posthandler) {
 }
 
 function lkt_hookin__datahandler_post_update_or_merge_end($posthandler) {
-	global $db, $mybb, $message, $post;
+	global $db, $mybb, $message, $post, $g_lkt_moderate_post;
 
 	$existing_urls_norm = [];
 	$query = $db->query("
@@ -3007,17 +3197,23 @@ WHERE           pu.pid = '{$posthandler->pid}'");
 
 	$db->delete_query('post_urls', "pid={$posthandler->pid}");
 	if (isset($posthandler->data['message'])) {
+		global $g_lkt_links_incl_vids, $g_lkt_redirs, $g_lkt_got_terms;
+
 		if (!empty($posthandler->return_values['merge'])) {
 			// This is a merger of posts, so clear the global cache variable holding only
 			// the links from the NEW post that is to be merged into the original post.
 			// That cache variable was set back in
 			// lkt_hookin__datahandler_post_validate_thread_or_post().
-			// We want it to be regenerated - in lkt_get_and_add_urls_of_post() - so as
-			// to contain the links for the FULL post AFTER the merge.
-			global $g_lkt_links_incl_vids;
+			// We want it to be regenerated below so as to contain the links for
+			// the FULL post AFTER the merge.
 			$g_lkt_links_incl_vids = null;
 		}
-		$new_urls = lkt_get_and_add_urls_of_post($posthandler->data['message'], $posthandler->pid);
+		if (!isset($g_lkt_links_incl_vids)) {
+			$g_lkt_links_incl_vids = lkt_extract_urls($posthandler->data['message'])[0];
+			list($g_lkt_redirs, $g_lkt_got_terms) = lkt_get_resolved_urls_from_list($g_lkt_links_incl_vids);
+		}
+		lkt_store_urls($g_lkt_links_incl_vids, $g_lkt_redirs, $g_lkt_got_terms, $posthandler->pid);
+		$new_urls = $g_lkt_redirs;
 	} else	$new_urls = [];
 
 	$new_urls_norm = [];
@@ -3042,10 +3238,20 @@ WHERE           pu.pid = '{$posthandler->pid}'");
 		}
 	}
 
-	// Moderate the updated post if new links were added to it and this usergroup's posts
-	// in this forum are set to be moderated in that scenario.
-	$forumpermissions = forum_permissions($posthandler->data['fid'], isset($posthandler->data['uid']) ? $posthandler->data['uid'] : 0);
-	if ($new_urls_norm && $forumpermissions['lkt_mod_edit_link_into_post']) {
+	$uid = isset($posthandler->data['uid']) ? $posthandler->data['uid'] : 0;
+
+	// Moderate this new post if...
+	if (
+	    // ... we determined in the earlier validation hook that it ought to be,
+	    // given the anti-link spam policy...
+	    !empty($g_lkt_moderate_post)
+	    // ...or links were included in it and posts by members of this usergroup
+	    // in this forum are set to be moderated in that scenario.
+	    ||
+	    $new_urls_norm
+	    &&
+	    forum_permissions($posthandler->data['fid'], $uid)['lkt_mod_edit_link_into_post']
+	) {
 		global $lang;
 
 		if (!isset($lang->linktools)) {
@@ -3056,7 +3262,8 @@ WHERE           pu.pid = '{$posthandler->pid}'");
 		require_once MYBB_ROOT.'inc/class_moderation.php';
 		$moderation = new Moderation;
 		$moderation->unapprove_posts([$posthandler->pid]);
-		$lang->redirect_newreply_moderation = $lang->redirect_post_moderation = $lang->lkt_redirect_post_link_edit_moderation;
+		$lang_key = !empty($g_lkt_moderate_post) ? 'lkt_redirect_edit_anti_link_spam_moderation' : 'lkt_redirect_post_link_edit_moderation';
+		$lang->redirect_newreply_moderation = $lang->redirect_post_moderation = $lang->$lang_key;
 	}
 
 	if (THIS_SCRIPT == 'xmlhttp.php' && $mybb->input['action'] === 'edit_post' && $mybb->input['do'] == 'update_post' && empty($post['lkt_linkpreviewoff']) && lkt_should_show_pv($post)) {
@@ -3109,7 +3316,7 @@ function lkt_extract_and_store_urls_for_posts($num_posts) {
 
 	$redirs = array_combine($urls_all, array_fill(0, count($urls_all), false));
 	foreach ($post_urls as $pid => $urls) {
-		lkt_add_urls_for_pid($urls, $redirs, false, $pid);
+		lkt_store_urls($urls, $redirs, false, $pid);
 	}
 
 	return $inc;
@@ -3281,7 +3488,7 @@ function lkt_get_and_store_terms($num_urls, &$count = 0) {
 		}
 	} while (count($urls_final) > 0 && $cnt <= 0);
 
-	$terms = lkt_get_url_term_redirs($urls_final, $got_terms);
+	$terms = lkt_resolve_url_terms($urls_final, $got_terms);
 	if ($terms) {
 		// Reopen the DB connection in case it has "gone away" given the potentially long delay while
 		// we resolved redirects. This was occurring at times on our (Psience Quest's) host, Hostgator.
@@ -3509,7 +3716,7 @@ function lkt_hookin__datahandler_post_insert_thread($posthandler) {
 	}
 
 	// Add any missing URLs to the DB after resolving redirects
-	lkt_get_and_add_urls($urls);
+	lkt_resolve_and_store_urls_from_list($urls);
 
 	list($matching_posts, $forum_names, $further_results) = lkt_get_posts_for_urls($urls);
 
@@ -4079,7 +4286,7 @@ function lkt_hookin__xmlhttp() {
 			$urls = (array)$mybb->input['urls'];
 
 			// Add any missing URLs to the DB after resolving redirects
-			lkt_get_and_add_urls($urls);
+			lkt_resolve_and_store_urls_from_list($urls);
 
 			$post_edit_times = array();
 			if (!empty($mybb->input['pids']) && !empty($mybb->input['edtms'])) {
@@ -4307,7 +4514,7 @@ function lkt_hookin__admin_tools_action_handler(&$actions) {
 }
 
 /**
- * In contrast to lkt_get_url_term_redirs(), which queries web servers for
+ * In contrast to lkt_resolve_url_terms(), which queries web servers for
  * terminating URLs, this retrieves those already-web-queried terminating URLs
  * from the table to which they were stored in our database.
  */
@@ -4578,32 +4785,136 @@ WHERE           u.dateline = 0
 }
 
 function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
-	global $db, $mybb, $cache, $lang, $g_lkt_links_incl_vids;
+	global $db, $mybb, $cache, $lang, $g_lkt_links_incl_vids, $g_lkt_redirs, $g_lkt_got_terms, $g_lkt_moderate_post;
+
+	$do_anti_link_spam = $took_action = $g_lkt_moderate_post = false;
 
 	if (!isset($g_lkt_links_incl_vids)) {
 		$g_lkt_links_incl_vids = lkt_extract_urls($posthandler->data['message'])[0];
 	}
 
+	// If links were included in this new post, then...
 	if (!empty($g_lkt_links_incl_vids)) {
-		$num_submitted_links = count($g_lkt_links_incl_vids);
-		$prefix = TABLE_PREFIX;
+		$lang->load(C_LKT);
+		$qual_action_type = !empty($posthandler->data['pid']) ? 'edit_post' : 'new_post';
+		$uid = isset($posthandler->data['edit_uid'])
+		         ? $posthandler->data['edit_uid']
+		         : (isset($posthandler->data['uid'])
+		              ? $posthandler->data['uid']
+		              : 0
+		           );
 
-		// The effective user is the user who originally posted the post if it's being
-		// edited, and the current user otherwise (i.e., for new posts).
-		//
-		// We handle the editing of the posts of others by treating the effective user
-		// as the original poster, not the (current) editing poster. This may limit
-		// moderators at times - e.g., by preventing them from adding explanatory links
-		// for their actions to offending posts - but it's a (the most?) straightforward
-		// approach.
-		$eff_user = $posthandler->data['uid'] ? get_user($posthandler->data['uid']) : $mybb->user;
+		// ...resolve them into their terminating links, caching the result in global variables
+		// so that if we don't save them to the database in this hook, we can do that in
+		// a later hook without having to re-query them from external web servers.
+		list($g_lkt_redirs, $g_lkt_got_terms) = lkt_get_resolved_urls_from_list($g_lkt_links_incl_vids);
 
-		$groups = array_merge(array($eff_user['usergroup']), explode(',', $eff_user['additionalgroups']));
+		// Then check whether the anti-link spam policy applies.
+		if (lkt_anti_link_spam_policy_applies($uid, $qual_action_type)) {
+			// It does, so now check whether any of the included links are actually classified as spam.
+			$all_urls_in_post = array_filter(array_unique(array_merge(array_keys($g_lkt_redirs), array_values($g_lkt_redirs))));
+			if (lkt_urls_contain_spam_url($all_urls_in_post)) {
+				// At least one of them is, so store all of the URLs in this post to the DB prior to
+				// (potentially, next) auto-classifying them (store them without a pid; they will be
+				// associated with this post's pid a later hook if applicable - that is, if we are only
+				// moderating this post).
+				lkt_store_urls($g_lkt_links_incl_vids, $g_lkt_redirs, $g_lkt_got_terms);
 
-		// If the user is editing a post, find out how many links are in the pre-edited post.
-		$num_existing_links_in_post = 0;
-		if (!empty($posthandler->data['pid'])) {
-			$query = $db->query("
+				// Then, if applicable, classify all other links in this post (stored above if they
+				// weren't already) as stipulated in the settings.
+				$this_post_urls_list_esc = "'".implode("', '", array_map([$db, 'escape_string'], lkt_normalise_urls($all_urls_in_post)))."'";
+				if (in_array($mybb->settings[C_LKT.'_anti_link_spam_response_classify_same_post'], ['as_spam_abs', 'as_spam', 'as_potential_spam'])) {
+					$class = 'Spam';
+					$conds = '';
+					if ($mybb->settings[C_LKT.'_anti_link_spam_response_classify_same_post'] == 'as_spam') {
+						$conds = " AND spam_class IN ('Unspecified', 'Potential spam')";
+					} else if ($mybb->settings[C_LKT.'_anti_link_spam_response_classify_same_post'] == 'as_potential_spam') {
+						$class = 'Potential spam';
+						$conds = " AND spam_class = 'Unspecified'";
+					}
+					$db->update_query('urls', ['spam_class' => $class], "(url_norm IN ({$this_post_urls_list_esc}) OR url_term_norm IN ({$this_post_urls_list_esc})){$conds}");
+				}
+
+				// Then, if applicable, classify all other links posted across all posts by this member
+				// as stipulated in the settings.
+				if (in_array($mybb->settings[C_LKT.'_anti_link_spam_response_classify_other_posts'], ['as_spam_abs', 'as_spam', 'as_potential_spam'])) {
+					// Fetch all URLs posted by the member, normalised.
+					$member_urls_norm = [];
+					$query = $db->query("
+SELECT          u.url_norm, u.url_term_norm
+FROM            {$db->table_prefix}posts p
+LEFT OUTER JOIN {$db->table_prefix}post_urls pu
+ON              p.pid = pu.pid
+LEFT OUTER JOIN {$db->table_prefix}urls u
+ON              pu.urlid = u.urlid
+WHERE           p.uid = {$mybb->user['uid']}");
+					while ($row = $db->fetch_array($query)) {
+						$member_urls_norm[] = $row['url_norm'     ];
+						$member_urls_norm[] = $row['url_term_norm'];
+					}
+					$urls_list_esc = "'".implode("', '", array_map([$db, 'escape_string'], $member_urls_norm))."'";
+					$class = 'Spam';
+					$conds = '';
+					if ($mybb->settings[C_LKT.'_anti_link_spam_response_classify_other_posts'] == 'as_spam') {
+						$conds = " AND spam_class IN ('Unspecified', 'Potential spam')";
+					} else if ($mybb->settings[C_LKT.'_anti_link_spam_response_classify_other_posts'] == 'as_potential_spam') {
+						$class = 'Potential spam';
+						$conds = " AND spam_class = 'Unspecified'";
+					}
+					// Classify all links posted by this member except for those in this post.
+					$db->update_query('urls', ['spam_class' => $class], "((url_norm IN ({$urls_list_esc}) OR url_term_norm IN ({$urls_list_esc})) AND url_norm NOT IN ({$this_post_urls_list_esc}) AND url_term_norm NOT IN ({$this_post_urls_list_esc})){$conds}");
+				}
+
+				// Now take the applicable action.
+				switch ($mybb->settings[C_LKT.'_anti_link_spam_response_action']) {
+					case 'purge_delete_spammer':
+						lkt_purge_spammer($uid, 'delete');
+						$posthandler->set_error($lang->lkt_err_purged_del_for_link_spam);
+						$took_action = true;
+						break;
+					case 'purge_ban_spammer':
+						lkt_purge_spammer($uid, 'ban');
+						$posthandler->set_error($lang->lkt_err_purged_banned_for_link_spam);
+						$took_action = true;
+						break;
+					case 'reject_post_or_edit':
+						$lang_key = $qual_action_type == 'edit_post' ? 'lkt_err_invalid_edit_due_to_link_spam' : 'lkt_err_invalid_post_due_to_link_spam';
+						$posthandler->set_error($lang->$lang_key);
+						$took_action = true;
+						break;
+					case 'moderate_post':
+						$g_lkt_moderate_post = true;
+						// Don't set $took_action to true because we're deferring any action
+						// to a later hook, after saving of the post/edit.
+						break;
+				}
+			}
+		}
+
+		// If we didn't take action based on the anti-link spam policy, then...
+		if (!$took_action) {
+			// ...check whether we need to take some sort of action based on the
+			// link limit policy.
+
+			$num_submitted_links = count($g_lkt_links_incl_vids);
+			$prefix = TABLE_PREFIX;
+
+			// The effective user is the user who originally posted the post if it's being
+			// edited, and the current user otherwise (i.e., for new posts).
+			//
+			// We handle the editing of the posts of others by treating the effective user
+			// as the original poster, not the (current) editing poster. This may limit
+			// moderators at times - e.g., by preventing them from adding explanatory links
+			// for their actions to offending posts - but it's a (the most?) straightforward
+			// approach.
+			$eff_user = $posthandler->data['uid'] ? get_user($posthandler->data['uid']) : $mybb->user;
+
+			$groups = array_merge(array($eff_user['usergroup']), explode(',', $eff_user['additionalgroups']));
+
+			// If the user is editing a post, find out how many links are in the pre-edited post.
+			$num_existing_links_in_post = 0;
+			if (!empty($posthandler->data['pid'])) {
+				$query = $db->query("
   SELECT          COUNT(*) AS num_links
   FROM            {$prefix}urls urls
   LEFT OUTER JOIN {$prefix}post_urls pu
@@ -4611,55 +4922,55 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
   LEFT OUTER JOIN {$prefix}posts p
   ON              pu.pid = p.pid
   WHERE           pu.pid = {$posthandler->data['pid']}");
-			$num_existing_links_in_post = $db->fetch_field($query, 'num_links');
-			$db->free_result($query);
-		}
+				$num_existing_links_in_post = $db->fetch_field($query, 'num_links');
+				$db->free_result($query);
+			}
 
-		if (!empty($posthandler->data['pid'])) {
-			$post = get_post($posthandler->data['pid']);
-			$post_dateline = $post['dateline'];
-		} else	$post_dateline = TIME_NOW;
-		$query1 = $db->simple_select('link_limits', '*');
-		while ($row = $db->fetch_array($query1)) {
-			$common_groups = array_intersect($groups, explode(',', $row['gids']));
-			if ($common_groups && in_array($posthandler->data['fid'], explode(',', $row['fids']))) {
-				$limit_period_secs = $row['days'] * 24 * 60 * 60;
-				$datelines = array();
-				if ($posthandler->data['pid']) {
-					// The user is editing a post, so try to find out whether, if the post were to be saved,
-					// it would cause the effective user's link count to be exceeded for any relevant period.
-					$start = $post_dateline - $limit_period_secs;
-					$end   = $post_dateline + $limit_period_secs;
-					$query2 = $db->simple_select('posts', 'dateline', "uid='{$eff_user['uid']}' AND dateline >= '{$start}' AND dateline <= '{$end}'", array('order_by' => 'dateline', 'order_dir' => 'DESC'));
-					while ($dateline = $db->fetch_field($query2, 'dateline')) {
-						$datelines[] = $dateline;
-					}
-					$db->free_result($query2);
-					// Sample at most 10 periods based on datelines of posts made during the overall interval of interest.
-					// If we don't sample, we can end up with huge numbers of queries which take a long time to complete.
-					// Occasionally, this might miss a period for which the link count would exceed its allowed maximum,
-					// but it should for the vast majority of the time be reliable, and otherwise be "close enough".
-					$max_dlines = 10;
-					$num_dlines = count($datelines);
-					if ($num_dlines > $max_dlines) {
-						$d2 = array($datelines[0], $datelines[$num_dlines - 1]);
-						for ($i = 1; $i <= ($max_dlines - 2); $i++) {
-							$idx = ceil($i * $num_dlines / ($max_dlines - 1));
-							$d2[] = $datelines[$idx];
+			if (!empty($posthandler->data['pid'])) {
+				$post = get_post($posthandler->data['pid']);
+				$post_dateline = $post['dateline'];
+			} else	$post_dateline = TIME_NOW;
+			$query1 = $db->simple_select('link_limits', '*');
+			while ($row = $db->fetch_array($query1)) {
+				$common_groups = array_intersect($groups, explode(',', $row['gids']));
+				if ($common_groups && in_array($posthandler->data['fid'], explode(',', $row['fids']))) {
+					$limit_period_secs = $row['days'] * 24 * 60 * 60;
+					$datelines = array();
+					if ($posthandler->data['pid']) {
+						// The user is editing a post, so try to find out whether, if the post were to be saved,
+						// it would cause the effective user's link count to be exceeded for any relevant period.
+						$start = $post_dateline - $limit_period_secs;
+						$end   = $post_dateline + $limit_period_secs;
+						$query2 = $db->simple_select('posts', 'dateline', "uid='{$eff_user['uid']}' AND dateline >= '{$start}' AND dateline <= '{$end}'", array('order_by' => 'dateline', 'order_dir' => 'DESC'));
+						while ($dateline = $db->fetch_field($query2, 'dateline')) {
+							$datelines[] = $dateline;
 						}
-						$datelines = $d2;
-					}
-				} else	$datelines[] = $post_dateline;
-				foreach ($datelines as $dateline) {
-					if ($dateline >= $post_dateline) {
-						$end = $dateline;
-						$start = $end - $limit_period_secs;
-					} else {
-						$start = $dateline;
-						$end = $start + $limit_period_secs;
-					}
-					$interval_cond = "p.dateline >= {$start} AND p.dateline <= {$end}";
-					$query3 = $db->query("
+						$db->free_result($query2);
+						// Sample at most 10 periods based on datelines of posts made during the overall interval of interest.
+						// If we don't sample, we can end up with huge numbers of queries which take a long time to complete.
+						// Occasionally, this might miss a period for which the link count would exceed its allowed maximum,
+						// but it should for the vast majority of the time be reliable, and otherwise be "close enough".
+						$max_dlines = 10;
+						$num_dlines = count($datelines);
+						if ($num_dlines > $max_dlines) {
+							$d2 = array($datelines[0], $datelines[$num_dlines - 1]);
+							for ($i = 1; $i <= ($max_dlines - 2); $i++) {
+								$idx = ceil($i * $num_dlines / ($max_dlines - 1));
+								$d2[] = $datelines[$idx];
+							}
+							$datelines = $d2;
+						}
+					} else	$datelines[] = $post_dateline;
+					foreach ($datelines as $dateline) {
+						if ($dateline >= $post_dateline) {
+							$end = $dateline;
+							$start = $end - $limit_period_secs;
+						} else {
+							$start = $dateline;
+							$end = $start + $limit_period_secs;
+						}
+						$interval_cond = "p.dateline >= {$start} AND p.dateline <= {$end}";
+						$query3 = $db->query("
   SELECT          COUNT(*) AS num_links
   FROM            {$prefix}urls urls
   LEFT OUTER JOIN {$prefix}post_urls pu
@@ -4675,40 +4986,114 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
                   f.fid IN ({$row['fids']})
                   AND
                   {$interval_cond}");
-					$num_interval_links = $db->fetch_field($query3, 'num_links');
-					$db->free_result($query3);
+						$num_interval_links = $db->fetch_field($query3, 'num_links');
+						$db->free_result($query3);
 
-					$num_net_new_links = $num_submitted_links - $num_existing_links_in_post;
-					if ($num_interval_links + $num_net_new_links > $row['maxlinks']) {
-						$groups_cache = $cache->read('usergroups');
-						$group_links = array();
-						foreach ($common_groups as $common_gid) {
-							$common_gid = (int)trim($common_gid);
-							if (isset($groups_cache[$common_gid])) {
-								$group_links[] = format_name(htmlspecialchars_uni($groups_cache[$common_gid]['title']), $common_gid);
+						$num_net_new_links = $num_submitted_links - $num_existing_links_in_post;
+						if ($num_interval_links + $num_net_new_links > $row['maxlinks']) {
+							$groups_cache = $cache->read('usergroups');
+							$group_links = array();
+							foreach ($common_groups as $common_gid) {
+								$common_gid = (int)trim($common_gid);
+								if (isset($groups_cache[$common_gid])) {
+									$group_links[] = format_name(htmlspecialchars_uni($groups_cache[$common_gid]['title']), $common_gid);
+								}
 							}
-						}
-						if (!is_array($forum_cache)) {
-							$forum_cache = cache_forums();
-						}
-						$forum_links = array();
-						foreach (explode(',', $row['fids']) as $ll_fid) {
-							$ll_fid = (int)trim($ll_fid);
-							if (isset($forum_cache[$ll_fid]['name'])) {
-								$forum_links[] = '<a href="'.get_forum_link($ll_fid).'">'.htmlspecialchars_uni($forum_cache[$ll_fid]['name']).'</a>';
+							if (!is_array($forum_cache)) {
+								$forum_cache = cache_forums();
 							}
+							$forum_links = array();
+							foreach (explode(',', $row['fids']) as $ll_fid) {
+								$ll_fid = (int)trim($ll_fid);
+								if (isset($forum_cache[$ll_fid]['name'])) {
+									$forum_links[] = '<a href="'.get_forum_link($ll_fid).'">'.htmlspecialchars_uni($forum_cache[$ll_fid]['name']).'</a>';
+								}
+							}
+
+							if (!empty($posthandler->data['pid'])) {
+								$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks_prior_period, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), my_date('normal', $start), my_date('normal', $end), $num_interval_links, $num_net_new_links, ($num_interval_links + $num_net_new_links - $row['maxlinks'])));
+							} else	$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), $num_interval_links, $num_net_new_links, ($num_interval_links + $num_net_new_links - $row['maxlinks'])));
+
+							// We won't be storing the resolved redirects to the database in
+							// a later hook because we're rejecting this new post or edit,
+							// so do that here and now (don't provide a pid, *because* we've
+							// rejected this new/edited post).
+							lkt_store_urls($g_lkt_links_incl_vids, $g_lkt_redirs, $g_lkt_got_terms);
 						}
-
-						$lang->load(C_LKT);
-
-						if (!empty($posthandler->data['pid'])) {
-							$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks_prior_period, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), my_date('normal', $start), my_date('normal', $end), $num_interval_links, $num_net_new_links, ($num_interval_links + $num_net_new_links - $row['maxlinks'])));
-						} else	$posthandler->set_error($lang->sprintf($lang->lkt_err_toomanylinks, implode(' | ', $group_links), $row['maxlinks'], $row['days'], implode(' | ', $forum_links), $num_interval_links, $num_net_new_links, ($num_interval_links + $num_net_new_links - $row['maxlinks'])));
-
-						return;
 					}
 				}
 			}
 		}
 	}
+}
+
+function lkt_anti_link_spam_policy_applies($uid, $qualifying_action_type) {
+	global $mybb;
+
+	$user = get_user($uid);
+
+	return
+	  // Don't mistakenly ban/delete a super-admin.
+	  !is_super_admin($uid)
+	  &&
+	  // Check whether criterion #1 (usergroup membership) applies
+	  is_member($mybb->settings[C_LKT.'_anti_link_spam_usergroups'], $uid)
+	  &&
+	  // Check whether criterion #2 (account age) applies.
+	  (
+	   $mybb->settings[C_LKT.'_anti_link_spam_max_account_age_days'] == 0 // For a setting value of zero, any account age matches.
+	   ||
+	   !isset($user['regdate']) // Criterion #2 always applies for guests.
+	   ||
+	   (TIME_NOW - $user['regdate'])/60/60/24 <= $mybb->settings[C_LKT.'_anti_link_spam_max_account_age_days']
+	  )
+	  &&
+	  // Check whether criterion #3 (post count) applies.
+	  (
+	   $mybb->settings[C_LKT.'_anti_link_spam_max_post_count'] == 0 // For a setting value of zero, any post count matches.
+	   ||
+	   !isset($user['postnum']) // Criterion #3 always applies for guests.
+	   ||
+	   $user['postnum'] <= $mybb->settings[C_LKT.'_anti_link_spam_max_post_count']
+	  )
+	  &&
+	  // Check whether criterion #4 (qualifying action) applies.
+	  in_array($mybb->settings[C_LKT.'_anti_link_spam_qualifying_action'], [$qualifying_action_type, 'either']);
+}
+
+/**
+ * Tests whether any URL in the provided array is classified as spam
+ * either as a source or terminating URL, or due to a parallel source URL
+ * that terminates in the same terminating URL.
+ *
+ * @param array $urls An array of raw (i.e., pre-normalised) URLs as strings.
+ *
+ * @return boolean True if any of the URLs is classified as spam; false otherwise.
+ */
+function lkt_urls_contain_spam_url($urls) {
+	global $db;
+
+	if ($urls) {
+		$urls_norm_esc_quoted_list = "'".implode("', '", array_map([$db, 'escape_string'], lkt_normalise_urls($urls)))."'";
+		$sql = <<<EOSQL
+SELECT          COUNT(*) AS spammy_count
+FROM            {$db->table_prefix}urls u1
+LEFT OUTER JOIN {$db->table_prefix}urls u2
+ON              u2.url_term_norm = u1.url_term_norm
+WHERE           (
+                 (
+                  u1.url_norm IN ($urls_norm_esc_quoted_list)
+                  OR
+                  u1.url_term_norm IN ($urls_norm_esc_quoted_list)
+                 )
+                 AND
+                 (
+                  u1.spam_class = 'Spam'
+                  OR
+                  u2.spam_class = 'Spam'
+                 )
+                )
+EOSQL;
+		return $db->fetch_field($db->query($sql), 'spammy_count') > 0;
+	} else	return false;
 }

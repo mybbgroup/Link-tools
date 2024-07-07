@@ -103,6 +103,33 @@ $l['lkt_link_preview_skip_if_contains_img_desc'] = 'Set to "Yes" to prevent prev
 $l['lkt_links_per_listing_page_title'] = 'Links per page in link listing';
 $l['lkt_links_per_listing_page_desc'] = 'The number of links to display per page on the ACP\'s Forums &amp; Posts » Link Listing page.';
 
+$l['lkt_anti_link_spam_usergroups_title'] = 'Anti-link spam criterion #1: applicable usergroups';
+$l['lkt_anti_link_spam_usergroups_desc' ] = 'Any member of these usergroups is subjected to the response action below upon posting a link classified as spam, when also meeting the other criteria.';
+$l['lkt_anti_link_spam_max_account_age_days_title'] = 'Anti-link spam criterion #2: maximum account age';
+$l['lkt_anti_link_spam_max_account_age_days_desc' ] = 'Any member whose account is this age or younger (in days) is subjected to the response action below upon posting a link classified as spam, when also meeting the other criteria. Zero indicates no limit, that is, to take action no matter how old the member\'s account is.';
+$l['lkt_anti_link_spam_max_post_count_title'] = 'Anti-link spam criterion #3: maximum post count';
+$l['lkt_anti_link_spam_max_post_count_desc' ] = 'Any member having a post count of this value or less is subjected to the response action below upon posting a link classified as spam, when also meeting the other criteria. Zero indicates no limit, that is, to take action no matter how many posts the member has made.';
+$l['lkt_anti_link_spam_qualifying_action_title'    ] = 'Anti-link spam criterion #4: qualifying action';
+$l['lkt_anti_link_spam_qualifying_action_desc'     ] = 'Any member posting a link classified as spam via this qualifying action is subjected to the response action below, when also meeting the other criteria.';
+$l['lkt_anti_link_spam_qualifying_action_new_post' ] = 'Includes a spam link in a new post';
+$l['lkt_anti_link_spam_qualifying_action_edit_post'] = 'Edits a spam link into an existing post';
+$l['lkt_anti_link_spam_qualifying_action_either'   ] = 'Either of the above';
+$l['lkt_anti_link_spam_response_action_title'               ] = 'Anti-link spam: response action';
+$l['lkt_anti_link_spam_response_action_desc'                ] = 'Stipulate the response action to be taken when the above criteria are met.';
+$l['lkt_anti_link_spam_response_action_purge_delete_spammer'] = 'Purge (delete) spammer';
+$l['lkt_anti_link_spam_response_action_purge_ban_spammer'   ] = 'Purge (ban) spammer';
+$l['lkt_anti_link_spam_response_action_reject_post_or_edit' ] = 'Reject post or edit';
+$l['lkt_anti_link_spam_response_action_moderate_post'       ] = 'Moderate post';
+$l['lkt_anti_link_spam_response_classify_same_post_title'      ] = 'Anti-link spam: same-post link classification action';
+$l['lkt_anti_link_spam_response_classify_same_post_desc'       ] = 'Stipulate how any other links (than the triggering spam link) in the post in which the qualifying action occurred are to be auto-classified when taking action due to the above criteria being met.';
+$l['lkt_anti_link_spam_response_classify_other_posts_title'    ] = 'Anti-link spam: other posts link classification action';
+$l['lkt_anti_link_spam_response_classify_other_posts_desc'     ] = 'Stipulate how links in the member\'s OTHER posts are to be auto-classified when taking action due to the above criteria being met.';
+$l['lkt_anti_link_spam_response_classify_opt_as_spam_abs'      ] = 'Classify as spam (regardless of existing classification)';
+$l['lkt_anti_link_spam_response_classify_opt_as_spam'          ] = 'Classify as spam (unless already classified as not spam)';
+$l['lkt_anti_link_spam_response_classify_opt_as_potential_spam'] = 'Classify as potential spam (where unclassified)';
+$l['lkt_anti_link_spam_response_classify_opt_no_change'        ] = 'Do not (re)classify';
+
+
 $l['lkt_can_manage_link_previewers'] = 'Can manage link previewers?';
 $l['lkt_linkpreviewers'    ] = 'Link Previewers';
 $l['lkt_template_installed'] = 'Template installed?';
