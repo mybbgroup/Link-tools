@@ -1684,7 +1684,7 @@ function lkt_add_urls_for_pid($urls, $redirs, $got_terms, $pid = null) {
 				// rows with duplicate values for `url`.
 				if (!$db->write_query('
 INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try, spam_class, dateline)
-       SELECT \''.$db->escape_string($url_fit).'\', \''.$db->escape_string($url_norm_fit).'\', \''.$db->escape_string($target == false ? $url_fit : $target_fit).'\', \''.$db->escape_string($target_norm_fit).'\', \''.(!$got_terms || $got_terms[$url] == false ? '0' : '1')."', '".(!$got_terms ? '0' : '1')."', '$now', 'Unspecified', '$now'".'
+       SELECT \''.$db->escape_string($url_fit).'\', \''.$db->escape_string($url_norm_fit).'\', \''.$db->escape_string($target == false ? $url_fit : $target_fit).'\', \''.$db->escape_string($target_norm_fit).'\', \''.(!$got_terms || empty($got_terms[$url]) ? '0' : '1')."', '".(!$got_terms ? '0' : '1')."', '$now', 'Unspecified', '$now'".'
        FROM '.TABLE_PREFIX.'urls WHERE url=\''.$db->escape_string($url).'\'
        HAVING COUNT(*) = 0')
 				    ||
