@@ -69,6 +69,7 @@ $l['lkt_redirect_newreply_moderation'] = 'The administrator has specified that a
 $l['lkt_redirect_newreply_anti_link_spam_moderation'] = 'Your post is being moderated for link spam. You will now be returned to the thread.';
 $l['lkt_redirect_edit_anti_link_spam_moderation'] = 'Your edited post is being moderated for link spam. You will now be returned to the thread.';
 
+// Duplicated in the admin language file.
 $l['lkt_delete_link_spam'] = 'Delete; classify links as spam';
 $l['lkt_mark_all_deletion_link_spam'] = 'Mark all for deletion with links classified as spam';
 $l['lkt_delete_link_spam_title'] = 'Deletes the content after classifying any links in it as spam (excluding those already classified as \'Not spam\')';

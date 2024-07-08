@@ -127,10 +127,12 @@ $plugins->add_hook('editpost_do_editpost_end'               , 'lkt_hookin__editp
 $plugins->add_hook('datahandler_post_validate_post'         , 'lkt_hookin__datahandler_post_validate_thread_or_post');
 $plugins->add_hook('datahandler_post_validate_thread'       , 'lkt_hookin__datahandler_post_validate_thread_or_post');
 $plugins->add_hook('modcp_start'                            , 'lkt_hookin__modcp_start'                            );
-$plugins->add_hook('modcp_do_modqueue_start'                , 'lkt_hookin__modcp_do_modqueue_start'                );
+$plugins->add_hook('modcp_do_modqueue_start'                , 'lkt_hookin__do_modqueue'                            );
+$plugins->add_hook('admin_forum_moderation_queue_commit'    , 'lkt_hookin__do_modqueue'                            );
 $plugins->add_hook('moderation_purgespammer_purge'          , 'lkt_hookin__moderation_purgespammer_purge'          );
 $plugins->add_hook('moderation_purgespammer_show'           , 'lkt_hookin__moderation_purgespammer_show'           );
 $plugins->add_hook('global_intermediate'                    , 'lkt_hookin__global_intermediate'                    );
+$plugins->add_hook('admin_page_output_footer'               , 'lkt_hookin__admin_page_output_footer'               );
 //$plugins->add_hook('admin_style_templates_edit_template_commit', 'lkt_hookin__admin_style_templates_edit_template_commit');
 
 function lkt_hookin__global_start() {
@@ -5145,7 +5147,7 @@ function lkt_hookin__moderation_purgespammer_show() {
 	$lang->load(C_LKT);
 }
 
-function lkt_hookin__modcp_do_modqueue_start() {
+function lkt_hookin__do_modqueue() {
 	global $mybb, $db;
 
 	$threads = $mybb->get_input('threads', MyBB::INPUT_ARRAY);
@@ -5241,6 +5243,35 @@ function lkt_hookin__global_intermediate() {
 			$lang->load(C_LKT);
 			$pot_spam_link_header_msg = $lang->sprintf($lang->lkt_potential_spam_mod_notice, $pot_spam_link_count);
 			$g_lkt_potential_spam_mod_notice = eval($templates->render('linktools_potential_spam_mod_notice'));
+		}
+	}
+}
+
+function lkt_hookin__admin_page_output_footer(&$args) {
+	global $mybb, $lang, $unapproved_threads, $unapproved_posts;
+
+	if ($args['this']->active_module == 'forum' && $args['this']->active_action == 'moderation_queue') {
+		if ($unapproved_threads || $unapproved_posts) {
+			$lang->load(C_LKT);
+			$type = $unapproved_threads ? 'threads': 'posts';
+			$start = strlen($type) + 1;
+			$lkt_delete_link_spam_title = addslashes($lang->lkt_delete_link_spam_title);
+			$css = lkt_get_modcp_css();
+			// There are no feasible hooks to use to intersperse our additions into the output HTML,
+			// so instead inject it via Javascript.
+			echo <<<EOJS
+<script type="text/javascript">
+$(function() {
+	$('.radio_delete').each(function(i, obj) {
+		$(this).parent().after('<label class="label_radio_delete_link_spam" title="{$lkt_delete_link_spam_title}"><input type="radio" class="radio_input radio_delete_link_spam" name="{$type}['+parseInt($(this).attr('name').substr({$start}))+']" value="delete_link_spam" /> {$lang->lkt_delete_link_spam}</label>'+"\\n");
+	});
+	$('.mass_delete').parent().after('<li><a href="#" class="mass_delete_link_spam" onclick="$(\'input.radio_delete_link_spam\').each(function(){ $(this).prop(\'checked\', true); }); return false;">{$lang->lkt_mark_all_deletion_link_spam}</a></li>'+"\\n");
+});
+</script>
+<style type="text/css">
+{$css}
+</style>
+EOJS;
 		}
 	}
 }

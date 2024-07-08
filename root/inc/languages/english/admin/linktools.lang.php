@@ -206,3 +206,8 @@ $l['admin_log_tools_linkpreviewers_do_invalidation'] = 'Invalidated one or more 
 
 $l['moderate_field_lkt_mod_edit_link_into_post'] = $l['lkt_mod_edit_link_into_post'] = 'Moderate posts after they\'ve had a link edited in?';
 $l['moderate_field_lkt_mod_link_in_new_post'] = $l['lkt_mod_link_in_new_post'] = 'Moderate new posts containing a link?';
+
+// Duplicated in the non-admin language file.
+$l['lkt_delete_link_spam'] = 'Delete; classify links as spam';
+$l['lkt_mark_all_deletion_link_spam'] = 'Mark all for deletion with links classified as spam';
+$l['lkt_delete_link_spam_title'] = 'Deletes the content after classifying any links in it as spam (excluding those already classified as \'Not spam\')';
