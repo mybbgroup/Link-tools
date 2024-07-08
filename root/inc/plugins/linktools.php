@@ -130,6 +130,7 @@ $plugins->add_hook('modcp_start'                            , 'lkt_hookin__modcp
 $plugins->add_hook('modcp_do_modqueue_start'                , 'lkt_hookin__modcp_do_modqueue_start'                );
 $plugins->add_hook('moderation_purgespammer_purge'          , 'lkt_hookin__moderation_purgespammer_purge'          );
 $plugins->add_hook('moderation_purgespammer_show'           , 'lkt_hookin__moderation_purgespammer_show'           );
+$plugins->add_hook('global_intermediate'                    , 'lkt_hookin__global_intermediate'                    );
 //$plugins->add_hook('admin_style_templates_edit_template_commit', 'lkt_hookin__admin_style_templates_edit_template_commit');
 
 function lkt_hookin__global_start() {
@@ -569,6 +570,7 @@ function linktools_activate() {
 	find_replace_templatesets('modcp_modqueue_posts_post', '({\\$lang->delete}</label>)', '{$lang->delete}</label>'."\n\t\t\t\t\t\t\t".'<label class="label_radio_delete_link_spam" title="{$lang->lkt_delete_link_spam_title}"><input type="radio" class="radio radio_delete_link_spam" name="posts[{$post[\'pid\']}]" value="delete_link_spam" /> {$lang->lkt_delete_link_spam}</label>');
 	find_replace_templatesets('modcp_modqueue_masscontrols', '({\\$lang->mark_all_deletion}</a></li>)', '{$lang->mark_all_deletion}</a></li>'."\n\t".'<li><a href="javascript:void(0)" class="mass_delete_link_spam" onclick="$(\'input.radio_delete_link_spam\').each(function(){ $(this).prop(\'checked\', true); }); return false;">{$lang->lkt_mark_all_deletion_link_spam}</a></li>');
 	find_replace_templatesets('moderation_purgespammer', '('.preg_quote('<input class="button" type="submit" value="{$lang->purgespammer_submit}" />').')', '<input type="checkbox" class="checkbox" name="classify_links_as_spam" value="1" checked="checked" />{$lang->lkt_classify_links_as_spam}</label><br /><input class="button" type="submit" value="{$lang->purgespammer_submit}" />');
+	find_replace_templatesets('header', '('.preg_quote('{$awaitingusers}').')', '{$awaitingusers}'."\n\t\t\t\t".'{$g_lkt_potential_spam_mod_notice}');
 
 	$res = $db->simple_select('tasks', 'tid', "file='linktools'", array('limit' => '1'));
 	if ($db->num_rows($res) == 0) {
@@ -617,6 +619,7 @@ function linktools_deactivate() {
 	find_replace_templatesets('modcp_modqueue_posts_post', '('.preg_quote("\n\t\t\t\t\t\t\t".'<label class="label_radio_delete_link_spam" title="{$lang->lkt_delete_link_spam_title}"><input type="radio" class="radio radio_delete_link_spam" name="posts[{$post[\'pid\']}]" value="delete_link_spam" /> {$lang->lkt_delete_link_spam}</label>').')', '', 0);
 	find_replace_templatesets('modcp_modqueue_masscontrols', '('.preg_quote("\n\t".'<li><a href="javascript:void(0)" class="mass_delete_link_spam" onclick="$(\'input.radio_delete_link_spam\').each(function(){ $(this).prop(\'checked\', true); }); return false;">{$lang->lkt_mark_all_deletion_link_spam}</a></li>').')', '', 0);
 	find_replace_templatesets('moderation_purgespammer', '('.preg_quote('<input type="checkbox" class="checkbox" name="classify_links_as_spam" value="1" checked="checked" />{$lang->lkt_classify_links_as_spam}</label><br />').')', '', 0);
+	find_replace_templatesets('header', '('.preg_quote("\n\t\t\t\t".'{$g_lkt_potential_spam_mod_notice}').')', '', 0);
 
 	$db->update_query('tasks', array('enabled' => 0), 'file=\'linktools\'');
 }
@@ -808,6 +811,10 @@ function lkt_toggle_hidden_posts() {
 		),
 		'linktools_cbxdisablelinkpreview' => array(
 			'template' => '<br /><label><input type="checkbox" class="checkbox" name="lkt_linkpreviewoff" value="1" tabindex="9"{$linkpreviewoffchecked} /> {$lang->lkt_linkpreviewoff}</label>',
+			'version_at_last_change' => '10402',
+		),
+		'linktools_potential_spam_mod_notice' => array(
+			'template' => '<div class="red_alert"><a href="{$config[\'admin_dir\']}/index.php?module=forum-linklisting&amp;spam_class_filters[1]=Potential+spam"> {$pot_spam_link_header_msg}</a></div>',
 			'version_at_last_change' => '10402',
 		),
 	);
@@ -5214,5 +5221,26 @@ WHERE            p.uid = {$uid}
                  u.spam_class IN ('Unspecified', 'Potential spam')
 EOSQL
 		);
+	}
+}
+
+function lkt_hookin__global_intermediate() {
+	global $mybb, $db, $lang, $templates, $config, $g_lkt_potential_spam_mod_notice;
+
+	$g_lkt_potential_spam_mod_notice = '';
+
+	require_once MYBB_ROOT.$mybb->config['admin_dir'].'/inc/functions.php';
+	$can_view_link_listing = is_super_admin($mybb->user['uid']);
+	if (!$can_view_link_listing) {
+		$adminperms = get_admin_permissions($mybb->user['uid']);
+		$can_view_link_listing = !empty($adminperms['forum']['linklisting']);
+	}
+	if ($can_view_link_listing) {
+		$pot_spam_link_count = $db->fetch_field($db->simple_select('urls', 'COUNT(*) AS pot_spam_link_count', "spam_class='Potential spam'"), 'pot_spam_link_count');
+		if ($pot_spam_link_count > 0) {
+			$lang->load(C_LKT);
+			$pot_spam_link_header_msg = $lang->sprintf($lang->lkt_potential_spam_mod_notice, $pot_spam_link_count);
+			$g_lkt_potential_spam_mod_notice = eval($templates->render('linktools_potential_spam_mod_notice'));
+		}
 	}
 }
