@@ -193,6 +193,7 @@ $l['lkt_save_spam_classes'] = 'Save spam classifications';
 $l['lkt_spam_class_update_success'] = 'Successfully updated the spam classifications';
 $l['lkt_spam_class_update_fail'] = 'Failed to update the spam classifications: no updates detected';
 $l['lkt_filter_go'] = 'Filter';
+$l['lkt_search_go'] = 'Search for link';
 $l['lkt_mark_all_spam'] = 'Mark all spam';
 $l['lkt_mark_all_not_spam'] = 'Mark all not spam';
 $l['lkt_date_unknown'] = 'Unknown (oldest)';

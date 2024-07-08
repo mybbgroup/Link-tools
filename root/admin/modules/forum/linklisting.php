@@ -13,10 +13,16 @@ $pgnum = $mybb->get_input('page', MyBB::INPUT_INT);
 if ($pgnum < 1) $pgnum = 1;
 
 $spam_class_filters = $mybb->get_input('spam_class_filters', MyBB::INPUT_ARRAY);
-$conds = '';
+$extra_order = $conds = '';
 foreach ($spam_class_filters as $spam_class) {
 	if ($conds) $conds .= ' OR ';
 	$conds .= "spam_class = '".$db->escape_string($spam_class)."'";
+}
+$searched_link = $mybb->get_input('searched_link');
+if ($searched_link) {
+	if ($conds) $conds = "({$conds}) AND";
+	$conds .= " url LIKE '%".$db->escape_string_like($searched_link)."%'";
+	$extra_order = 'LENGTH(url) ASC, ';
 }
 
 $tot_rows = $db->fetch_field($db->simple_select('urls', 'COUNT(*) AS tot_links', $conds), 'tot_links');
@@ -33,6 +39,9 @@ if ($spam_class_filters) {
 		$i = (int)$i;
 		$current_url_filtered .= "&amp;spam_class_filters[{$i}]=".urlencode($filter);
 	}
+}
+if ($searched_link) {
+	$current_url_filtered .= '&amp;searched_link='.urlencode($searched_link);
 }
 
 if ($mybb->get_input('my_post_key') && !$mybb->get_input('filter')) {
@@ -64,9 +73,10 @@ $page->output_header($lang->lkt_linklisting);
 
 $page->output_nav_tabs($sub_tabs, 'linklisting');
 
-$form  = new Form('index.php', 'get');
 $table = new Table;
-$html  = $form->generate_hidden_field('module', 'forum-linklisting');
+$form  = new Form('index.php', 'get', /*$id=*/'', /*$allow_uploads=*/false, /*$name=*/'', /*$return=*/true);
+$html  = $form->construct_return;
+$html .= $form->generate_hidden_field('module', 'forum-linklisting');
 $html .= $form->generate_hidden_field('page', 1);
 foreach ($spam_classes as $i => $spam_class) {
 	$options = [];
@@ -75,10 +85,16 @@ foreach ($spam_classes as $i => $spam_class) {
 	}
 	$html .= $form->generate_check_box("spam_class_filters[$i]", $spam_class, $spam_class, $options);
 }
-$table->construct_cell("{$html} ".$form->generate_submit_button($lang->lkt_filter_go, ['name' => 'filter']));
+$html .= ' ';
+$html .= $form->generate_submit_button($lang->lkt_filter_go, ['name' => 'filter']);
+$html .= ' ';
+$html .= $form->generate_text_box('searched_link', $searched_link);
+$html .= ' ';
+$html .= $form->generate_submit_button($lang->lkt_search_go, ['name' => 'search']);
+$html .= $form->end();
+$table->construct_cell($html);
 $table->construct_row();
 $table->output();
-$form->end();
 
 $form = new Form($current_url_filtered, 'post');
 $form_container = new FormContainer($lang->lkt_linklisting);
@@ -102,7 +118,7 @@ SELECT   urlid,
          spam_class
 FROM     {$db->table_prefix}urls u
 $where
-ORDER BY dateline DESC
+ORDER BY {$extra_order}dateline DESC
 LIMIT    ".(($pgnum - 1) * $per_page).', '.$per_page
 );
 
