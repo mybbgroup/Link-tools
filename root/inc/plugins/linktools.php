@@ -128,6 +128,8 @@ $plugins->add_hook('datahandler_post_validate_post'         , 'lkt_hookin__datah
 $plugins->add_hook('datahandler_post_validate_thread'       , 'lkt_hookin__datahandler_post_validate_thread_or_post');
 $plugins->add_hook('modcp_start'                            , 'lkt_hookin__modcp_start'                            );
 $plugins->add_hook('modcp_do_modqueue_start'                , 'lkt_hookin__modcp_do_modqueue_start'                );
+$plugins->add_hook('moderation_purgespammer_purge'          , 'lkt_hookin__moderation_purgespammer_purge'          );
+$plugins->add_hook('moderation_purgespammer_show'           , 'lkt_hookin__moderation_purgespammer_show'           );
 //$plugins->add_hook('admin_style_templates_edit_template_commit', 'lkt_hookin__admin_style_templates_edit_template_commit');
 
 function lkt_hookin__global_start() {
@@ -566,6 +568,7 @@ function linktools_activate() {
 	find_replace_templatesets('modcp_modqueue_threads_thread', '({\\$lang->delete}</label>)', '{$lang->delete}</label>'."\n\t\t\t\t\t\t\t".'<label class="label_radio_delete_link_spam" title="{$lang->lkt_delete_link_spam_title}"><input type="radio" class="radio radio_delete_link_spam" name="threads[{$thread[\'tid\']}]" value="delete_link_spam" /> {$lang->lkt_delete_link_spam}</label>');
 	find_replace_templatesets('modcp_modqueue_posts_post', '({\\$lang->delete}</label>)', '{$lang->delete}</label>'."\n\t\t\t\t\t\t\t".'<label class="label_radio_delete_link_spam" title="{$lang->lkt_delete_link_spam_title}"><input type="radio" class="radio radio_delete_link_spam" name="posts[{$post[\'pid\']}]" value="delete_link_spam" /> {$lang->lkt_delete_link_spam}</label>');
 	find_replace_templatesets('modcp_modqueue_masscontrols', '({\\$lang->mark_all_deletion}</a></li>)', '{$lang->mark_all_deletion}</a></li>'."\n\t".'<li><a href="javascript:void(0)" class="mass_delete_link_spam" onclick="$(\'input.radio_delete_link_spam\').each(function(){ $(this).prop(\'checked\', true); }); return false;">{$lang->lkt_mark_all_deletion_link_spam}</a></li>');
+	find_replace_templatesets('moderation_purgespammer', '('.preg_quote('<input class="button" type="submit" value="{$lang->purgespammer_submit}" />').')', '<input type="checkbox" class="checkbox" name="classify_links_as_spam" value="1" checked="checked" />{$lang->lkt_classify_links_as_spam}</label><br /><input class="button" type="submit" value="{$lang->purgespammer_submit}" />');
 
 	$res = $db->simple_select('tasks', 'tid', "file='linktools'", array('limit' => '1'));
 	if ($db->num_rows($res) == 0) {
@@ -613,6 +616,7 @@ function linktools_deactivate() {
 	find_replace_templatesets('modcp_modqueue_threads_thread', '('.preg_quote("\n\t\t\t\t\t\t\t".'<label class="label_radio_delete_link_spam" title="{$lang->lkt_delete_link_spam_title}"><input type="radio" class="radio radio_delete_link_spam" name="threads[{$thread[\'tid\']}]" value="delete_link_spam" /> {$lang->lkt_delete_link_spam}</label>').')', '', 0);
 	find_replace_templatesets('modcp_modqueue_posts_post', '('.preg_quote("\n\t\t\t\t\t\t\t".'<label class="label_radio_delete_link_spam" title="{$lang->lkt_delete_link_spam_title}"><input type="radio" class="radio radio_delete_link_spam" name="posts[{$post[\'pid\']}]" value="delete_link_spam" /> {$lang->lkt_delete_link_spam}</label>').')', '', 0);
 	find_replace_templatesets('modcp_modqueue_masscontrols', '('.preg_quote("\n\t".'<li><a href="javascript:void(0)" class="mass_delete_link_spam" onclick="$(\'input.radio_delete_link_spam\').each(function(){ $(this).prop(\'checked\', true); }); return false;">{$lang->lkt_mark_all_deletion_link_spam}</a></li>').')', '', 0);
+	find_replace_templatesets('moderation_purgespammer', '('.preg_quote('<input type="checkbox" class="checkbox" name="classify_links_as_spam" value="1" checked="checked" />{$lang->lkt_classify_links_as_spam}</label><br />').')', '', 0);
 
 	$db->update_query('tasks', array('enabled' => 0), 'file=\'linktools\'');
 }
@@ -5128,6 +5132,12 @@ function lkt_hookin__modcp_start() {
 	$lang->load(C_LKT);
 }
 
+function lkt_hookin__moderation_purgespammer_show() {
+	global $lang;
+
+	$lang->load(C_LKT);
+}
+
 function lkt_hookin__modcp_do_modqueue_start() {
 	global $mybb, $db;
 
@@ -5185,5 +5195,24 @@ WHERE            p.pid IN ($pids_cs)
 EOSQL
 			);
 		}
+	}
+}
+
+function lkt_hookin__moderation_purgespammer_purge() {
+	global $mybb, $db, $uid;
+
+	if ($mybb->get_input('classify_links_as_spam')) {
+		$db->write_query(<<<EOSQL
+UPDATE           {$db->table_prefix}urls u
+RIGHT OUTER JOIN {$db->table_prefix}post_urls pu
+ON               pu.urlid = u.urlid
+RIGHT OUTER JOIN {$db->table_prefix}posts p
+ON               p.pid = pu.pid
+SET              u.spam_class = 'Spam'
+WHERE            p.uid = {$uid}
+                 AND
+                 u.spam_class IN ('Unspecified', 'Potential spam')
+EOSQL
+		);
 	}
 }

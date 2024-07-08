@@ -72,3 +72,5 @@ $l['lkt_redirect_edit_anti_link_spam_moderation'] = 'Your edited post is being m
 $l['lkt_delete_link_spam'] = 'Delete; classify links as spam';
 $l['lkt_mark_all_deletion_link_spam'] = 'Mark all for deletion with links classified as spam';
 $l['lkt_delete_link_spam_title'] = 'Deletes the content after classifying any links in it as spam (excluding those already classified as \'Not spam\')';
+
+$l['lkt_classify_links_as_spam'] = 'Classify all links in the user\'s posts as spam (except for those already classified as \'Not spam\')';
