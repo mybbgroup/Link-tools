@@ -144,8 +144,8 @@ $l['lkt_one_previewer'     ] = '1 link previewer';
 // ...will replace {1} in this string:
 $l['lkt_need_inst_previewers'] = 'Necessary templates need to be installed for {1}. Click {2}here{3} to install them.';
 
-$l['lkt_init_url_dateline'         ] = 'There is one as-yet undated link (from before dating was added) that can be dated based on the first post in which it occurs. You do not need to initialise it. As an undated link its date will simply be displayed as "Unknown (oldest)". If you do, though, wish to initialise it, then:';
-$l['lkt_init_urls_dateline'        ] = 'There are {1} as-yet undated links (from before dating was added) that can be dated based on the first posts in which they occur. You do not need to initialise them. The date of undated links will simply be displayed as "Unknown (oldest)". If you do, though, wish to initialise them, then:';
+$l['lkt_init_url_dateline'         ] = 'There is one as-yet undated link (from before dating was added) that can be dated based on the first post in which it occurs. You do not need to initialise it. As an undated link its date will simply be displayed as "Unknown". If you do, though, wish to initialise it, then:';
+$l['lkt_init_urls_dateline'        ] = 'There are {1} as-yet undated links (from before dating was added) that can be dated based on the first posts in which they occur. You do not need to initialise them. The date of undated links will simply be displayed as "Unknown". If you do, though, wish to initialise them, then:';
 $l['lkt_init_url_dateline_link'    ] = 'Click here to initialise it';
 $l['lkt_init_url_dateline_links'   ] = 'Click here to initialise them';
 $l['lkt_init_url_dateline_success' ] = 'Successfully initialised the date of the initialisable link.';
@@ -199,7 +199,7 @@ $l['lkt_filter_go'] = 'Filter';
 $l['lkt_search_go'] = 'Search for link';
 $l['lkt_mark_all_spam'] = 'Mark all spam';
 $l['lkt_mark_all_not_spam'] = 'Mark all not spam';
-$l['lkt_date_unknown'] = 'Unknown (oldest)';
+$l['lkt_date_unknown'] = 'Unknown';
 $l['lkt_itself'] = 'Itself';
 $l['lkt_containing_post_count_link_title'] = 'Only visible (non-deleted) posts will be shown in search results when clicking on this link';
 $l['lkt_import_links_submit_caption'] = 'Import Links';
