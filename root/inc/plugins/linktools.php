@@ -1220,19 +1220,19 @@ function lkt_create_or_update_settings() {
 			'title'       => $lang->lkt_anti_link_spam_usergroups_title,
 			'description' => $lang->lkt_anti_link_spam_usergroups_desc,
 			'optionscode' => 'groupselect',
-			'value'       => '2,5',
+			'value'       => '',
 		),
 		'anti_link_spam_max_account_age_days' => array(
 			'title'       => $lang->lkt_anti_link_spam_max_account_age_days_title,
 			'description' => $lang->lkt_anti_link_spam_max_account_age_days_desc,
 			'optionscode' => 'numeric',
-			'value'       => '90',
+			'value'       => '10',
 		),
 		'anti_link_spam_max_post_count' => array(
 			'title'       => $lang->lkt_anti_link_spam_max_post_count_title,
 			'description' => $lang->lkt_anti_link_spam_max_post_count_desc,
 			'optionscode' => 'numeric',
-			'value'       => '30',
+			'value'       => '5',
 		),
 		'anti_link_spam_qualifying_action' => array(
 			'title'       => $lang->lkt_anti_link_spam_qualifying_action_title,
