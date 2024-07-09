@@ -1,6 +1,6 @@
 ## About Link Tools
 
-Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links (URLs) in posts made to your forum, and then provides you with five new features:
+Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links (URLs) in posts made to your forum, and then provides you with nine new features:
 
 1. *Link previews*. Are shown at the bottom of each post for each link in the post. Supports custom "Link Previewers" to generate different previews for different types of link. Shows the preview for the terminating link rather than the original link itself.
 
@@ -11,6 +11,14 @@ Link Tools is a plugin for [MyBB](https://mybb.com/) 1.8. It extracts the links 
 4. *Link limiting*. Admins can set a maximum to the number of links over a (rolling) stipulated period (in days) that members of stipulated usergroups may post to a stipulated set of forums. Once the limit is reached for a given member, or would be by the new submission, submissions of new posts/threads to any of the stipulated forums by that member are rejected with an explanatory error message. The interface for adding link limit rules is in the ACP at "Forums & Posts" -> "Link Posting Limits".
 
 5. *Link posting moderation*. Admins can set forum and usergroup permissions such that new posts containing a link and/or existing posts into which a new link is edited are subjected to moderation.
+
+6. *Anti-link spam protection*. Admins can classify links as spam, and set an action to occur when a spam link is posted under qualifying conditions. The possible actions in increasing order of severity are to moderate the post, delete the post, and purge the link spammer either by a ban or deletion. The qualifying conditions relate to usergroup, account age, post count, and submission type (new post, edited post, or either).
+
+7. *Automatic spam classification of links*. When posts or threads are deleted via the moderation queue, either in the ModCP or ACP, and when a spammer is purged, the moderator/admin can choose to have any links in the deleted posts/threads auto-classified as spam.
+
+8. *Link listing*. Admins can view all links in the database. The listing can be filtered by spam classification, and searched by (partial) link. Links can individually or en masse be (re)classified as spam or not spam.
+
+9. *Link importing*. Admins can import links into the database as plain text with one link per line, having them classified as spam (or not spam). This feature is expected to be most used for importing spam links for use by the anti-link spam protection functionality described above.
 
 ### What does Link Tools consider to be a link?
 
