@@ -170,10 +170,10 @@ function linktools_info() {
 		'website'       => 'https://mybb.group/Thread-Link-Tools',
 		'author'        => 'Laird as a member of the unofficial MyBB Group',
 		'authorsite'    => 'https://mybb.group/User-Laird',
-		'version'       => '1.4.2-dev',
+		'version'       => '1.5.0-dev',
 		// Constructed by converting each digit of 'version' above into two digits (zero-padded if necessary),
 		// then concatenating them, then removing any leading zero(es) to avoid the value being interpreted as octal.
-		'version_code'  => '10402',
+		'version_code'  => '10500',
 		'guid'          => '',
 		'codename'      => C_LKT,
 		'compatibility' => '18*'
@@ -388,7 +388,7 @@ CREATE TABLE '.TABLE_PREFIX.'link_limits (
 	}
 
 
-	/** The following two columns and two indexes were added in version 1.4.2. */
+	/** The following two columns and two indexes were added in version 1.5.0. */
 
 	if (!$db->field_exists('dateline', 'urls')) {
 		$db->write_query('ALTER TABLE '.TABLE_PREFIX.'urls ADD dateline int(10) unsigned NOT NULL DEFAULT 0');
@@ -813,11 +813,11 @@ function lkt_toggle_hidden_posts() {
 		),
 		'linktools_cbxdisablelinkpreview' => array(
 			'template' => '<br /><label><input type="checkbox" class="checkbox" name="lkt_linkpreviewoff" value="1" tabindex="9"{$linkpreviewoffchecked} /> {$lang->lkt_linkpreviewoff}</label>',
-			'version_at_last_change' => '10402',
+			'version_at_last_change' => '10500',
 		),
 		'linktools_potential_spam_mod_notice' => array(
 			'template' => '<div class="red_alert"><a href="{$config[\'admin_dir\']}/index.php?module=forum-linklisting&amp;spam_class_filters[1]=Potential+spam"> {$pot_spam_link_header_msg}</a></div>',
-			'version_at_last_change' => '10402',
+			'version_at_last_change' => '10500',
 		),
 	);
 
