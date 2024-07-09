@@ -1860,9 +1860,9 @@ function lkt_resolve_and_store_urls_from_message($message, $pid = null) {
 	return lkt_resolve_and_store_urls_from_list(lkt_extract_urls($message)[0], $pid);
 }
 
-function lkt_resolve_and_store_urls_from_list($urls, $pid = null) {
+function lkt_resolve_and_store_urls_from_list($urls, $pid = null, $spam_class = 'Unspecified', $override_spam_class_policy = 'ignore') {
 	list($redirs, $got_terms) = lkt_get_resolved_urls_from_list($urls);
-	lkt_store_urls($urls, $redirs, $got_terms, $pid);
+	lkt_store_urls($urls, $redirs, $got_terms, $pid, $spam_class, $override_spam_class_policy);
 
 	return [$redirs, $got_terms];
 }
@@ -1888,10 +1888,28 @@ function lkt_get_resolved_urls_from_list($urls) {
 }
 
 /**
- * If $got_terms is false, then it indicates that no attempt was even made at resolving terminating redirects.
- * Otherwise, it is an array indexed by URLs indicating (true/false) whether or not a terminating redirect was found for the given URL.
+ * Stores a list of URLs to the database.
+ *
+ * @param array $urls        An array of URLs as strings.
+ * @param array $redirs      An array each key of which is a URL from $urls and each value of which is the URL in which
+ *                           that URL terminates after all redirects have been followed.
+ * @param mixed $got_terms   Boolean false if no attempt was made at resolving terminating redirects, otherwise,
+ *                           an array indexed by URLs from $urls indicating (boolean true/false) whether or not
+ *                           a terminating URL (after resolving all redirects) was found for the given URL.
+ * @param integer $pid       The post ID of the post with which to associate the URLs, if any. Null indicates not to
+ *                           associate the URLs with any post.
+ * @param string $spam_class The value to store or update for the `spam_class` field in the `urls` table for each URL.
+ *                           One of 'Unspecified', 'Potential spam', 'Not spam', and 'Spam'.
+ * @param string $override_spam_class_policy The policy for updating the `spam_class` database field where a URL
+ *                                           already exists in the `urls` database table.
+ *                                           One of 'override', 'conditional', 'ignore', where:
+ *                                           'override'    means "unconditionally update to the value of $spam_class",
+ *                                           'conditional' means "update to the value of $spam_class when the existing
+ *                                                                value of the `spam_class` field is 'Unspecified' or
+ *                                                                'Potential spam', and
+ *                                           'ignore'      means "do not update any existing value".
  */
-function lkt_store_urls($urls, $redirs, $got_terms, $pid = null) {
+function lkt_store_urls($urls, $redirs, $got_terms, $pid = null, $spam_class = 'Unspecified', $override_spam_class_policy = 'ignore') {
 	global $db;
 
 	$now = time();
@@ -1901,6 +1919,13 @@ function lkt_store_urls($urls, $redirs, $got_terms, $pid = null) {
 			$res = $db->simple_select('urls', 'urlid', 'url = \''.$db->escape_string($url).'\'');
 			if ($row = $db->fetch_array($res)) {
 				$urlid = $row['urlid'];
+				if (in_array($override_spam_class_policy, ['override', 'conditional'])) {
+					$conds = "url = '".$db->escape_string($url)."'";
+					if ($override_spam_class_policy == 'conditional') {
+						$conds .= " AND spam_class IN ('Unspecified', 'Potential spam')";
+					}
+					$db->update_query('urls', ['spam_class' => $spam_class], $conds);
+				}
 			} else {
 				$url_fit         = substr($url   , 0, lkt_max_url_len);
 				$url_norm_fit    = substr(lkt_normalise_url($url), 0, lkt_max_url_len);
@@ -1911,7 +1936,7 @@ function lkt_store_urls($urls, $redirs, $got_terms, $pid = null) {
 				// rows with duplicate values for `url`.
 				if (!$db->write_query('
 INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_term, term_tries, last_term_try, spam_class, dateline)
-       SELECT \''.$db->escape_string($url_fit).'\', \''.$db->escape_string($url_norm_fit).'\', \''.$db->escape_string($target == false ? $url_fit : $target_fit).'\', \''.$db->escape_string($target_norm_fit).'\', \''.(!$got_terms || empty($got_terms[$url]) ? '0' : '1')."', '".(!$got_terms ? '0' : '1')."', '$now', 'Unspecified', '$now'".'
+       SELECT \''.$db->escape_string($url_fit).'\', \''.$db->escape_string($url_norm_fit).'\', \''.$db->escape_string($target == false ? $url_fit : $target_fit).'\', \''.$db->escape_string($target_norm_fit).'\', \''.(!$got_terms || empty($got_terms[$url]) ? '0' : '1')."', '".(!$got_terms ? '0' : '1')."', '$now', '".$db->escape_string($spam_class)."', '$now'".'
        FROM '.TABLE_PREFIX.'urls WHERE url=\''.$db->escape_string($url).'\'
        HAVING COUNT(*) = 0')
 				    ||
@@ -4711,7 +4736,7 @@ function lkt_hookin__admin_forum_menu($sub_menu) {
 	$lang->load(C_LKT);
 	$key = max(array_keys($sub_menu)) + 10;
 	$sub_menu[$key] = array('id' => 'linklimits', 'title' => $lang->lkt_linklimits, 'link' => 'index.php?module=forum-linklimits');
-	$sub_menu[$key + 10] = array('id' => 'linklisting', 'title' => $lang->lkt_linklisting, 'link' => 'index.php?module=forum-linklisting');
+	$sub_menu[$key + 10] = array('id' => 'linklisting', 'title' => $lang->lkt_linklisting_and_import, 'link' => 'index.php?module=forum-linklisting');
 
 	return $sub_menu;
 }
