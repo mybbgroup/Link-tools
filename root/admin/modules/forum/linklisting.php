@@ -142,8 +142,7 @@ if ($mybb->input['action'] == 'import_links') {
 
 	if ($pgnum > $pgmax) $pgnum = $pgmax;
 
-	$current_url = "index.php?module=forum-linklisting&amp;page={$pgnum}";
-	$current_url_filtered = $current_url;
+	$current_url_filtered = "index.php?module=forum-linklisting";
 	if ($spam_class_filters) {
 		foreach ($spam_class_filters as $i => $filter) {
 			$i = (int)$i;
@@ -153,12 +152,12 @@ if ($mybb->input['action'] == 'import_links') {
 	if ($searched_link) {
 		$current_url_filtered .= '&amp;searched_link='.urlencode($searched_link);
 	}
+	$current_url_filtered_pg = $current_url_filtered."&amp;page={$pgnum}";
 
 	$table = new Table;
 	$form  = new Form('index.php', 'get', /*$id=*/'', /*$allow_uploads=*/false, /*$name=*/'', /*$return=*/true);
 	$html  = $form->construct_return;
 	$html .= $form->generate_hidden_field('module', 'forum-linklisting');
-	$html .= $form->generate_hidden_field('page', 1);
 	foreach ($spam_classes as $i => $spam_class) {
 		$options = [];
 		if (in_array($spam_class, $spam_class_filters)) {
@@ -177,7 +176,7 @@ if ($mybb->input['action'] == 'import_links') {
 	$table->construct_row();
 	$table->output();
 
-	$form = new Form($current_url_filtered, 'post');
+	$form = new Form($current_url_filtered_pg, 'post');
 	$form_container = new FormContainer($lang->lkt_linklisting);
 	$form_container->output_row_header($lang->lkt_url);
 	$form_container->output_row_header($lang->lkt_url_term);
@@ -240,7 +239,7 @@ LIMIT    ".(($pgnum - 1) * $per_page).', '.$per_page
 
 	$form->end();
 
-	echo draw_admin_pagination($pgnum, $per_page, $tot_rows, $current_url_filtered.'&page={page}');
+	echo draw_admin_pagination($pgnum, $per_page, $tot_rows, $current_url_filtered);
 }
 
 $page->output_footer();
