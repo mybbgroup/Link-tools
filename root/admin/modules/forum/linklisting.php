@@ -71,7 +71,7 @@ $page->add_breadcrumb_item($lang->lkt_linklisting_and_import, "index.php?module=
 
 $page->output_header($lang->lkt_linklisting_and_import);
 
-if ($mybb->input['action'] == 'import_links') {
+if ($mybb->get_input('action') == 'import_links') {
 	$page->output_nav_tabs($sub_tabs, 'linkimport');
 
 	if ($errors) {
