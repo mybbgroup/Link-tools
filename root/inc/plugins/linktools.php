@@ -100,7 +100,6 @@ $plugins->add_hook('xmlhttp'                                , 'lkt_hookin__xmlht
 $plugins->add_hook('admin_config_settings_change'           , 'lkt_hookin__admin_config_settings_change'           );
 $plugins->add_hook('admin_settings_print_peekers'           , 'lkt_hookin__admin_settings_print_peekers'           );
 $plugins->add_hook('postbit'                                , 'lkt_hookin__postbit'                                );
-$plugins->add_hook('postbit'                                , 'lkt_hookin__postbit_etc'                            );
 $plugins->add_hook('postbit_prev'                           , 'lkt_hookin__postbit_etc'                            );
 $plugins->add_hook('postbit_pm'                             , 'lkt_hookin__postbit_etc'                            );
 $plugins->add_hook('postbit_announcement'                   , 'lkt_hookin__postbit_etc'                            );
