@@ -3742,6 +3742,7 @@ function lkt_hookin__admin_tools_recount_rebuild() {
 				// Log admin action
 				log_admin_action($lang->lkt_admin_log_rebuild_linkpreviews);
 				$db->update_query('urls', array('got_preview' => 0));
+				$db->delete_query('url_previews');
 			}
 
 			if (!$mybb->get_input('lkt_linkpreviews_per_page', MyBB::INPUT_INT)) {
