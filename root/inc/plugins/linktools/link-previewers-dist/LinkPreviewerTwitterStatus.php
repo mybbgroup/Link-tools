@@ -28,7 +28,7 @@ class LinkPreviewerTwitterStatus extends LinkPreviewer {
 	 * Support only Twitter status links (as detected after URL
 	 * normalisation).
 	 */
-	protected $supported_norm_links_regex = '(^http\\(s\\)://twitter.com/.*/status/\\d+(\\?.*)?$)';
+	protected $supported_norm_links_regex = '(^http\\(s\\)://(?:twitter|x).com/.*/status/(\\d+)(\\?.*)?$)';
 
 	/**
 	 * Set a neutral priority for this Previewer (priorities may be negative).
@@ -49,7 +49,7 @@ class LinkPreviewerTwitterStatus extends LinkPreviewer {
 	 * be shown in the ACP Config's Link Previewers module at:
 	 * admin/index.php?module=config-linkpreviewers
 	 */
-	protected $friendly_name = 'Twitter status';
+	protected $friendly_name = 'X/Twitter status';
 
 	/**
 	 * This Previewer does not need the page's content and/or content-type
