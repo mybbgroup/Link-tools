@@ -2805,6 +2805,30 @@ function lkt_get_header($headers, $header_name) {
 	return false;
 }
 
+/* Heavily based on:
+ * https://www.php.net/manual/en/function.mb-list-encodings.php#122266
+ */
+function lkt_get_valid_mb_encodings() {
+	static $ret = null;
+
+	if (is_null($ret)) {
+		$ret = array_unique(
+			array_merge(
+				$enc = mb_list_encodings(),
+				call_user_func_array(
+					'array_merge',
+					array_map(
+						'mb_encoding_aliases',
+						$enc
+					)
+				)
+			)
+		);
+	}
+
+	return $ret;
+}
+
 /**
  * Get the preview for a link, first generating its data and storing that to the
  * DB if appropriate/necessary.
@@ -2834,9 +2858,11 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 		$should_cache_preview = $previewerobj->get_should_cache_preview();
 
 		// Handle different character sets by converting them to UTF8.
-		if ($charset != 'utf-8') {
-			$from = $charset ? $charset : mb_detect_encoding($html);
-			$html = @mb_convert_encoding($html, 'utf-8', $from);
+		if (strtolower($charset) != 'utf-8') {
+			$from = in_array($charset, lkt_get_valid_mb_encodings()) ? $charset : mb_detect_encoding($html);
+			if ($from) {
+				$html = mb_convert_encoding($html, 'utf-8', $from);
+			}
 		}
 
 		$preview_data = $previewerobj->get_preview_data($term_url, $html, $content_type);
