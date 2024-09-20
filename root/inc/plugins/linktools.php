@@ -2488,7 +2488,14 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 	$query = $db->simple_select('url_previews', 'valid, dateline, previewer_class_name, previewer_class_vers, preview_data', "url_term = '".$db->escape_string($term_url)."'");
 	$row = $db->fetch_array($query);
 	$has_db_entry = $row ? true : false;
-	if ($manual_regen === 'force_regen') {
+	if ($manual_regen === 'force_regen'
+	    ||
+	    $row && $priority_previewer_classname
+	    &&
+	    $row['previewer_class_name'] != $priority_previewer_classname
+	    &&
+	    $priority_previewer_classname::get_instance()->needs_content_for() === LinkPreviewer::NC_NEVER_AND_FINAL
+	   ) {
 		$regen = true;
 	} else if ($row) {
 		if ($manual_regen) {
