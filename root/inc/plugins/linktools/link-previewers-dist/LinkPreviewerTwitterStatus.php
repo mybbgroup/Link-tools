@@ -132,7 +132,7 @@ EOT;
 
 		$link_safe = $this->make_safe($link);
 
-		preg_match('(/(\\d+)$)', $link, $matches);
+		preg_match('(/(\\d+)(\\?.*)?$)', $link, $matches);
 		$tweet_id = $matches[1];
 		if (strlen($tweet_id) < 1024) {
 			$rand = mt_rand();
