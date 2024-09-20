@@ -2872,7 +2872,7 @@ function lkt_get_gen_link_preview($term_url, $html, $content_type, $charset = ''
 		$preview_data = $res['preview_data'];
 	}
 
-	if ($previewerobj) {
+	if (!empty($previewerobj)) {
 		$preview = $previewerobj->get_preview($term_url, $preview_data);
 	} else	$preview = '';
 
