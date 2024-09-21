@@ -2679,6 +2679,7 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 				$ts_now2 = microtime(true);
 				foreach ($curl_handles as $url => $ch) {
 					if ($ch) {
+						$have_preview = false;
 						$content = curl_multi_getcontent($ch);
 						$server_urls[lkt_get_norm_server_from_url($url)]['last_hit'] = $ts_now2;
 						if ($content
@@ -2691,13 +2692,11 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 							$content_type = lkt_get_content_type_from_hdrs($headers);
 							$html = substr($content, $header_size);
 							$charset = lkt_get_charset($headers, $html);
-							$have_preview = false;
 						} else {
 							$headers = '';
 							$content_type = 'text/html';
 							$html = '';
 							$charset = '';
-							$have_preview = false;
 						}
 						if ($pv_data[$url]['pv_provis']) {
 							$res = lkt_url_has_needs_preview($url, $force_regen ? 'force_regen' : false, $content_type, $content);
