@@ -34,7 +34,7 @@ $l['lkt_admin_log_rebuild_renorm'] = 'Renormalising links for Link Tools.';
 $l['lkt_success_rebuild_renorm'] = 'Successfully renormalised links for Link Tools.';
 
 $l['lkt_rebuild_linkpreviews'     ] = 'Rebuild Link Previews for Link Tools';
-$l['lkt_rebuild_linkpreviews_desc'] = 'When this is run, link previews are (re)generated for all terminating links in the database. Whether link previews are (re)generated for all terminating links or only for those which do not already exist or are invalid can be controlled via the Link Tools setting "Scope of Rebuild Link Previews entry".';
+$l['lkt_rebuild_linkpreviews_desc'] = 'When this is run, link previews are (re)generated for terminating links in the database. Whether link previews are (re)generated for all terminating links or only for those which do not already exist or are invalid can be controlled via the Link Tools setting "Scope of Rebuild Link Previews entry".';
 $l['lkt_admin_log_rebuild_linkpreviews'] = 'Rebuilding link previews for Link Tools.';
 $l['lkt_success_rebuild_linkpreviews'] = 'Successfully rebuilt link previews for Link Tools.';
 
