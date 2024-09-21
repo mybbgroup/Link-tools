@@ -2088,6 +2088,9 @@ function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 			CURLOPT_TIMEOUT        => lkt_curl_timeout,
 			CURLOPT_USERAGENT      => 'The MyBB Link Tools plugin',
 		);
+		if ($cookies = lkt_get_site_specific_cookies($url)) {
+			$opts[CURLOPT_HTTPHEADER] = ['Cookie: '.lkt_cookies_to_hdr_str($cookies)];
+		}
 		foreach (lkt_get_extra_curl_opts() as $k => $v) {
 			$opts[$k] = $v;
 		}
@@ -2182,6 +2185,50 @@ function lkt_get_url_redirs($urls, &$server_last_hit_times = array(), &$origin_u
 	curl_multi_close($mh);
 
 	return array($redirs, $deferred_urls);
+}
+
+function lkt_get_site_specific_cookies($url) {
+	static $site_regex_cookies;
+
+	if (!isset($site_regex_cookies)) {
+		$site_regex_cookies = [];
+		$custdir = MYBB_ROOT.'/inc/plugins/'.C_LKT.'/site-specific-cookies-3rd-party/';
+		if (is_dir($custdir)) {
+			$files = scandir($custdir, SCANDIR_SORT_ASCENDING);
+			if (is_array($files)) {
+				foreach ($files as $custcookiefname) {
+					if (strtolower(substr($custcookiefname, -4)) == '.php') {
+						$site_regex_cookies = array_merge($site_regex_cookies, include $custdir.$custcookiefname);
+					}
+				}
+			}
+		}
+		$site_regex_cookies = array_merge($site_regex_cookies, include MYBB_ROOT.'/inc/plugins/'.C_LKT.'/site-specific-cookies.php');
+	}
+
+	$ret = [];
+
+	foreach ($site_regex_cookies as $site_regex => $cookies) {
+		if (preg_match($site_regex, $url)) {
+			$ret = $cookies;
+			break;
+		}
+	}
+
+	return $ret;
+}
+
+function lkt_cookies_to_hdr_str($cookies) {
+	$ret = '';
+	foreach ($cookies as $key => $val) {
+		if ($ret) {
+			$ret .= '; ';
+		}
+		// Based on https://stackoverflow.com/a/1969339
+		$ret .= preg_replace('([^a-zA-Z0-9!#\\$%&\'\\*\\+\\-\\.^_`\\|~])', '', $key).'='.preg_replace('([^a-zA-Z0-9!#\\$%&\'\\(\\)\\*\\+\\-\\./:<=>\\?@\\[\\]^_`\\{\\|\\}~])', '', $val);
+	}
+
+	return $ret;
 }
 
 function lkt_check_canonicalise_path($path) {
