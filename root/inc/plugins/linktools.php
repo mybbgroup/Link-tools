@@ -2464,6 +2464,11 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 		}
 	}
 
+	if ($have_content && !$priority_previewer_classname_provis && !$priority_previewer_classname) {
+		$ret = array('result' => LKT_PV_NOT_REQUIRED, 'has_db_entry' => $has_db_entry);
+		goto lkt_url_has_needs_preview_end;
+	}
+
 	$is_provisional =
 	   !$have_content
 	   &&
@@ -2533,6 +2538,13 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 		$ret['result']       = LKT_PV_DATA_FOUND;
 		$ret['preview_data'] = $preview_data;
 		$ret['previewer']    = $row['previewer_class_name'];
+	} else if ($row && $row['previewer_class_name'] == 'NOTREQUIRED' && $is_provisional) {
+		/**
+		 * We'd stored 'NOTREQUIRED' in the database in a prior load to indicate that we've
+		 * already queried the URL and found no applicable previewer, so as not to requery the
+		 * server, otherwise we'd be requerying it on every load.
+		 */
+		$ret['result']       = LKT_PV_NOT_REQUIRED;
 	} else if (!empty($ret['previewer'])) {
 		$ret['result']       = LKT_PV_GOT_PREVIEWER;
 	} else	$ret['result']       = LKT_PV_NOT_REQUIRED;
@@ -2704,9 +2716,35 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 								$previewerobj = $res['previewer']::get_instance();
 								$previews[$url] = $previewerobj->get_preview($url, $res['preview_data']);
 								$have_preview = true;
-							}
-							if ($res['result'] === LKT_PV_GOT_PREVIEWER) {
+							} else if ($res['result'] === LKT_PV_GOT_PREVIEWER) {
 								$pv_data[$url]['pv_classname'] = $res['previewer'];
+							} else if ($res['result'] == LKT_PV_NOT_REQUIRED) {
+								$previews[$url] = '';
+								$have_preview = true;
+								// Store an indication in the DB that a previewer is not
+								// required so we don't requery this URL unnecessarily
+								// in the future.
+								$fields = array(
+									'valid'                => '1',
+									'dateline'             => TIME_NOW,
+									'previewer_class_name' => 'NOTREQUIRED',
+									'previewer_class_vers' => '',
+									'preview_data'         => '',
+								);
+								if ($res['has_db_entry']) {
+									$db->update_query('url_previews', $fields, "url_term = '".$db->escape_string($url)."'");
+								} else {
+									$fields['url_term'] = $db->escape_string($url);
+									// Simulate a UNIQUE constraint on the `url_norm` column
+									// using HAVING. We can't use an actual UNIQUE
+									// constraint because the DB's maximum allowable key
+									// length is so short that we often enough end up with
+									// duplicate keys for different values.
+									$db->write_query('INSERT INTO '.TABLE_PREFIX.'url_previews (valid, dateline, previewer_class_name, previewer_class_vers, preview_data, url_term)
+						SELECT \''.$fields['valid'].'\', \''.$fields['dateline'].'\', \''.$fields['previewer_class_name'].'\', \''.$fields['previewer_class_vers'].'\', \''.$fields['preview_data'].'\', \''.$fields['url_term'].'\'
+						FROM '.TABLE_PREFIX.'url_previews WHERE url_term=\''.$fields['url_term'].'\'
+						HAVING COUNT(*) = 0');
+								}
 							}
 						}
 						if (!$have_preview) {
