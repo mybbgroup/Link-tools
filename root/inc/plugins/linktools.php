@@ -2529,7 +2529,7 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 	$ret = array('provis' => $is_provisional, 'has_db_entry' => $has_db_entry, 'previewer'  => $is_provisional ? $priority_previewer_classname_provis : $priority_previewer_classname);
 	if ($regen) {
 		$ret['result']       = LKT_PV_GOT_PREVIEWER;
-	} else if ($row && $inst_previewers[$row['previewer_class_name']]['enabled']) {
+	} else if ($row && !empty($inst_previewers[$row['previewer_class_name']]['enabled'])) {
 		$ret['result']       = LKT_PV_DATA_FOUND;
 		$ret['preview_data'] = $preview_data;
 		$ret['previewer']    = $row['previewer_class_name'];
@@ -4403,7 +4403,7 @@ function lkt_hookin__admin_config_settings_change() {
 
 	$res = $db->simple_select('settinggroups', 'gid', "name = '".C_LKT."_settings'", array('limit' => 1));
 	$gid = $db->fetch_field($res, 'gid');
-	$lkt_settings_peeker = ($mybb->input['gid'] == $gid) && ($mybb->request_method != 'post');
+	$lkt_settings_peeker = ($mybb->get_input('gid') == $gid) && ($mybb->request_method != 'post');
 }
 
 function lkt_hookin__admin_settings_print_peekers(&$peekers) {
@@ -4465,7 +4465,7 @@ function lkt_hookin__postbit($post) {
 	if ($g_lkt_previews && empty($post['lkt_linkpreviewoff'])) {
 		$post['message'] = str_replace(array_keys($g_lkt_previews), array_values($g_lkt_previews), $post['message']);
 		$post['updatepreview'] = lkt_get_preview_regen_container($post, $g_lkt_links_excl_vids);
-	}
+	} else	$post['updatepreview'] = '';
 
 	$g_lkt_previews = false;
 
