@@ -2514,7 +2514,7 @@ function lkt_url_has_needs_preview($term_url, $manual_regen = false, $content_ty
 				// because the finalisation of those Previewers requires a query
 				// of the link's web server, defeating the purpose of using
 				// the cache where possible.
-				$regen = (!$is_provisional && ($org_previewer != $priority_previewer_classname || $org_previewer::get_instance()->get_version() != $row['previewer_class_vers']));
+				$regen = (!$is_provisional && ($org_previewer != $priority_previewer_classname || class_exists($org_previewer) && $org_previewer::get_instance()->get_version() != $row['previewer_class_vers']));
 			}
 			if (!$regen) {
 				$preview_data = unserialize($row['preview_data']);
