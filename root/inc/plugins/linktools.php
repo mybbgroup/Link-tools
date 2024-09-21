@@ -2702,7 +2702,7 @@ function lkt_get_gen_link_previews($term_urls, $force_regen = false) {
 							$res = lkt_url_has_needs_preview($url, $force_regen ? 'force_regen' : false, $content_type, $content);
 							if ($res['result'] === LKT_PV_DATA_FOUND) {
 								$previewerobj = $res['previewer']::get_instance();
-								$previews[$url] = $previewerobj->get_preview($term_url, $res['preview_data']);
+								$previews[$url] = $previewerobj->get_preview($url, $res['preview_data']);
 								$have_preview = true;
 							}
 							if ($res['result'] === LKT_PV_GOT_PREVIEWER) {
