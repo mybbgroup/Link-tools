@@ -3391,7 +3391,7 @@ WHERE           pu.pid = '{$posthandler->pid}'");
 			list($g_lkt_redirs, $g_lkt_got_terms) = lkt_get_resolved_urls_from_list($g_lkt_links_incl_vids);
 		}
 		lkt_store_urls($g_lkt_links_incl_vids, $g_lkt_redirs, $g_lkt_got_terms, $posthandler->pid);
-		$new_urls = $g_lkt_redirs;
+		$new_urls = $g_lkt_redirs ? $g_lkt_redirs : [];
 	} else	$new_urls = [];
 
 	$new_urls_norm = [];
@@ -5088,7 +5088,7 @@ WHERE           p.uid = {$mybb->user['uid']}");
 			// moderators at times - e.g., by preventing them from adding explanatory links
 			// for their actions to offending posts - but it's a (the most?) straightforward
 			// approach.
-			$eff_user = $posthandler->data['uid'] ? get_user($posthandler->data['uid']) : $mybb->user;
+			$eff_user = !empty($posthandler->data['uid']) ? get_user($posthandler->data['uid']) : $mybb->user;
 
 			$groups = array_merge(array($eff_user['usergroup']), explode(',', $eff_user['additionalgroups']));
 

@@ -52,7 +52,7 @@ if ($mybb->get_input('do_update')) {
 	if (!$installall) {
 		foreach ($inst_previewers as $inst_previewer => $arr) {
 			$input_arr = $mybb->get_input($inst_previewer, MyBB::INPUT_ARRAY);
-			if (empty($just_installed[$inst_previewer]) && is_array($input_arr) && $input_arr[0] != $inst_previewer) {
+			if (empty($just_installed[$inst_previewer]) && (!isset($input_arr[0]) || $input_arr[0] != $inst_previewer)) {
 				$tpl_nm = lkt_mk_tpl_nm_frm_classnm($inst_previewer);
 				$db->delete_query('templates', "title = '$tpl_nm'");
 				$did_update = true;
