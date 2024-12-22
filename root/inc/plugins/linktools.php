@@ -4970,7 +4970,7 @@ function lkt_hookin__datahandler_post_validate_thread_or_post($posthandler) {
 
 	$do_anti_link_spam = $took_action = $g_lkt_moderate_post = false;
 
-	if (!isset($g_lkt_links_incl_vids)) {
+	if (!isset($g_lkt_links_incl_vids) && isset($posthandler->data['message'])) {
 		$g_lkt_links_incl_vids = lkt_extract_urls($posthandler->data['message'])[0];
 	}
 
