@@ -4948,11 +4948,11 @@ function lkt_hookin__admin_load() {
 	if ($mybb->get_input('action') == 'lkt_init_url_dateline') {
 		$db->write_query("
 UPDATE          {$db->table_prefix}urls u
-LEFT OUTER JOIN (".lkt_get_min_url_dateline_sql()."
-                ) subq
-ON              u.urlid = subq.urlid
-SET             u.dateline = subq.min_url_dateline
-WHERE           u.dateline = 0
+INNER JOIN (".lkt_get_min_url_dateline_sql()."
+           ) subq
+ON         u.urlid = subq.urlid
+SET        u.dateline = subq.min_url_dateline
+WHERE      u.dateline = 0
 ");
 		$lang_key = $db->affected_rows() == 1 ? 'lkt_init_url_dateline_success' : 'lkt_init_url_datelines_success';
 		$lang->load(C_LKT);
