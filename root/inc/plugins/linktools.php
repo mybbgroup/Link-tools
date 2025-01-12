@@ -1953,11 +1953,7 @@ INSERT INTO '.TABLE_PREFIX.'urls (url, url_norm, url_term, url_term_norm, got_te
 			}
 
 			if ($pid !== null) {
-				// We hide errors here because there is a race condition in which this insert could
-				// be performed by another process (a task or rebuild) before the current process
-				// performs it, in which case the database will reject the insert as violating the
-				// uniqueness of the primary key (urlid, pid).
-				$db->write_query('INSERT INTO '.TABLE_PREFIX."post_urls (urlid, pid) VALUES ($urlid, $pid)", /* $hide_errors = */true);
+				$db->replace_query('post_urls', ['urlid' => $urlid, 'pid' => $pid]);
 			}
 
 			break;
